@@ -22,5 +22,14 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
         modelBuilder.Entity<UserIdentity>()
             .HasIndex(ui => new { ui.Provider, ui.ProviderUserId })
             .IsUnique();
+        
+        modelBuilder.Entity<UserIdentity>()
+            .Property(ui => ui.Provider)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<SpaceMember>()
+            .Property(m => m.Role)
+            .HasConversion<string>();
+        
     }
 }
