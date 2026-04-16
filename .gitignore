@@ -430,3 +430,6 @@ FodyWeavers.xsd
 /src/Mindflow/Mindflow.Api/bin
 
 _archive
+
+# Env
+appsettings.*.json
