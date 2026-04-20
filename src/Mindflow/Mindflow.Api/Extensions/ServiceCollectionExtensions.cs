@@ -1,6 +1,12 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Mindflow.Api.Data;
+using Mindflow.Api.Models.Enums;
+using Mindflow.Api.Repositories;
+using Mindflow.Api.Services;
 
 namespace Mindflow.Api.Extensions;
 
@@ -16,25 +22,66 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddMindflowAuth(this IServiceCollection services, IConfiguration config)
     {
-        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddJwtBearer(options =>
-            {
-                var supabaseUrl = config["Supabase:Url"];
-                options.Authority = $"{supabaseUrl}/auth/v1";
-                options.Audience = config["Supabase:JwtAudience"];
-                options.TokenValidationParameters.ValidIssuer = $"{supabaseUrl}/auth/v1";
-            });
-        services.AddAuthorization();
+        var schemes = new List<string>();
+
+        var authBuilder = services.AddAuthentication(options =>
+        {
+            options.DefaultAuthenticateScheme = null;
+            options.DefaultChallengeScheme = null;
+        });
+
+        authBuilder.AddGoogleJwt(config, schemes);
+
+        services.AddAuthorization(options =>
+        {
+            options.DefaultPolicy = new AuthorizationPolicyBuilder()
+                .AddAuthenticationSchemes([.. schemes])
+                .RequireAuthenticatedUser()
+                .Build();
+        });
+
         return services;
+    }
+
+    private static AuthenticationBuilder AddGoogleJwt(
+        this AuthenticationBuilder builder,
+        IConfiguration config,
+        List<string> schemes)
+    {
+        const string scheme = "Google";
+        schemes.Add(scheme);
+
+        return builder.AddJwtBearer(scheme, options =>
+        {
+            options.Authority = "https://accounts.google.com";
+            options.Audience = config["Google:ClientId"];
+            options.Events = new JwtBearerEvents
+            {
+                OnTokenValidated = context =>
+                {
+                    if (context.Principal?.Identity is ClaimsIdentity identity &&
+                        !identity.HasClaim(c => c.Type == "auth_provider"))
+                    {
+                        identity.AddClaim(new Claim("auth_provider", nameof(AuthProvider.Google)));
+                    }
+
+                    return Task.CompletedTask;
+                }
+            };
+        });
     }
 
     public static IServiceCollection AddMindflowRepositories(this IServiceCollection services)
     {
+        services.AddScoped<ISpaceRepository, SpaceRepository>();
         return services;
     }
 
     public static IServiceCollection AddMindflowServices(this IServiceCollection services)
     {
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUserService, CurrentUserService>();
+        services.AddScoped<IAuthService, AuthService>();
         return services;
     }
 }
