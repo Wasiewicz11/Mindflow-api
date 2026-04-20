@@ -74,6 +74,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddMindflowRepositories(this IServiceCollection services)
     {
         services.AddScoped<ISpaceRepository, SpaceRepository>();
+        services.AddScoped<IProjectRepository, ProjectRepository>();
         return services;
     }
 
@@ -83,6 +84,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<ISpaceService, SpaceService>();
+        services.AddScoped<IProjectService, ProjectService>();
         return services;
     }
 }

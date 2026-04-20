@@ -43,8 +43,20 @@ public class SpaceRepository(MindflowDbContext db) : ISpaceRepository
         var space = await db.Spaces.FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId);
         if (space is null) return false;
 
+        var projects = await db.Projects
+            .Where(p => p.SpaceId == id)
+            .ToListAsync();
+
+        db.Projects.RemoveRange(projects);
         db.Spaces.Remove(space);
         await db.SaveChangesAsync();
         return true;
+    }
+
+    public Task<bool> CanUserAccessAsync(Guid id, Guid userId)
+    {
+        return db.Spaces.AnyAsync(s => s.Id == id && (
+            s.UserId == userId
+            || db.SpaceMembers.Any(m => m.SpaceId == id && m.UserId == userId)));
     }
 }
