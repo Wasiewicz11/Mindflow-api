@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Mindflow.Api.Data;
+using Mindflow.Api.Hubs;
 using Mindflow.Api.Models.Enums;
 using Mindflow.Api.Repositories;
 using Mindflow.Api.Services;
@@ -66,6 +67,19 @@ public static class ServiceCollectionExtensions
                     }
 
                     return Task.CompletedTask;
+                },
+                OnMessageReceived = context =>
+                {
+                    var accessToken = context.Request.Query["access_token"];
+                    var path = context.HttpContext.Request.Path;
+
+                    if (!string.IsNullOrEmpty(accessToken) &&
+                        path.StartsWithSegments("/hubs"))
+                    {
+                        context.Token = accessToken;
+                    }
+
+                    return Task.CompletedTask;
                 }
             };
         });
@@ -75,6 +89,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddScoped<ISpaceRepository, SpaceRepository>();
         services.AddScoped<IProjectRepository, ProjectRepository>();
+        services.AddScoped<ITaskRepository, TaskRepository>();
         return services;
     }
 
@@ -85,6 +100,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<ISpaceService, SpaceService>();
         services.AddScoped<IProjectService, ProjectService>();
+        services.AddScoped<ITaskService, TaskService>();
+        services.AddScoped<ITasksNotifier, TasksNotifier>();
         return services;
     }
 }

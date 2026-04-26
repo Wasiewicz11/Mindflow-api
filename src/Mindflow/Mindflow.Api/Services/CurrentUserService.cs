@@ -5,20 +5,25 @@ using Mindflow.Api.Data;
 namespace Mindflow.Api.Services;
 
 public class CurrentUserService(
-    IHttpContextAccessor httpContextAccessor, 
+    IHttpContextAccessor httpContextAccessor,
     MindflowDbContext db
     ) : ICurrentUserService
 {
-    public async Task<Guid> GetCurrentUserIdAsync()
+    public Task<Guid> GetCurrentUserIdAsync()
     {
         var claims = httpContextAccessor.HttpContext?.User
             ?? throw new UnauthorizedAccessException("No HTTP context.");
 
-        var sub = claims.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? claims.FindFirstValue("sub")
+        return GetUserIdAsync(claims);
+    }
+
+    public async Task<Guid> GetUserIdAsync(ClaimsPrincipal principal)
+    {
+        var sub = principal.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? principal.FindFirstValue("sub")
             ?? throw new UnauthorizedAccessException("Missing 'sub' claim.");
 
-        var provider = AuthProviderResolver.Resolve(claims);
+        var provider = AuthProviderResolver.Resolve(principal);
 
         var identity = await db.UserIdentities
             .FirstOrDefaultAsync(ui => ui.Provider == provider && ui.ProviderUserId == sub)

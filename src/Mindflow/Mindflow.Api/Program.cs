@@ -1,4 +1,6 @@
 using Mindflow.Api.Extensions;
+using Mindflow.Api.Hubs;
+using Mindflow.Api.Middleware;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -9,6 +11,7 @@ builder.Services.AddMindflowDatabase(config);
 builder.Services.AddMindflowAuth(config);
 builder.Services.AddMindflowRepositories();
 builder.Services.AddMindflowServices();
+builder.Services.AddSignalR();
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
@@ -26,5 +29,6 @@ app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<TasksHub>("/hubs/tasks");
 
 app.Run();

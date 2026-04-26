@@ -59,4 +59,21 @@ public class SpaceRepository(MindflowDbContext db) : ISpaceRepository
             s.UserId == userId
             || db.SpaceMembers.Any(m => m.SpaceId == id && m.UserId == userId)));
     }
+
+    public async Task<IEnumerable<Guid>> GetUserIdsWithAccessAsync(Guid id)
+    {
+        var ownerId = await db.Spaces
+            .Where(s => s.Id == id)
+            .Select(s => (Guid?)s.UserId)
+            .FirstOrDefaultAsync();
+
+        if (!ownerId.HasValue) return [];
+
+        var memberIds = await db.SpaceMembers
+            .Where(m => m.SpaceId == id)
+            .Select(m => m.UserId)
+            .ToListAsync();
+
+        return memberIds.Append(ownerId.Value).Distinct();
+    }
 }
