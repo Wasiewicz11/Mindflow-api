@@ -16,6 +16,20 @@ builder.Services.AddSignalR();
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
+var frontendUrl = config["Cors:FrontendUrl"];
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", policy =>
+    {
+        if (string.IsNullOrEmpty(frontendUrl))
+            policy.AllowAnyOrigin();
+        else
+            policy.WithOrigins(frontendUrl);
+
+        policy.AllowAnyHeader().AllowAnyMethod();
+    });
+});
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
