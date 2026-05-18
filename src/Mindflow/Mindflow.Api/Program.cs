@@ -9,6 +9,7 @@ var config = builder.Configuration;
 
 builder.Services.AddMindflowDatabase(config);
 builder.Services.AddMindflowAuth(config);
+builder.Services.AddMindflowStorage(config);
 builder.Services.AddMindflowRepositories();
 builder.Services.AddMindflowServices();
 builder.Services.AddSignalR();

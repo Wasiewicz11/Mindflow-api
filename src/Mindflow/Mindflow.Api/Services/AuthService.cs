@@ -9,10 +9,12 @@ namespace Mindflow.Api.Services;
 public class AuthService(
     MindflowDbContext db,
     TokenService tokenService,
-    IRefreshTokenRepository refreshTokenRepository) : IAuthService
+    IRefreshTokenRepository refreshTokenRepository,
+    IStorageService storageService) : IAuthService
 {
     public async Task<(string AccessToken, Guid RefreshToken)> RegisterAsync(
-        string sub, string email, AuthProvider provider)
+        string sub, string email, string firstName, string lastName,
+        string? googleAvatarUrl, AuthProvider provider)
     {
         var exists = await db.UserIdentities.AnyAsync(ui =>
             ui.Provider == provider && ui.ProviderUserId == sub);
@@ -20,12 +22,19 @@ public class AuthService(
         if (exists)
             throw new InvalidOperationException("User already exists.");
 
+        var userId = Guid.NewGuid();
+        string? avatarPath = null;
+
+        if (googleAvatarUrl is not null)
+            avatarPath = await storageService.UploadFromUrlAsync(googleAvatarUrl, $"avatars/{userId}");
+
         var user = new User
         {
-            Id = Guid.NewGuid(),
+            Id = userId,
             Email = email,
-            FirstName = string.Empty,
-            LastName = string.Empty,
+            FirstName = firstName,
+            LastName = lastName,
+            AvatarUrl = avatarPath,
             TimeZone = "UTC",
             CreatedAt = DateTimeOffset.UtcNow
         };

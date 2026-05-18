@@ -17,9 +17,12 @@ public class AuthController(IAuthService authService) : ControllerBase
     {
         var sub = GetSub();
         var email = GetEmail();
+        var firstName = User.FindFirstValue("given_name") ?? string.Empty;
+        var lastName = User.FindFirstValue("family_name") ?? string.Empty;
+        var avatarUrl = User.FindFirstValue("picture");
         var provider = AuthProviderResolver.Resolve(User);
 
-        var (accessToken, refreshToken) = await authService.RegisterAsync(sub, email, provider);
+        var (accessToken, refreshToken) = await authService.RegisterAsync(sub, email, firstName, lastName, avatarUrl, provider);
 
         SetRefreshTokenCookie(refreshToken);
         return Ok(new { accessToken, expiresIn = 900 });

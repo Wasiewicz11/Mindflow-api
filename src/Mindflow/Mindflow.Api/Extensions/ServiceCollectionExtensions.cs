@@ -1,5 +1,7 @@
 using System.Security.Claims;
 using System.Text;
+using Amazon.Runtime;
+using Amazon.S3;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -128,11 +130,34 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserService, UserService>();
+        services.AddScoped<IStorageService, SupabaseStorageService>();
         services.AddScoped<ISpaceService, SpaceService>();
         services.AddScoped<IProjectService, ProjectService>();
         services.AddScoped<ITaskService, TaskService>();
         services.AddScoped<ITasksNotifier, TasksNotifier>();
         services.AddScoped<TokenService>();
+        return services;
+    }
+
+    public static IServiceCollection AddMindflowStorage(this IServiceCollection services, IConfiguration config)
+    {
+        var serviceUrl = config["SupabaseStorage:ServiceUrl"]
+            ?? throw new InvalidOperationException("SupabaseStorage:ServiceUrl is not configured.");
+        var accessKey = config["SupabaseStorage:AccessKey"]
+            ?? throw new InvalidOperationException("SupabaseStorage:AccessKey is not configured.");
+        var secretKey = config["SupabaseStorage:SecretKey"]
+            ?? throw new InvalidOperationException("SupabaseStorage:SecretKey is not configured.");
+
+        var s3Config = new AmazonS3Config
+        {
+            ServiceURL = serviceUrl,
+            ForcePathStyle = true
+        };
+
+        var credentials = new BasicAWSCredentials(accessKey, secretKey);
+        services.AddSingleton<IAmazonS3>(_ => new AmazonS3Client(credentials, s3Config));
+        services.AddHttpClient();
+
         return services;
     }
 }
