@@ -12,6 +12,7 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
     public DbSet<SpaceInvitation> SpaceInvitations { get; set; }
     public DbSet<Project> Projects { get; set; }
     public DbSet<TaskItem> Tasks { get; set; }
+    public DbSet<RefreshToken> RefreshTokens { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -32,6 +33,9 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
             .Property(m => m.Role)
             .HasConversion<string>();
         
+        modelBuilder.Entity<RefreshToken>()
+            .HasKey(rt => rt.Token);
+
         modelBuilder.Entity<TaskItem>(entity =>
         {
             entity.ToTable("tasks");

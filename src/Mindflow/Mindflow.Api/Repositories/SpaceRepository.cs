@@ -43,11 +43,17 @@ public class SpaceRepository(MindflowDbContext db) : ISpaceRepository
         var space = await db.Spaces.FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId);
         if (space is null) return false;
 
-        var projects = await db.Projects
+        var projectIds = await db.Projects
             .Where(p => p.SpaceId == id)
+            .Select(p => p.Id)
             .ToListAsync();
 
-        db.Projects.RemoveRange(projects);
+        var tasks = await db.Tasks
+            .Where(t => t.ProjectId.HasValue && projectIds.Contains(t.ProjectId.Value))
+            .ToListAsync();
+
+        db.Tasks.RemoveRange(tasks);
+        await db.Projects.Where(p => p.SpaceId == id).ExecuteDeleteAsync();
         db.Spaces.Remove(space);
         await db.SaveChangesAsync();
         return true;

@@ -16,17 +16,15 @@ builder.Services.AddSignalR();
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
-var frontendUrl = config["Cors:FrontendUrl"];
+var frontendUrl = config["Cors:FrontendUrl"] ?? "http://localhost:5173";
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
     {
-        if (string.IsNullOrEmpty(frontendUrl))
-            policy.AllowAnyOrigin();
-        else
-            policy.WithOrigins(frontendUrl);
-
-        policy.AllowAnyHeader().AllowAnyMethod();
+        policy.WithOrigins(frontendUrl)
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
     });
 });
 

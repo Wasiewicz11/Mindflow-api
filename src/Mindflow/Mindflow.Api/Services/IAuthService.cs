@@ -4,5 +4,8 @@ namespace Mindflow.Api.Services;
 
 public interface IAuthService
 {
-    Task RegisterAsync(string sub, string email, AuthProvider provider);
+    Task<(string AccessToken, Guid RefreshToken)> RegisterAsync(string sub, string email, AuthProvider provider);
+    Task<(string AccessToken, Guid RefreshToken)> LoginAsync(string sub, AuthProvider provider);
+    Task LogoutAsync(Guid refreshToken);
+    Task<(string AccessToken, Guid RefreshToken)> RefreshAsync(Guid refreshToken);
 }

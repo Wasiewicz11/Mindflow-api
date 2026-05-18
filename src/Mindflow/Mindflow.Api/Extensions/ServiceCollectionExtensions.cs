@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using System.Text;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -27,11 +29,12 @@ public static class ServiceCollectionExtensions
 
         var authBuilder = services.AddAuthentication(options =>
         {
-            options.DefaultAuthenticateScheme = null;
-            options.DefaultChallengeScheme = null;
+            options.DefaultAuthenticateScheme = "Mindflow";
+            options.DefaultChallengeScheme = "Mindflow";
         });
 
         authBuilder.AddGoogleJwt(config, schemes);
+        authBuilder.AddMindflowJwt(config, schemes);
 
         services.AddAuthorization(options =>
         {
@@ -42,6 +45,31 @@ public static class ServiceCollectionExtensions
         });
 
         return services;
+    }
+
+    private static AuthenticationBuilder AddMindflowJwt(
+        this AuthenticationBuilder builder,
+        IConfiguration config,
+        List<string> schemes)
+    {
+        const string scheme = "Mindflow";
+        schemes.Add(scheme);
+
+        return builder.AddJwtBearer(scheme, options =>
+        {
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidIssuer = config["Jwt:Issuer"],
+                ValidateAudience = true,
+                ValidAudience = config["Jwt:Audience"],
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(
+                    Encoding.UTF8.GetBytes(config["Jwt:Secret"]
+                        ?? throw new InvalidOperationException("Jwt:Secret is not configured."))),
+                ValidateLifetime = true
+            };
+        });
     }
 
     private static AuthenticationBuilder AddGoogleJwt(
@@ -90,6 +118,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISpaceRepository, SpaceRepository>();
         services.AddScoped<IProjectRepository, ProjectRepository>();
         services.AddScoped<ITaskRepository, TaskRepository>();
+        services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         return services;
     }
 
@@ -102,6 +131,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IProjectService, ProjectService>();
         services.AddScoped<ITaskService, TaskService>();
         services.AddScoped<ITasksNotifier, TasksNotifier>();
+        services.AddScoped<TokenService>();
         return services;
     }
 }
