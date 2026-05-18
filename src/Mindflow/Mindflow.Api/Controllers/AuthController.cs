@@ -17,8 +17,8 @@ public class AuthController(IAuthService authService) : ControllerBase
     {
         var sub = GetSub();
         var email = GetEmail();
-        var firstName = User.FindFirstValue("given_name") ?? string.Empty;
-        var lastName = User.FindFirstValue("family_name") ?? string.Empty;
+        var firstName = User.FindFirstValue(ClaimTypes.GivenName) ?? string.Empty;
+        var lastName = User.FindFirstValue(ClaimTypes.Surname) ?? string.Empty;
         var avatarUrl = User.FindFirstValue("picture");
         var provider = AuthProviderResolver.Resolve(User);
 
@@ -33,8 +33,8 @@ public class AuthController(IAuthService authService) : ControllerBase
     public async Task<IActionResult> Login()
     {
         var sub = GetSub();
-        var firstName = User.FindFirstValue("given_name") ?? string.Empty;
-        var lastName = User.FindFirstValue("family_name") ?? string.Empty;
+        var firstName = User.FindFirstValue(ClaimTypes.GivenName) ?? string.Empty;
+        var lastName = User.FindFirstValue(ClaimTypes.Surname) ?? string.Empty;
         var avatarUrl = User.FindFirstValue("picture");
         var provider = AuthProviderResolver.Resolve(User);
 
