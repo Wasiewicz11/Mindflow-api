@@ -24,6 +24,8 @@ public class AuthService(
         {
             Id = Guid.NewGuid(),
             Email = email,
+            FirstName = string.Empty,
+            LastName = string.Empty,
             TimeZone = "UTC",
             CreatedAt = DateTimeOffset.UtcNow
         };
