@@ -54,7 +54,9 @@ public class AuthService(
         return await GenerateTokensAsync(user);
     }
 
-    public async Task<(string AccessToken, Guid RefreshToken)> LoginAsync(string sub, AuthProvider provider)
+    public async Task<(string AccessToken, Guid RefreshToken)> LoginAsync(
+        string sub, string firstName, string lastName,
+        string? googleAvatarUrl, AuthProvider provider)
     {
         var identity = await db.UserIdentities
             .Include(ui => ui.User)
@@ -63,7 +65,16 @@ public class AuthService(
         if (identity is null)
             throw new InvalidOperationException("User not found.");
 
-        return await GenerateTokensAsync(identity.User);
+        var user = identity.User;
+        user.FirstName = firstName;
+                                   user.LastName = lastName;
+
+        if (googleAvatarUrl is not null)
+            user.AvatarUrl = await storageService.UploadFromUrlAsync(googleAvatarUrl, $"avatars/{user.Id}");
+
+        await db.SaveChangesAsync();
+
+        return await GenerateTokensAsync(user);
     }
 
     public async Task LogoutAsync(Guid refreshToken)

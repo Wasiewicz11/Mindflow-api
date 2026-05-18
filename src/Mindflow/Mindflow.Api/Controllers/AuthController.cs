@@ -33,9 +33,12 @@ public class AuthController(IAuthService authService) : ControllerBase
     public async Task<IActionResult> Login()
     {
         var sub = GetSub();
+        var firstName = User.FindFirstValue("given_name") ?? string.Empty;
+        var lastName = User.FindFirstValue("family_name") ?? string.Empty;
+        var avatarUrl = User.FindFirstValue("picture");
         var provider = AuthProviderResolver.Resolve(User);
 
-        var (accessToken, refreshToken) = await authService.LoginAsync(sub, provider);
+        var (accessToken, refreshToken) = await authService.LoginAsync(sub, firstName, lastName, avatarUrl, provider);
 
         SetRefreshTokenCookie(refreshToken);
         return Ok(new { accessToken, expiresIn = 900 });
