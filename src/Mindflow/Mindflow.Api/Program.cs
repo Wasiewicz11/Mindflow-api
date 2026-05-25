@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Mindflow.Api.Extensions;
 using Mindflow.Api.Hubs;
 using Mindflow.Api.Middleware;
@@ -14,7 +15,9 @@ builder.Services.AddMindflowRepositories();
 builder.Services.AddMindflowServices();
 builder.Services.AddSignalR();
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi();
 
 var frontendUrl = config["Cors:FrontendUrl"] ?? "http://localhost:5173";
