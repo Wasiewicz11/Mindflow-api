@@ -5,6 +5,7 @@ using Mindflow.Api.Models.Dtos;
 using Mindflow.Api.Models.Enums;
 using Mindflow.Api.Repositories;
 using Task = System.Threading.Tasks.Task;
+using TaskStatus = Mindflow.Api.Models.Enums.TaskStatus;
 
 namespace Mindflow.Api.Services;
 
@@ -39,6 +40,7 @@ public class TaskService(
             Content = request.Content,
             IsCompleted = false,
             Priority = request.Priority ?? TaskPriority.P3,
+            Status = request.Status ?? TaskStatus.NotStarted,
             DueDate = request.DueDate,
             CreatedAt = DateTimeOffset.UtcNow
         };
@@ -69,6 +71,7 @@ public class TaskService(
         if (request.Priority.HasValue) task.Priority = request.Priority.Value;
         if (request.DueDate.HasValue) task.DueDate = request.DueDate;
         if (request.ProjectId.HasValue) task.ProjectId = request.ProjectId;
+        if (request.Status.HasValue) task.Status = request.Status.Value;
 
         var updated = await taskRepository.UpdateForUserAsync(task, userId);
         if (updated is null) return null;
