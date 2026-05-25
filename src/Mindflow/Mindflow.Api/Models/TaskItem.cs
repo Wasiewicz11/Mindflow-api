@@ -11,6 +11,8 @@ public class TaskItem
     public Guid? ProjectId { get; set; }
     [MaxLength(1000)]
     public required string Content { get; set; }
+    [MaxLength(500)]
+    public string? Description { get; set; }
     public bool IsCompleted { get; set; }
     public TaskPriority Priority { get; set; }
     public TaskStatus Status { get; set; }
