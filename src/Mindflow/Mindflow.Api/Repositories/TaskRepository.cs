@@ -17,42 +17,28 @@ public class TaskRepository(MindflowDbContext db) : ITaskRepository
             .ToListAsync();
     }
 
-    public async Task<TaskItem?> GetByIdForUserAsync(Guid id, Guid userId)
+    public async Task<TaskItem?> GetByIdAsync(Guid id)
     {
-        var task = await db.Tasks.FirstOrDefaultAsync(t => t.Id == id);
-        if (task is null) return null;
-
-        return await CanAccessTaskAsync(task, userId) ? task : null;
+        return await db.Tasks.FirstOrDefaultAsync(t => t.Id == id);
     }
 
-    public async Task<TaskItem?> CreateForUserAsync(TaskItem task, Guid userId)
+    public async Task<TaskItem?> CreateAsync(TaskItem task)
     {
-        if (task.ProjectId.HasValue && !await CanAccessProjectAsync(task.ProjectId.Value, userId))
-        {
-            return null;
-        }
-
         db.Tasks.Add(task);
         await db.SaveChangesAsync();
         return task;
     }
 
-    public async Task<TaskItem?> UpdateForUserAsync(TaskItem task, Guid userId)
+    public async Task<TaskItem?> UpdateAsync(TaskItem task)
     {
-        if (!await CanAccessTaskAsync(task, userId)) return null;
-        
-        if (task.ProjectId.HasValue && !await CanAccessProjectAsync(task.ProjectId.Value, userId))
-            return null;
-
         await db.SaveChangesAsync();
         return task;
     }
 
-    public async Task<bool> DeleteForUserAsync(Guid id, Guid userId)
+    public async Task<bool> DeleteAsync(Guid id)
     {
         var task = await db.Tasks.FirstOrDefaultAsync(t => t.Id == id);
         if (task is null) return false;
-        if (!await CanAccessTaskAsync(task, userId)) return false;
 
         db.Tasks.Remove(task);
         await db.SaveChangesAsync();
@@ -84,27 +70,6 @@ public class TaskRepository(MindflowDbContext db) : ITaskRepository
             .Where(p => p.Id == task.ProjectId.Value)
             .Select(p => p.SpaceId)
             .FirstOrDefaultAsync();
-    }
-
-    private async Task<bool> CanAccessTaskAsync(TaskItem task, Guid userId)
-    {
-        if (task.UserId == userId) return true;
-
-        if (task.ProjectId.HasValue)
-        {
-            return await CanAccessProjectAsync(task.ProjectId.Value, userId);
-        }
-
-        return false;
-    }
-
-    private Task<bool> CanAccessProjectAsync(Guid projectId, Guid userId)
-    {
-        return db.Projects.AnyAsync(p => p.Id == projectId && (
-            p.UserId == userId
-            || (p.SpaceId != null && db.Spaces.Any(s => s.Id == p.SpaceId && (
-                s.UserId == userId
-                || db.SpaceMembers.Any(m => m.SpaceId == s.Id && m.UserId == userId))))));
     }
 
     private async Task<List<Guid>> GetAccessibleProjectIdsAsync(Guid userId)

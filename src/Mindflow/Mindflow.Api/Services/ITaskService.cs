@@ -4,10 +4,10 @@ namespace Mindflow.Api.Services;
 
 public interface ITaskService
 {
-    Task<IEnumerable<TaskListResponse>> GetAllForCurrentUserAsync();
+    Task<IEnumerable<TaskListResponse>> GetAllAsync();
     Task<IEnumerable<TaskListResponse>> GetAllForProjectAsync(Guid projectId);
-    Task<TaskDetailResponse?> GetByIdForCurrentUserAsync(Guid id);
-    Task<TaskDetailResponse?> CreateForCurrentUserAsync(CreateTaskRequest request);
-    Task<TaskDetailResponse?> UpdateForCurrentUserAsync(Guid id, UpdateTaskRequest request);
-    Task<bool> DeleteForCurrentUserAsync(Guid id);
+    Task<TaskDetailResponse?> GetByIdAsync(Guid id);
+    Task<TaskDetailResponse?> CreateAsync(CreateTaskRequest request);
+    Task<TaskDetailResponse?> UpdateAsync(Guid id, UpdateTaskRequest request);
+    Task<bool> DeleteAsync(Guid id);
 }

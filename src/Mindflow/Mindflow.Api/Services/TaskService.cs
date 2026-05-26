@@ -17,7 +17,7 @@ public class TaskService(
     ILogger<TaskService> logger
     ) : ITaskService
 {
-    public async Task<IEnumerable<TaskListResponse>> GetAllForCurrentUserAsync()
+    public async Task<IEnumerable<TaskListResponse>> GetAllAsync()
     {
         var userId = await currentUserService.GetCurrentUserIdAsync();
         var tasks = await taskRepository.GetAllForUserAsync(userId);
@@ -35,16 +35,23 @@ public class TaskService(
         return tasks.Select(ToListResponse);
     }
 
-    public async Task<TaskDetailResponse?> GetByIdForCurrentUserAsync(Guid id)
+    public async Task<TaskDetailResponse?> GetByIdAsync(Guid id)
     {
         var userId = await currentUserService.GetCurrentUserIdAsync();
-        var task = await taskRepository.GetByIdForUserAsync(id, userId);
+
+        if (!await accessService.CanAccessTaskAsync(id, userId))
+            return null;
+
+        var task = await taskRepository.GetByIdAsync(id);
         return task is null ? null : ToDetailResponse(task);
     }
 
-    public async Task<TaskDetailResponse?> CreateForCurrentUserAsync(CreateTaskRequest request)
+    public async Task<TaskDetailResponse?> CreateAsync(CreateTaskRequest request)
     {
         var userId = await currentUserService.GetCurrentUserIdAsync();
+
+        if (request.ProjectId.HasValue && !await accessService.CanAccessProjectAsync(request.ProjectId.Value, userId))
+            return null;
 
         var task = new TaskItem
         {
@@ -60,7 +67,7 @@ public class TaskService(
             CreatedAt = DateTimeOffset.UtcNow
         };
 
-        var created = await taskRepository.CreateForUserAsync(task, userId);
+        var created = await taskRepository.CreateAsync(task);
         if (created is null) return null;
 
         var spaceId = await taskRepository.GetSpaceIdForTaskAsync(created);
@@ -72,13 +79,18 @@ public class TaskService(
         return ToDetailResponse(created);
     }
 
-    public async Task<TaskDetailResponse?> UpdateForCurrentUserAsync(Guid id, UpdateTaskRequest request)
+    public async Task<TaskDetailResponse?> UpdateAsync(Guid id, UpdateTaskRequest request)
     {
         var userId = await currentUserService.GetCurrentUserIdAsync();
-        var task = await taskRepository.GetByIdForUserAsync(id, userId);
 
-        if (task is null)
+        if (!await accessService.CanAccessTaskAsync(id, userId))
             throw new NotFoundException($"Task with id {id} not found");
+
+        var task = await taskRepository.GetByIdAsync(id);
+        if (task is null) throw new NotFoundException($"Task with id {id} not found");
+
+        if (request.ProjectId.HasValue && !await accessService.CanAccessProjectAsync(request.ProjectId.Value, userId))
+            return null;
 
         var previousSpaceId = await taskRepository.GetSpaceIdForTaskAsync(task);
 
@@ -89,7 +101,7 @@ public class TaskService(
         if (request.ProjectId.HasValue) task.ProjectId = request.ProjectId;
         if (request.Status.HasValue) task.Status = request.Status.Value;
 
-        var updated = await taskRepository.UpdateForUserAsync(task, userId);
+        var updated = await taskRepository.UpdateAsync(task);
         if (updated is null) return null;
 
         var currentSpaceId = await taskRepository.GetSpaceIdForTaskAsync(updated);
@@ -110,16 +122,19 @@ public class TaskService(
         return ToDetailResponse(updated);
     }
 
-    public async Task<bool> DeleteForCurrentUserAsync(Guid id)
+    public async Task<bool> DeleteAsync(Guid id)
     {
         var userId = await currentUserService.GetCurrentUserIdAsync();
 
-        var task = await taskRepository.GetByIdForUserAsync(id, userId);
+        if (!await accessService.CanAccessTaskAsync(id, userId))
+            return false;
+
+        var task = await taskRepository.GetByIdAsync(id);
         if (task is null) return false;
 
         var spaceId = await taskRepository.GetSpaceIdForTaskAsync(task);
 
-        var deleted = await taskRepository.DeleteForUserAsync(id, userId);
+        var deleted = await taskRepository.DeleteAsync(id);
         if (!deleted) return false;
 
         await NotifySafelyAsync(

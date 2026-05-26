@@ -13,14 +13,14 @@ public class TasksController(ITaskService taskService) : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        var tasks = await taskService.GetAllForCurrentUserAsync();
+        var tasks = await taskService.GetAllAsync();
         return Ok(tasks);
     }
 
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id)
     {
-        var task = await taskService.GetByIdForCurrentUserAsync(id);
+        var task = await taskService.GetByIdAsync(id);
         if (task is null) return NotFound();
         return Ok(task);
     }
@@ -28,7 +28,7 @@ public class TasksController(ITaskService taskService) : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateTaskRequest request)
     {
-        var created = await taskService.CreateForCurrentUserAsync(request);
+        var created = await taskService.CreateAsync(request);
         if (created is null) return NotFound();
         return Ok(created);
     }
@@ -36,7 +36,7 @@ public class TasksController(ITaskService taskService) : ControllerBase
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateTaskRequest request)
     {
-        var updated = await taskService.UpdateForCurrentUserAsync(id, request);
+        var updated = await taskService.UpdateAsync(id, request);
         if (updated is null) return NotFound();
         return Ok(updated);
     }
@@ -44,7 +44,7 @@ public class TasksController(ITaskService taskService) : ControllerBase
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
     {
-        var deleted = await taskService.DeleteForCurrentUserAsync(id);
+        var deleted = await taskService.DeleteAsync(id);
         if (!deleted) return NotFound();
         return NoContent();
     }
