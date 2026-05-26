@@ -6,6 +6,11 @@ namespace Mindflow.Api.Repositories;
 
 public class ProjectRepository(MindflowDbContext db) : IProjectRepository
 {
+    public async Task<Project?> GetByIdAsync(Guid id)
+    {
+        return await db.Projects.FirstOrDefaultAsync(p => p.Id == id);
+    }
+
     public async Task<IEnumerable<Project>> GetAllInSpaceAsync(Guid spaceId)
     {
         return await db.Projects

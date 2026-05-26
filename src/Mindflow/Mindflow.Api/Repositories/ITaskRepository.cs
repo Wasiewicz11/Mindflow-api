@@ -9,6 +9,7 @@ public interface ITaskRepository
     Task<TaskItem?> CreateForUserAsync(TaskItem task, Guid userId);
     Task<TaskItem?> UpdateForUserAsync(TaskItem task, Guid userId);
     Task<bool> DeleteForUserAsync(Guid id, Guid userId);
+    Task<IEnumerable<TaskItem>> GetAllForProjectAsync(Guid projectId);
     Task<IEnumerable<Guid>> GetAccessibleSpaceIdsAsync(Guid userId);
     Task<Guid?> GetSpaceIdForTaskAsync(TaskItem task);
 }

@@ -59,6 +59,14 @@ public class TaskRepository(MindflowDbContext db) : ITaskRepository
         return true;
     }
 
+    public async Task<IEnumerable<TaskItem>> GetAllForProjectAsync(Guid projectId)
+    {
+        return await db.Tasks
+            .Where(t => t.ProjectId == projectId)
+            .OrderByDescending(t => t.CreatedAt)
+            .ToListAsync();
+    }
+
     public async Task<IEnumerable<Guid>> GetAccessibleSpaceIdsAsync(Guid userId)
     {
         return await db.Spaces

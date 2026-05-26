@@ -5,6 +5,7 @@ namespace Mindflow.Api.Services;
 public interface ITaskService
 {
     Task<IEnumerable<TaskListResponse>> GetAllForCurrentUserAsync();
+    Task<IEnumerable<TaskListResponse>> GetAllForProjectAsync(Guid projectId);
     Task<TaskDetailResponse?> GetByIdForCurrentUserAsync(Guid id);
     Task<TaskDetailResponse?> CreateForCurrentUserAsync(CreateTaskRequest request);
     Task<TaskDetailResponse?> UpdateForCurrentUserAsync(Guid id, UpdateTaskRequest request);

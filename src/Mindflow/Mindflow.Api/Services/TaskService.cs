@@ -12,6 +12,7 @@ namespace Mindflow.Api.Services;
 public class TaskService(
     ITaskRepository taskRepository,
     ICurrentUserService currentUserService,
+    IAccessService accessService,
     ITasksNotifier notifier,
     ILogger<TaskService> logger
     ) : ITaskService
@@ -20,6 +21,17 @@ public class TaskService(
     {
         var userId = await currentUserService.GetCurrentUserIdAsync();
         var tasks = await taskRepository.GetAllForUserAsync(userId);
+        return tasks.Select(ToListResponse);
+    }
+
+    public async Task<IEnumerable<TaskListResponse>> GetAllForProjectAsync(Guid projectId)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+
+        if (!await accessService.CanAccessProjectAsync(projectId, userId))
+            throw new UnauthorizedAccessException();
+
+        var tasks = await taskRepository.GetAllForProjectAsync(projectId);
         return tasks.Select(ToListResponse);
     }
 

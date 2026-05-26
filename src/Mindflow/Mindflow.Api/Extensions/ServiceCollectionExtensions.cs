@@ -145,6 +145,7 @@ public static class ServiceCollectionExtensions
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IAccessService, AccessService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IStorageService, SupabaseStorageService>();
         services.AddScoped<ISpaceService, SpaceService>();
