@@ -12,6 +12,7 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
     public DbSet<SpaceInvitation> SpaceInvitations { get; set; }
     public DbSet<Project> Projects { get; set; }
     public DbSet<TaskItem> Tasks { get; set; }
+    public DbSet<CalendarBlock> CalendarBlocks { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -45,6 +46,21 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
 
             entity.HasIndex(t => t.UserId);
             entity.HasIndex(t => t.ProjectId);
+        });
+
+        modelBuilder.Entity<CalendarBlock>(entity =>
+        {
+            entity.ToTable("calendar_blocks");
+
+            entity.Property(b => b.Provider)
+                .HasConversion<string>();
+
+            entity.Property(b => b.SyncStatus)
+                .HasConversion<string>();
+
+            entity.HasIndex(b => b.UserId);
+            entity.HasIndex(b => b.TaskId);
+            entity.HasIndex(b => new { b.UserId, b.StartAt });
         });
     }
 }

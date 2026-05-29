@@ -136,6 +136,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISpaceRepository, SpaceRepository>();
         services.AddScoped<IProjectRepository, ProjectRepository>();
         services.AddScoped<ITaskRepository, TaskRepository>();
+        services.AddScoped<ICalendarBlockRepository, CalendarBlockRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         return services;
     }
@@ -151,6 +152,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISpaceService, SpaceService>();
         services.AddScoped<IProjectService, ProjectService>();
         services.AddScoped<ITaskService, TaskService>();
+        services.AddScoped<ICalendarBlockService, CalendarBlockService>();
         services.AddScoped<ITasksNotifier, TasksNotifier>();
         services.AddScoped<TokenService>();
         return services;
