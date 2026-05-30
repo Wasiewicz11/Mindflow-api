@@ -12,6 +12,7 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
     public DbSet<SpaceInvitation> SpaceInvitations { get; set; }
     public DbSet<Project> Projects { get; set; }
     public DbSet<TaskItem> Tasks { get; set; }
+    public DbSet<TaskActivityEvent> TaskActivityEvents { get; set; }
     public DbSet<CalendarBlock> CalendarBlocks { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
 
@@ -61,6 +62,30 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
             entity.HasIndex(b => b.UserId);
             entity.HasIndex(b => b.TaskId);
             entity.HasIndex(b => new { b.UserId, b.StartAt });
+        });
+
+        modelBuilder.Entity<TaskActivityEvent>(entity =>
+        {
+            entity.ToTable("task_activity_events");
+
+            entity.Property(e => e.EventType)
+                .HasConversion<string>();
+
+            entity.Property(e => e.Source)
+                .HasConversion<string>();
+
+            entity.Property(e => e.ActorType)
+                .HasConversion<string>();
+
+            entity.Property(e => e.Metadata)
+                .HasColumnType("jsonb")
+                .HasDefaultValueSql("'{}'::jsonb");
+
+            entity.HasIndex(e => new { e.UserId, e.OccurredAt });
+            entity.HasIndex(e => new { e.UserId, e.EventType, e.OccurredAt });
+            entity.HasIndex(e => new { e.TaskId, e.OccurredAt });
+            entity.HasIndex(e => e.ProjectId);
+            entity.HasIndex(e => e.SpaceId);
         });
     }
 }
