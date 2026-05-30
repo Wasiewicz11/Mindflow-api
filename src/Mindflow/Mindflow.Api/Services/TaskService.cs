@@ -120,7 +120,8 @@ public class TaskService(
         if (request.Content is not null) task.Content = request.Content;
         if (request.Description is not null) task.Description = request.Description;
         if (request.Priority.HasValue) task.Priority = request.Priority.Value;
-        if (request.DueDate.HasValue) task.DueDate = request.DueDate;
+        if (request.ClearDueDate) task.DueDate = null;
+        else if (request.DueDate.HasValue) task.DueDate = request.DueDate;
         if (request.ProjectId.HasValue) task.ProjectId = request.ProjectId;
         if (request.Status.HasValue) task.Status = request.Status.Value;
 
@@ -258,9 +259,12 @@ public class TaskService(
 
         if (updated.DueDate != previousDueDate)
         {
-            var eventType = previousDueDate.HasValue
-                ? TaskActivityEventType.TaskDueDateChanged
-                : TaskActivityEventType.TaskDueDateSet;
+            var eventType = (previousDueDate.HasValue, updated.DueDate.HasValue) switch
+            {
+                (false, true) => TaskActivityEventType.TaskDueDateSet,
+                (true, false) => TaskActivityEventType.TaskDueDateRemoved,
+                _ => TaskActivityEventType.TaskDueDateChanged
+            };
 
             await taskActivityService.RecordUserTaskEventAsync(
                 eventType,

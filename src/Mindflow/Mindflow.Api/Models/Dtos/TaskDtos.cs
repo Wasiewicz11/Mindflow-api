@@ -18,6 +18,7 @@ public record UpdateTaskRequest(
     TaskPriority? Priority,
     TaskStatus? Status,
     DateOnly? DueDate,
+    bool ClearDueDate,
     Guid? ProjectId);
 
 public record TaskListResponse(
