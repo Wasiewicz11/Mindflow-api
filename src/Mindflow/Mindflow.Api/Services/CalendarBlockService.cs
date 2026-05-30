@@ -10,8 +10,10 @@ namespace Mindflow.Api.Services;
 
 public class CalendarBlockService(
     ICalendarBlockRepository calendarBlockRepository,
+    ITaskRepository taskRepository,
     ICurrentUserService currentUserService,
     IAccessService accessService,
+    ITaskActivityService taskActivityService,
     ITasksNotifier notifier,
     ILogger<CalendarBlockService> logger) : ICalendarBlockService
 {
@@ -49,6 +51,20 @@ public class CalendarBlockService(
 
         var created = await calendarBlockRepository.CreateAsync(block);
         var response = ToResponse(created);
+        var taskContext = await GetTaskActivityContextAsync(created.TaskId);
+
+        await taskActivityService.RecordUserTaskEventAsync(
+            TaskActivityEventType.TaskTimeSet,
+            userId,
+            created.TaskId,
+            taskContext.SpaceId,
+            taskContext.ProjectId,
+            new
+            {
+                calendar_block_id = created.Id,
+                start_at = created.StartAt,
+                duration_minutes = created.DurationMinutes
+            });
 
         await NotifySafelyAsync(
             () => notifier.CalendarBlockCreatedAsync(response),
@@ -69,13 +85,24 @@ public class CalendarBlockService(
         if (!await accessService.CanAccessTaskAsync(request.TaskId, userId))
             return null;
 
+        var previousTaskId = block.TaskId;
+        var previousStartAt = block.StartAt;
+        var previousDurationMinutes = block.DurationMinutes;
+        var newStartAt = request.StartAt.ToUniversalTime();
+
         block.TaskId = request.TaskId;
-        block.StartAt = request.StartAt.ToUniversalTime();
+        block.StartAt = newStartAt;
         block.DurationMinutes = request.DurationMinutes;
         block.UpdatedAt = DateTimeOffset.UtcNow;
 
         var updated = await calendarBlockRepository.UpdateAsync(block);
         var response = ToResponse(updated);
+        await RecordCalendarBlockUpdateActivityAsync(
+            userId,
+            updated,
+            previousTaskId,
+            previousStartAt,
+            previousDurationMinutes);
 
         await NotifySafelyAsync(
             () => notifier.CalendarBlockUpdatedAsync(response),
@@ -95,6 +122,20 @@ public class CalendarBlockService(
 
         var deleted = await calendarBlockRepository.DeleteAsync(block);
         if (!deleted) return false;
+
+        var taskContext = await GetTaskActivityContextAsync(block.TaskId);
+        await taskActivityService.RecordUserTaskEventAsync(
+            TaskActivityEventType.TaskTimeRemoved,
+            userId,
+            block.TaskId,
+            taskContext.SpaceId,
+            taskContext.ProjectId,
+            new
+            {
+                calendar_block_id = block.Id,
+                previous_start_at = block.StartAt,
+                previous_duration_minutes = block.DurationMinutes
+            });
 
         await NotifySafelyAsync(
             () => notifier.CalendarBlockDeletedAsync(block.Id, block.UserId),
@@ -117,6 +158,79 @@ public class CalendarBlockService(
             block.ExternalEventId,
             block.GoogleCalendarId,
             block.SyncStatus);
+
+    private async Task RecordCalendarBlockUpdateActivityAsync(
+        Guid userId,
+        CalendarBlock updated,
+        Guid previousTaskId,
+        DateTimeOffset previousStartAt,
+        int previousDurationMinutes)
+    {
+        if (updated.TaskId != previousTaskId)
+        {
+            var previousTaskContext = await GetTaskActivityContextAsync(previousTaskId);
+            await taskActivityService.RecordUserTaskEventAsync(
+                TaskActivityEventType.TaskTimeRemoved,
+                userId,
+                previousTaskId,
+                previousTaskContext.SpaceId,
+                previousTaskContext.ProjectId,
+                new
+                {
+                    calendar_block_id = updated.Id,
+                    previous_start_at = previousStartAt,
+                    previous_duration_minutes = previousDurationMinutes,
+                    moved_to_task_id = updated.TaskId
+                });
+
+            var currentTaskContext = await GetTaskActivityContextAsync(updated.TaskId);
+            await taskActivityService.RecordUserTaskEventAsync(
+                TaskActivityEventType.TaskTimeSet,
+                userId,
+                updated.TaskId,
+                currentTaskContext.SpaceId,
+                currentTaskContext.ProjectId,
+                new
+                {
+                    calendar_block_id = updated.Id,
+                    start_at = updated.StartAt,
+                    duration_minutes = updated.DurationMinutes,
+                    moved_from_task_id = previousTaskId
+                });
+
+            return;
+        }
+
+        if (updated.StartAt == previousStartAt && updated.DurationMinutes == previousDurationMinutes)
+            return;
+
+        var taskContext = await GetTaskActivityContextAsync(updated.TaskId);
+        await taskActivityService.RecordUserTaskEventAsync(
+            TaskActivityEventType.TaskTimeChanged,
+            userId,
+            updated.TaskId,
+            taskContext.SpaceId,
+            taskContext.ProjectId,
+            new
+            {
+                calendar_block_id = updated.Id,
+                previous_start_at = previousStartAt,
+                new_start_at = updated.StartAt,
+                previous_duration_minutes = previousDurationMinutes,
+                new_duration_minutes = updated.DurationMinutes,
+                delta_minutes = (int)(updated.StartAt - previousStartAt).TotalMinutes,
+                duration_delta_minutes = updated.DurationMinutes - previousDurationMinutes
+            });
+    }
+
+    private async Task<(Guid? ProjectId, Guid? SpaceId)> GetTaskActivityContextAsync(Guid taskId)
+    {
+        var task = await taskRepository.GetByIdAsync(taskId);
+        if (task is null) return (null, null);
+
+        var spaceId = await taskRepository.GetSpaceIdForTaskAsync(task);
+        return (task.ProjectId, spaceId);
+    }
 
     private async Task NotifySafelyAsync(Func<Task> publish, string eventName, Guid blockId)
     {
