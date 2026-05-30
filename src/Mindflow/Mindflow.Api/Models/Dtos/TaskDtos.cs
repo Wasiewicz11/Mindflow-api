@@ -6,7 +6,7 @@ namespace Mindflow.Api.Models.Dtos;
 
 public record CreateTaskRequest(
     string Content,
-    [MaxLength(500)] string? Description,
+    [MaxLength(10000)] string? Description,
     TaskPriority? Priority,
     TaskStatus? Status,
     DateOnly? DueDate,
@@ -14,7 +14,7 @@ public record CreateTaskRequest(
 
 public record UpdateTaskRequest(
     string? Content,
-    [MaxLength(500)] string? Description,
+    [MaxLength(10000)] string? Description,
     TaskPriority? Priority,
     TaskStatus? Status,
     DateOnly? DueDate,
