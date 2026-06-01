@@ -7,7 +7,10 @@ namespace Mindflow.Api.Controllers;
 
 [ApiController]
 [Route("auth")]
-public class AuthController(IAuthService authService) : ControllerBase
+public class AuthController(
+    IAuthService authService,
+    IConfiguration configuration,
+    IWebHostEnvironment environment) : ControllerBase
 {
     private const string RefreshTokenCookie = "refresh_token";
 
@@ -59,12 +62,10 @@ public class AuthController(IAuthService authService) : ControllerBase
     [HttpPost("logout")]
     public async Task<IActionResult> Logout()
     {
-        if (!Request.Cookies.TryGetValue(RefreshTokenCookie, out var raw) || !Guid.TryParse(raw, out var token))
-            return Unauthorized();
+        if (Request.Cookies.TryGetValue(RefreshTokenCookie, out var raw) && Guid.TryParse(raw, out var token))
+            await authService.LogoutAsync(token);
 
-        await authService.LogoutAsync(token);
-
-        Response.Cookies.Delete(RefreshTokenCookie);
+        Response.Cookies.Delete(RefreshTokenCookie, GetRefreshTokenDeleteCookieOptions());
         return NoContent();
     }
 
@@ -83,9 +84,28 @@ public class AuthController(IAuthService authService) : ControllerBase
         Response.Cookies.Append(RefreshTokenCookie, token.ToString(), new CookieOptions
         {
             HttpOnly = true,
-            Secure = true,
-            SameSite = SameSiteMode.Strict,
-            MaxAge = TimeSpan.FromDays(30)
+            Secure = GetRefreshCookieSecurePolicy(),
+            SameSite = GetRefreshCookieSameSitePolicy(),
+            MaxAge = TimeSpan.FromDays(30),
+            Path = "/auth"
         });
+    }
+
+    private CookieOptions GetRefreshTokenDeleteCookieOptions() => new()
+    {
+        Secure = GetRefreshCookieSecurePolicy(),
+        SameSite = GetRefreshCookieSameSitePolicy(),
+        Path = "/auth"
+    };
+
+    private bool GetRefreshCookieSecurePolicy() =>
+        configuration.GetValue<bool?>("Auth:RefreshCookie:Secure") ?? !environment.IsDevelopment();
+
+    private SameSiteMode GetRefreshCookieSameSitePolicy()
+    {
+        var configured = configuration["Auth:RefreshCookie:SameSite"];
+        return Enum.TryParse<SameSiteMode>(configured, ignoreCase: true, out var sameSite)
+            ? sameSite
+            : SameSiteMode.Strict;
     }
 }
