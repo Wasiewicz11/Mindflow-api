@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Mindflow.Api.Data;
+using Mindflow.Api.Exceptions;
 using Mindflow.Api.Models;
 using Mindflow.Api.Models.Enums;
 using Mindflow.Api.Repositories;
@@ -87,7 +88,7 @@ public class AuthService(
         var existing = await refreshTokenRepository.GetByTokenAsync(refreshToken);
 
         if (existing is null || existing.IsRevoked || existing.ExpiresAt < DateTimeOffset.UtcNow)
-            throw new InvalidOperationException("Invalid or expired refresh token.");
+            throw new UnauthorizedException("Invalid or expired refresh token.");
 
         await refreshTokenRepository.RevokeAsync(refreshToken);
 

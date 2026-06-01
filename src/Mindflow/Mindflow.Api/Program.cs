@@ -20,7 +20,9 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi();
 
-var frontendUrl = config["Cors:FrontendUrl"] ?? "http://localhost:5173";
+var frontendUrl = string.IsNullOrWhiteSpace(config["Cors:FrontendUrl"])
+    ? "http://localhost:5173"
+    : config["Cors:FrontendUrl"]!;
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
