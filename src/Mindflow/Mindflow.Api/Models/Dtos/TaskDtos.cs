@@ -10,7 +10,8 @@ public record CreateTaskRequest(
     TaskPriority? Priority,
     TaskStatus? Status,
     DateOnly? DueDate,
-    Guid? ProjectId);
+    Guid? ProjectId,
+    IReadOnlyCollection<string>? Tags);
 
 public record UpdateTaskRequest(
     string? Content,
@@ -19,7 +20,8 @@ public record UpdateTaskRequest(
     TaskStatus? Status,
     DateOnly? DueDate,
     bool ClearDueDate,
-    Guid? ProjectId);
+    Guid? ProjectId,
+    IReadOnlyCollection<string>? Tags);
 
 public record TaskListResponse(
     Guid Id,
@@ -29,6 +31,7 @@ public record TaskListResponse(
     TaskStatus Status,
     DateOnly? DueDate,
     Guid? ProjectId,
+    IReadOnlyCollection<string> Tags,
     DateTimeOffset CreatedAt);
 
 public record TaskDetailResponse(
@@ -40,4 +43,5 @@ public record TaskDetailResponse(
     TaskStatus Status,
     DateOnly? DueDate,
     Guid? ProjectId,
+    IReadOnlyCollection<string> Tags,
     DateTimeOffset CreatedAt);

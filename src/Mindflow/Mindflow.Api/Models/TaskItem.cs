@@ -17,5 +17,6 @@ public class TaskItem
     public TaskPriority Priority { get; set; }
     public TaskStatus Status { get; set; }
     public DateOnly? DueDate { get; set; }
+    public List<string> Tags { get; set; } = new();
     public DateTimeOffset CreatedAt { get; set; }
 }
