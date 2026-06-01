@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Mindflow.Api.Data;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -11,9 +12,10 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Mindflow.Api.Migrations
 {
     [DbContext(typeof(MindflowDbContext))]
-    partial class MindflowDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260601120000_AddTaskTags")]
+    partial class AddTaskTags
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -123,37 +125,6 @@ namespace Mindflow.Api.Migrations
                         .HasName("pk_projects");
 
                     b.ToTable("projects", (string)null);
-                });
-
-            modelBuilder.Entity("Mindflow.Api.Models.ProjectTag", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("name");
-
-                    b.Property<Guid>("ProjectId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("project_id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_project_tags");
-
-                    b.HasIndex("ProjectId", "Name")
-                        .IsUnique()
-                        .HasDatabaseName("ix_project_tags_project_id_name");
-
-                    b.ToTable("project_tags", (string)null);
                 });
 
             modelBuilder.Entity("Mindflow.Api.Models.RefreshToken", b =>
@@ -515,16 +486,6 @@ namespace Mindflow.Api.Migrations
                         .HasDatabaseName("ix_user_identities_provider_provider_user_id");
 
                     b.ToTable("user_identities", (string)null);
-                });
-
-            modelBuilder.Entity("Mindflow.Api.Models.ProjectTag", b =>
-                {
-                    b.HasOne("Mindflow.Api.Models.Project", null)
-                        .WithMany()
-                        .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_project_tags_projects_project_id");
                 });
 
             modelBuilder.Entity("Mindflow.Api.Models.UserIdentity", b =>

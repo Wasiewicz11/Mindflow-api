@@ -11,6 +11,7 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
     public DbSet<SpaceMember> SpaceMembers { get; set; }
     public DbSet<SpaceInvitation> SpaceInvitations { get; set; }
     public DbSet<Project> Projects { get; set; }
+    public DbSet<ProjectTag> ProjectTags { get; set; }
     public DbSet<TaskItem> Tasks { get; set; }
     public DbSet<TaskActivityEvent> TaskActivityEvents { get; set; }
     public DbSet<CalendarBlock> CalendarBlocks { get; set; }
@@ -38,12 +39,30 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
         modelBuilder.Entity<RefreshToken>()
             .HasKey(rt => rt.Token);
 
+        modelBuilder.Entity<ProjectTag>(entity =>
+        {
+            entity.ToTable("project_tags");
+
+            entity.HasOne<Project>()
+                .WithMany()
+                .HasForeignKey(t => t.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(t => new { t.ProjectId, t.Name })
+                .IsUnique();
+        });
+
         modelBuilder.Entity<TaskItem>(entity =>
         {
             entity.ToTable("tasks");
 
             entity.Property(t => t.Priority)
                 .HasConversion<string>();
+
+            entity.Property(t => t.Tags)
+                .HasColumnType("text[]")
+                .HasDefaultValueSql("'{}'::text[]")
+                .IsRequired();
 
             entity.HasIndex(t => t.UserId);
             entity.HasIndex(t => t.ProjectId);

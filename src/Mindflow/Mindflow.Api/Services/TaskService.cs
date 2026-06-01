@@ -11,6 +11,7 @@ namespace Mindflow.Api.Services;
 
 public class TaskService(
     ITaskRepository taskRepository,
+    IProjectTagRepository projectTagRepository,
     ICurrentUserService currentUserService,
     IAccessService accessService,
     ITaskActivityService taskActivityService,
@@ -54,6 +55,12 @@ public class TaskService(
         if (request.ProjectId.HasValue && !await accessService.CanAccessProjectAsync(request.ProjectId.Value, userId))
             return null;
 
+        var tags = NormalizeTags(request.Tags);
+        if (request.ProjectId.HasValue && tags.Count > 0)
+        {
+            tags = (await projectTagRepository.EnsureExistAsync(request.ProjectId.Value, tags)).ToList();
+        }
+
         var task = new TaskItem
         {
             Id = Guid.NewGuid(),
@@ -65,6 +72,7 @@ public class TaskService(
             Priority = request.Priority ?? TaskPriority.P3,
             Status = request.Status ?? TaskStatus.NotStarted,
             DueDate = request.DueDate,
+            Tags = tags,
             CreatedAt = DateTimeOffset.UtcNow
         };
 
@@ -85,7 +93,8 @@ public class TaskService(
                 due_date = created.DueDate,
                 priority = created.Priority.ToString(),
                 status = created.Status.ToString(),
-                project_id = created.ProjectId
+                project_id = created.ProjectId,
+                tags_count = created.Tags.Count
             });
 
         await NotifySafelyAsync(
@@ -116,6 +125,7 @@ public class TaskService(
         var previousDueDate = task.DueDate;
         var previousProjectId = task.ProjectId;
         var previousStatus = task.Status;
+        var previousTags = task.Tags.ToList();
 
         if (request.Content is not null) task.Content = request.Content;
         if (request.Description is not null) task.Description = request.Description;
@@ -124,6 +134,14 @@ public class TaskService(
         else if (request.DueDate.HasValue) task.DueDate = request.DueDate;
         if (request.ProjectId.HasValue) task.ProjectId = request.ProjectId;
         if (request.Status.HasValue) task.Status = request.Status.Value;
+        if (request.Tags is not null) task.Tags = NormalizeTags(request.Tags);
+
+        // Sync task tags into the (possibly new) project's tag pool.
+        // Covers tag edits as well as moves between projects (copy all into target).
+        if (task.ProjectId.HasValue && task.Tags.Count > 0)
+        {
+            task.Tags = (await projectTagRepository.EnsureExistAsync(task.ProjectId.Value, task.Tags)).ToList();
+        }
 
         var updated = await taskRepository.UpdateAsync(task);
         if (updated is null) return null;
@@ -139,7 +157,8 @@ public class TaskService(
             previousPriority,
             previousDueDate,
             previousProjectId,
-            previousStatus);
+            previousStatus,
+            previousTags);
 
         if (previousSpaceId.HasValue && previousSpaceId != currentSpaceId)
         {
@@ -195,10 +214,25 @@ public class TaskService(
     }
 
     private static TaskListResponse ToListResponse(TaskItem t) =>
-        new(t.Id, t.Content, t.IsCompleted, t.Priority, t.Status, t.DueDate, t.ProjectId, t.CreatedAt);
+        new(t.Id, t.Content, t.IsCompleted, t.Priority, t.Status, t.DueDate, t.ProjectId, t.Tags.ToArray(), t.CreatedAt);
 
     private static TaskDetailResponse ToDetailResponse(TaskItem t) =>
-        new(t.Id, t.Content, t.Description, t.IsCompleted, t.Priority, t.Status, t.DueDate, t.ProjectId, t.CreatedAt);
+        new(t.Id, t.Content, t.Description, t.IsCompleted, t.Priority, t.Status, t.DueDate, t.ProjectId, t.Tags.ToArray(), t.CreatedAt);
+
+    private static List<string> NormalizeTags(IReadOnlyCollection<string>? tags)
+    {
+        if (tags is null) return new List<string>();
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<string>();
+        foreach (var raw in tags)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) continue;
+            var trimmed = raw.Trim();
+            if (seen.Add(trimmed)) result.Add(trimmed);
+        }
+        return result;
+    }
 
     private async Task RecordTaskUpdateActivityAsync(
         Guid userId,
@@ -210,7 +244,8 @@ public class TaskService(
         TaskPriority previousPriority,
         DateOnly? previousDueDate,
         Guid? previousProjectId,
-        TaskStatus previousStatus)
+        TaskStatus previousStatus,
+        IReadOnlyCollection<string> previousTags)
     {
         if (updated.Content != previousContent)
         {
@@ -312,6 +347,28 @@ public class TaskService(
                 });
         }
 
+        if (!TagListsEqual(previousTags, updated.Tags))
+        {
+            var previousSet = new HashSet<string>(previousTags, StringComparer.Ordinal);
+            var currentSet = new HashSet<string>(updated.Tags, StringComparer.Ordinal);
+            var added = updated.Tags.Where(t => !previousSet.Contains(t)).ToArray();
+            var removed = previousTags.Where(t => !currentSet.Contains(t)).ToArray();
+
+            await taskActivityService.RecordUserTaskEventAsync(
+                TaskActivityEventType.TaskTagsChanged,
+                userId,
+                updated.Id,
+                currentSpaceId,
+                updated.ProjectId,
+                new
+                {
+                    previous_tags = previousTags,
+                    new_tags = updated.Tags,
+                    added_tags = added,
+                    removed_tags = removed
+                });
+        }
+
         if (updated.Status != previousStatus)
         {
             if (updated.Status == TaskStatus.Completed)
@@ -345,6 +402,18 @@ public class TaskService(
                     });
             }
         }
+    }
+
+    private static bool TagListsEqual(IReadOnlyCollection<string> a, IReadOnlyCollection<string> b)
+    {
+        if (a.Count != b.Count) return false;
+        using var ea = a.GetEnumerator();
+        using var eb = b.GetEnumerator();
+        while (ea.MoveNext() && eb.MoveNext())
+        {
+            if (!string.Equals(ea.Current, eb.Current, StringComparison.Ordinal)) return false;
+        }
+        return true;
     }
 
     private async Task NotifySafelyAsync(Func<Task> publish, string eventName, Guid taskId)

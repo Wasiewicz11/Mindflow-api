@@ -135,6 +135,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddScoped<ISpaceRepository, SpaceRepository>();
         services.AddScoped<IProjectRepository, ProjectRepository>();
+        services.AddScoped<IProjectTagRepository, ProjectTagRepository>();
         services.AddScoped<ITaskRepository, TaskRepository>();
         services.AddScoped<ICalendarBlockRepository, CalendarBlockRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
