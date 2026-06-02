@@ -339,12 +339,26 @@ public class TaskService(
             }
 
             TaskSubtask? subtask = null;
-            var hasExistingId = Guid.TryParse(raw.Id, out var parsedId) && remaining.TryGetValue(parsedId, out subtask);
+            var hasParsedId = Guid.TryParse(raw.Id, out var parsedId);
+            var hasExistingId = hasParsedId && remaining.TryGetValue(parsedId, out subtask);
+            if (!hasExistingId && !hasParsedId)
+            {
+                var normalizedContent = raw.Content.Trim();
+                subtask = remaining.Values.FirstOrDefault(existing =>
+                    existing.SortOrder == (raw.SortOrder ?? index)
+                    && string.Equals(existing.Content, normalizedContent, StringComparison.Ordinal));
+                if (subtask is not null)
+                {
+                    hasExistingId = true;
+                    remaining.Remove(subtask.Id);
+                }
+            }
+
             if (!hasExistingId)
             {
                 subtask = new TaskSubtask
                 {
-                    Id = Guid.TryParse(raw.Id, out var newId) ? newId : Guid.NewGuid(),
+                    Id = hasParsedId ? parsedId : Guid.NewGuid(),
                     Content = raw.Content.Trim(),
                     CreatedAt = DateTimeOffset.UtcNow
                 };

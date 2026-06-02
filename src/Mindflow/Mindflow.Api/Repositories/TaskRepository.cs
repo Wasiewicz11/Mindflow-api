@@ -34,8 +34,15 @@ public class TaskRepository(MindflowDbContext db) : ITaskRepository
 
     public async Task<TaskItem?> UpdateAsync(TaskItem task)
     {
-        await db.SaveChangesAsync();
-        return task;
+        try
+        {
+            await db.SaveChangesAsync();
+            return task;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return null;
+        }
     }
 
     public async Task<bool> DeleteAsync(Guid id)
