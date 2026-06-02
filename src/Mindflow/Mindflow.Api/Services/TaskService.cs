@@ -132,7 +132,6 @@ public class TaskService(
         var previousProjectId = task.ProjectId;
         var previousStatus = task.Status;
         var previousTags = task.Tags.ToList();
-        var previousSubtasks = task.Subtasks.Select(ToSubtaskResponse).ToArray();
 
         if (request.Content is not null) task.Content = request.Content;
         if (request.Description is not null) task.Description = request.Description;
@@ -142,10 +141,6 @@ public class TaskService(
         if (request.ProjectId.HasValue) task.ProjectId = request.ProjectId;
         if (request.Status.HasValue) task.Status = request.Status.Value;
         if (request.Tags is not null) task.Tags = NormalizeTags(request.Tags);
-        if (request.Subtasks is not null)
-        {
-            ApplySubtasks(task.Subtasks, request.Subtasks);
-        }
 
         // Sync task tags into the (possibly new) project's tag pool.
         // Covers tag edits as well as moves between projects (copy all into target).
@@ -173,8 +168,7 @@ public class TaskService(
             previousDueDate,
             previousProjectId,
             previousStatus,
-            previousTags,
-            previousSubtasks);
+            previousTags);
 
         if (previousSpaceId.HasValue && previousSpaceId != currentSpaceId)
         {
@@ -445,70 +439,6 @@ public class TaskService(
         return result;
     }
 
-    private static void ApplySubtasks(ICollection<TaskSubtask> current, IReadOnlyCollection<TaskSubtaskRequest> subtasks)
-    {
-        var remaining = current.ToDictionary(s => s.Id);
-        var index = 0;
-
-        foreach (var raw in subtasks)
-        {
-            if (string.IsNullOrWhiteSpace(raw.Content))
-            {
-                index++;
-                continue;
-            }
-
-            TaskSubtask? subtask = null;
-            var hasParsedId = Guid.TryParse(raw.Id, out var parsedId);
-            var hasExistingId = hasParsedId && remaining.TryGetValue(parsedId, out subtask);
-            if (!hasExistingId && !hasParsedId)
-            {
-                var normalizedContent = raw.Content.Trim();
-                subtask = remaining.Values.FirstOrDefault(existing =>
-                    existing.SortOrder == (raw.SortOrder ?? index)
-                    && string.Equals(existing.Content, normalizedContent, StringComparison.Ordinal));
-                if (subtask is not null)
-                {
-                    hasExistingId = true;
-                    remaining.Remove(subtask.Id);
-                }
-            }
-
-            if (!hasExistingId)
-            {
-                subtask = new TaskSubtask
-                {
-                    Id = hasParsedId ? parsedId : Guid.NewGuid(),
-                    Content = raw.Content.Trim(),
-                    CreatedAt = DateTimeOffset.UtcNow
-                };
-                current.Add(subtask);
-            }
-            else
-            {
-                remaining.Remove(parsedId);
-            }
-
-            subtask!.Content = raw.Content.Trim();
-            subtask.Description = string.IsNullOrWhiteSpace(raw.Description) ? null : raw.Description;
-            subtask.IsCompleted = raw.IsCompleted;
-            subtask.DueDate = raw.DueDate;
-            subtask.SortOrder = raw.SortOrder ?? index;
-            index++;
-        }
-
-        var hasOnlyStableIds = subtasks
-            .Where(subtask => !string.IsNullOrWhiteSpace(subtask.Content))
-            .All(subtask => Guid.TryParse(subtask.Id, out _));
-
-        if (!hasOnlyStableIds) return;
-
-        foreach (var removed in remaining.Values)
-        {
-            current.Remove(removed);
-        }
-    }
-
     private async Task RecordTaskUpdateActivityAsync(
         Guid userId,
         TaskItem updated,
@@ -520,8 +450,7 @@ public class TaskService(
         DateOnly? previousDueDate,
         Guid? previousProjectId,
         TaskStatus previousStatus,
-        IReadOnlyCollection<string> previousTags,
-        IReadOnlyCollection<TaskSubtaskResponse> previousSubtasks)
+        IReadOnlyCollection<string> previousTags)
     {
         if (updated.Content != previousContent)
         {
@@ -645,28 +574,6 @@ public class TaskService(
                 });
         }
 
-        var currentSubtasks = updated.Subtasks
-            .OrderBy(s => s.SortOrder)
-            .ThenBy(s => s.CreatedAt)
-            .Select(ToSubtaskResponse)
-            .ToArray();
-        if (!SubtaskListsEqual(previousSubtasks, currentSubtasks))
-        {
-            await taskActivityService.RecordUserTaskEventAsync(
-                TaskActivityEventType.TaskSubtasksChanged,
-                userId,
-                updated.Id,
-                currentSpaceId,
-                updated.ProjectId,
-                new
-                {
-                    previous_subtasks_count = previousSubtasks.Count,
-                    new_subtasks_count = currentSubtasks.Length,
-                    completed_subtasks_count = currentSubtasks.Count(s => s.IsCompleted),
-                    due_subtasks_count = currentSubtasks.Count(s => s.DueDate.HasValue && !s.IsCompleted)
-                });
-        }
-
         if (updated.Status != previousStatus)
         {
             if (updated.Status == TaskStatus.Completed)
@@ -710,24 +617,6 @@ public class TaskService(
         while (ea.MoveNext() && eb.MoveNext())
         {
             if (!string.Equals(ea.Current, eb.Current, StringComparison.Ordinal)) return false;
-        }
-        return true;
-    }
-
-    private static bool SubtaskListsEqual(IReadOnlyCollection<TaskSubtaskResponse> a, IReadOnlyCollection<TaskSubtaskResponse> b)
-    {
-        if (a.Count != b.Count) return false;
-        using var ea = a.GetEnumerator();
-        using var eb = b.GetEnumerator();
-        while (ea.MoveNext() && eb.MoveNext())
-        {
-            if (ea.Current.Id != eb.Current.Id
-                || ea.Current.Content != eb.Current.Content
-                || ea.Current.Description != eb.Current.Description
-                || ea.Current.IsCompleted != eb.Current.IsCompleted
-                || ea.Current.DueDate != eb.Current.DueDate
-                || ea.Current.SortOrder != eb.Current.SortOrder)
-                return false;
         }
         return true;
     }

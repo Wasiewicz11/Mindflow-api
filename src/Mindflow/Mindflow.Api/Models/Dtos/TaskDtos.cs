@@ -22,8 +22,7 @@ public record UpdateTaskRequest(
     DateOnly? DueDate,
     bool ClearDueDate,
     Guid? ProjectId,
-    IReadOnlyCollection<string>? Tags,
-    IReadOnlyCollection<TaskSubtaskRequest>? Subtasks);
+    IReadOnlyCollection<string>? Tags);
 
 public record TaskSubtaskRequest(
     string? Id,
