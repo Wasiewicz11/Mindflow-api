@@ -39,9 +39,15 @@ public class TaskRepository(MindflowDbContext db) : ITaskRepository
             await db.SaveChangesAsync();
             return task;
         }
-        catch (DbUpdateConcurrencyException)
+        catch (DbUpdateConcurrencyException ex) when (ex.Entries.All(e => e.Entity is TaskSubtask && e.State == EntityState.Deleted))
         {
-            return null;
+            foreach (var entry in ex.Entries)
+            {
+                entry.State = EntityState.Detached;
+            }
+
+            await db.SaveChangesAsync();
+            return task;
         }
     }
 

@@ -377,6 +377,12 @@ public class TaskService(
             index++;
         }
 
+        var hasOnlyStableIds = subtasks
+            .Where(subtask => !string.IsNullOrWhiteSpace(subtask.Content))
+            .All(subtask => Guid.TryParse(subtask.Id, out _));
+
+        if (!hasOnlyStableIds) return;
+
         foreach (var removed in remaining.Values)
         {
             current.Remove(removed);
