@@ -25,6 +25,14 @@ public class TaskRepository(MindflowDbContext db) : ITaskRepository
             .FirstOrDefaultAsync(t => t.Id == id);
     }
 
+    public async Task<TaskItem?> GetByIdReadOnlyAsync(Guid id)
+    {
+        return await db.Tasks
+            .AsNoTracking()
+            .Include(t => t.Subtasks)
+            .FirstOrDefaultAsync(t => t.Id == id);
+    }
+
     public async Task<TaskItem?> CreateAsync(TaskItem task)
     {
         db.Tasks.Add(task);

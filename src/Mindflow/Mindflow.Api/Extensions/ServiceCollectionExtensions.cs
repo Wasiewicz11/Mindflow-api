@@ -137,6 +137,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IProjectRepository, ProjectRepository>();
         services.AddScoped<IProjectTagRepository, ProjectTagRepository>();
         services.AddScoped<ITaskRepository, TaskRepository>();
+        services.AddScoped<ITaskSubtaskRepository, TaskSubtaskRepository>();
         services.AddScoped<ICalendarBlockRepository, CalendarBlockRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         return services;
@@ -154,6 +155,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IProjectService, ProjectService>();
         services.AddScoped<IProjectTagService, ProjectTagService>();
         services.AddScoped<ITaskService, TaskService>();
+        services.AddScoped<ITaskSubtaskService, TaskSubtaskService>();
         services.AddScoped<ITaskActivityService, TaskActivityService>();
         services.AddScoped<ICalendarBlockService, CalendarBlockService>();
         services.AddScoped<ITasksNotifier, TasksNotifier>();

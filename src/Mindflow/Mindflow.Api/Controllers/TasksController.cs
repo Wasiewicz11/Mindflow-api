@@ -8,7 +8,7 @@ namespace Mindflow.Api.Controllers;
 [ApiController]
 [Route("tasks")]
 [Authorize]
-public class TasksController(ITaskService taskService) : ControllerBase
+public class TasksController(ITaskService taskService, ITaskSubtaskService subtaskService) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAll()
@@ -52,7 +52,7 @@ public class TasksController(ITaskService taskService) : ControllerBase
     [HttpPost("{id:guid}/subtasks")]
     public async Task<IActionResult> CreateSubtask(Guid id, [FromBody] TaskSubtaskRequest request)
     {
-        var updated = await taskService.CreateSubtaskAsync(id, request);
+        var updated = await subtaskService.CreateAsync(id, request);
         if (updated is null) return NotFound();
         return Ok(updated);
     }
@@ -60,7 +60,7 @@ public class TasksController(ITaskService taskService) : ControllerBase
     [HttpPut("{id:guid}/subtasks/{subtaskId:guid}")]
     public async Task<IActionResult> UpdateSubtask(Guid id, Guid subtaskId, [FromBody] TaskSubtaskRequest request)
     {
-        var updated = await taskService.UpdateSubtaskAsync(id, subtaskId, request);
+        var updated = await subtaskService.UpdateAsync(id, subtaskId, request);
         if (updated is null) return NotFound();
         return Ok(updated);
     }
@@ -68,7 +68,7 @@ public class TasksController(ITaskService taskService) : ControllerBase
     [HttpDelete("{id:guid}/subtasks/{subtaskId:guid}")]
     public async Task<IActionResult> DeleteSubtask(Guid id, Guid subtaskId)
     {
-        var updated = await taskService.DeleteSubtaskAsync(id, subtaskId);
+        var updated = await subtaskService.DeleteAsync(id, subtaskId);
         if (updated is null) return NotFound();
         return Ok(updated);
     }
@@ -76,7 +76,7 @@ public class TasksController(ITaskService taskService) : ControllerBase
     [HttpPut("{id:guid}/subtasks/reorder")]
     public async Task<IActionResult> ReorderSubtasks(Guid id, [FromBody] ReorderTaskSubtasksRequest request)
     {
-        var updated = await taskService.ReorderSubtasksAsync(id, request);
+        var updated = await subtaskService.ReorderAsync(id, request);
         if (updated is null) return NotFound();
         return Ok(updated);
     }

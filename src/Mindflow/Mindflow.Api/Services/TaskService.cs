@@ -23,7 +23,7 @@ public class TaskService(
     {
         var userId = await currentUserService.GetCurrentUserIdAsync();
         var tasks = await taskRepository.GetAllForUserAsync(userId);
-        return tasks.Select(ToListResponse);
+        return tasks.Select(TaskResponseMapper.ToListResponse);
     }
 
     public async Task<IEnumerable<TaskListResponse>> GetAllForProjectAsync(Guid projectId)
@@ -34,7 +34,7 @@ public class TaskService(
             throw new UnauthorizedAccessException();
 
         var tasks = await taskRepository.GetAllForProjectAsync(projectId);
-        return tasks.Select(ToListResponse);
+        return tasks.Select(TaskResponseMapper.ToListResponse);
     }
 
     public async Task<TaskDetailResponse?> GetByIdAsync(Guid id)
@@ -44,8 +44,8 @@ public class TaskService(
         if (!await accessService.CanAccessTaskAsync(id, userId))
             return null;
 
-        var task = await taskRepository.GetByIdAsync(id);
-        return task is null ? null : ToDetailResponse(task);
+        var task = await taskRepository.GetByIdReadOnlyAsync(id);
+        return task is null ? null : TaskResponseMapper.ToDetailResponse(task);
     }
 
     public async Task<TaskDetailResponse?> CreateAsync(CreateTaskRequest request)
@@ -108,7 +108,7 @@ public class TaskService(
             "TaskCreated",
             created.Id);
 
-        return ToDetailResponse(created);
+        return TaskResponseMapper.ToDetailResponse(created);
     }
 
     public async Task<TaskDetailResponse?> UpdateAsync(Guid id, UpdateTaskRequest request)
@@ -142,8 +142,6 @@ public class TaskService(
         if (request.Status.HasValue) task.Status = request.Status.Value;
         if (request.Tags is not null) task.Tags = NormalizeTags(request.Tags);
 
-        // Sync task tags into the (possibly new) project's tag pool.
-        // Covers tag edits as well as moves between projects (copy all into target).
         if (task.ProjectId.HasValue && task.Tags.Count > 0)
         {
             task.Tags = (await projectTagRepository.EnsureExistAsync(task.ProjectId.Value, task.Tags)).ToList();
@@ -183,7 +181,7 @@ public class TaskService(
             "TaskUpdated",
             updated.Id);
 
-        return ToDetailResponse(updated);
+        return TaskResponseMapper.ToDetailResponse(updated);
     }
 
     public async Task<bool> DeleteAsync(Guid id)
@@ -222,176 +220,6 @@ public class TaskService(
 
         return true;
     }
-
-    public async Task<TaskDetailResponse?> CreateSubtaskAsync(Guid taskId, TaskSubtaskRequest request)
-    {
-        var task = await GetAccessibleTaskForCurrentUserAsync(taskId);
-        if (task is null) return null;
-        if (string.IsNullOrWhiteSpace(request.Content)) return ToDetailResponse(task);
-
-        var nextOrder = task.Subtasks.Count == 0 ? 0 : task.Subtasks.Max(s => s.SortOrder) + 1;
-        task.Subtasks.Add(new TaskSubtask
-        {
-            Id = Guid.TryParse(request.Id, out var requestId) ? requestId : Guid.NewGuid(),
-            Content = request.Content.Trim(),
-            Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description,
-            IsCompleted = request.IsCompleted,
-            DueDate = request.DueDate,
-            SortOrder = request.SortOrder ?? nextOrder,
-            CreatedAt = DateTimeOffset.UtcNow
-        });
-
-        return await SaveSubtaskChangeAsync(task);
-    }
-
-    public async Task<TaskDetailResponse?> UpdateSubtaskAsync(Guid taskId, Guid subtaskId, TaskSubtaskRequest request)
-    {
-        var task = await GetAccessibleTaskForCurrentUserAsync(taskId);
-        var subtask = task?.Subtasks.FirstOrDefault(s => s.Id == subtaskId);
-        if (task is null || subtask is null) return null;
-
-        if (!string.IsNullOrWhiteSpace(request.Content))
-        {
-            subtask.Content = request.Content.Trim();
-        }
-        subtask.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description;
-        subtask.IsCompleted = request.IsCompleted;
-        subtask.DueDate = request.DueDate;
-        if (request.SortOrder.HasValue) subtask.SortOrder = request.SortOrder.Value;
-
-        return await SaveSubtaskChangeAsync(task);
-    }
-
-    public async Task<TaskDetailResponse?> DeleteSubtaskAsync(Guid taskId, Guid subtaskId)
-    {
-        var task = await GetAccessibleTaskForCurrentUserAsync(taskId);
-        var subtask = task?.Subtasks.FirstOrDefault(s => s.Id == subtaskId);
-        if (task is null || subtask is null) return null;
-
-        task.Subtasks.Remove(subtask);
-        NormalizeSubtaskOrder(task.Subtasks);
-
-        return await SaveSubtaskChangeAsync(task);
-    }
-
-    public async Task<TaskDetailResponse?> ReorderSubtasksAsync(Guid taskId, ReorderTaskSubtasksRequest request)
-    {
-        var task = await GetAccessibleTaskForCurrentUserAsync(taskId);
-        if (task is null) return null;
-
-        var requestedOrder = request.SubtaskIds.ToList();
-        var orderById = requestedOrder
-            .Select((id, index) => new { id, index })
-            .ToDictionary(item => item.id, item => item.index);
-        var fallbackOrder = requestedOrder.Count;
-
-        foreach (var subtask in task.Subtasks.OrderBy(s => s.SortOrder).ThenBy(s => s.CreatedAt))
-        {
-            subtask.SortOrder = orderById.TryGetValue(subtask.Id, out var order)
-                ? order
-                : fallbackOrder++;
-        }
-
-        return await SaveSubtaskChangeAsync(task);
-    }
-
-    private static TaskListResponse ToListResponse(TaskItem t) =>
-        new(
-            t.Id,
-            t.Content,
-            t.IsCompleted,
-            t.Priority,
-            t.Status,
-            t.DueDate,
-            t.ProjectId,
-            t.Tags.ToArray(),
-            t.Subtasks.Count(s => s.IsCompleted),
-            t.Subtasks.Count,
-            GetDueSubtasks(t).Length,
-            GetDueSubtasks(t),
-            t.CreatedAt);
-
-    private static TaskDetailResponse ToDetailResponse(TaskItem t) =>
-        new(
-            t.Id,
-            t.Content,
-            t.Description,
-            t.IsCompleted,
-            t.Priority,
-            t.Status,
-            t.DueDate,
-            t.ProjectId,
-            t.Tags.ToArray(),
-            t.Subtasks.Count(s => s.IsCompleted),
-            t.Subtasks.Count,
-            GetDueSubtasks(t).Length,
-            GetDueSubtasks(t),
-            t.Subtasks
-                .OrderBy(s => s.SortOrder)
-                .ThenBy(s => s.CreatedAt)
-                .Select(ToSubtaskResponse)
-                .ToArray(),
-            t.CreatedAt);
-
-    private async Task<TaskItem?> GetAccessibleTaskForCurrentUserAsync(Guid taskId)
-    {
-        var userId = await currentUserService.GetCurrentUserIdAsync();
-
-        if (!await accessService.CanAccessTaskAsync(taskId, userId))
-            return null;
-
-        return await taskRepository.GetByIdAsync(taskId);
-    }
-
-    private async Task<TaskDetailResponse?> SaveSubtaskChangeAsync(TaskItem task)
-    {
-        var updated = await taskRepository.UpdateAsync(task);
-        if (updated is null) return null;
-
-        var userId = await currentUserService.GetCurrentUserIdAsync();
-        var spaceId = await taskRepository.GetSpaceIdForTaskAsync(updated);
-
-        await taskActivityService.RecordUserTaskEventAsync(
-            TaskActivityEventType.TaskSubtasksChanged,
-            userId,
-            updated.Id,
-            spaceId,
-            updated.ProjectId,
-            new
-            {
-                subtasks_count = updated.Subtasks.Count,
-                completed_subtasks_count = updated.Subtasks.Count(s => s.IsCompleted),
-                due_subtasks_count = updated.Subtasks.Count(s => s.DueDate.HasValue && !s.IsCompleted)
-            });
-
-        await NotifySafelyAsync(
-            () => notifier.TaskUpdatedAsync(updated, spaceId),
-            "TaskUpdated",
-            updated.Id);
-
-        return ToDetailResponse(updated);
-    }
-
-    private static void NormalizeSubtaskOrder(ICollection<TaskSubtask> subtasks)
-    {
-        var index = 0;
-        foreach (var subtask in subtasks.OrderBy(s => s.SortOrder).ThenBy(s => s.CreatedAt))
-        {
-            subtask.SortOrder = index++;
-        }
-    }
-
-    private static TaskSubtaskResponse ToSubtaskResponse(TaskSubtask s) =>
-        new(s.Id, s.Content, s.IsCompleted, s.Description, s.DueDate, s.SortOrder, s.CreatedAt);
-
-    private static TaskSubtaskResponse[] GetDueSubtasks(TaskItem t) =>
-        t.Subtasks
-            .Where(s => !s.IsCompleted && s.DueDate.HasValue)
-            .OrderBy(s => s.DueDate)
-            .ThenBy(s => s.SortOrder)
-            .ThenBy(s => s.CreatedAt)
-            .Select(ToSubtaskResponse)
-            .ToArray();
 
     private static List<string> NormalizeTags(IReadOnlyCollection<string>? tags)
     {
