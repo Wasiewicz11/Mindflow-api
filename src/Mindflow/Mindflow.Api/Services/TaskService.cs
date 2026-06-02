@@ -351,8 +351,6 @@ public class TaskService(
 
     private async Task<TaskDetailResponse?> SaveSubtaskChangeAsync(TaskItem task)
     {
-        NormalizeSubtaskOrder(task.Subtasks);
-
         var updated = await taskRepository.UpdateAsync(task);
         if (updated is null) return null;
 
