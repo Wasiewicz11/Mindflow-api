@@ -4,19 +4,22 @@ using Mindflow.Api.Models.Enums;
 namespace Mindflow.Api.Models.Dtos;
 
 public record CreateCalendarBlockRequest(
-    Guid TaskId,
+    Guid? TaskId,
+    [MaxLength(255)] string? Title,
     DateTimeOffset StartAt,
     int DurationMinutes);
 
 public record UpdateCalendarBlockRequest(
-    Guid TaskId,
+    Guid? TaskId,
+    [MaxLength(255)] string? Title,
     DateTimeOffset StartAt,
     int DurationMinutes);
 
 public record CalendarBlockResponse(
     Guid Id,
-    Guid TaskId,
+    Guid? TaskId,
     Guid UserId,
+    string? Title,
     DateTimeOffset StartAt,
     int DurationMinutes,
     DateTimeOffset CreatedAt,

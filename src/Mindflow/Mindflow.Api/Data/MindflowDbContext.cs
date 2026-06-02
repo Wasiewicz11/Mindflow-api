@@ -72,6 +72,9 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
         {
             entity.ToTable("calendar_blocks");
 
+            entity.Property(b => b.Title)
+                .HasMaxLength(255);
+
             entity.Property(b => b.Provider)
                 .HasConversion<string>();
 
