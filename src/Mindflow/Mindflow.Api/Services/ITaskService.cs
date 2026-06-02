@@ -10,4 +10,8 @@ public interface ITaskService
     Task<TaskDetailResponse?> CreateAsync(CreateTaskRequest request);
     Task<TaskDetailResponse?> UpdateAsync(Guid id, UpdateTaskRequest request);
     Task<bool> DeleteAsync(Guid id);
+    Task<TaskDetailResponse?> CreateSubtaskAsync(Guid taskId, TaskSubtaskRequest request);
+    Task<TaskDetailResponse?> UpdateSubtaskAsync(Guid taskId, Guid subtaskId, TaskSubtaskRequest request);
+    Task<TaskDetailResponse?> DeleteSubtaskAsync(Guid taskId, Guid subtaskId);
+    Task<TaskDetailResponse?> ReorderSubtasksAsync(Guid taskId, ReorderTaskSubtasksRequest request);
 }

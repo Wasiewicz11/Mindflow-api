@@ -33,6 +33,8 @@ public record TaskSubtaskRequest(
     DateOnly? DueDate,
     int? SortOrder);
 
+public record ReorderTaskSubtasksRequest(IReadOnlyCollection<Guid> SubtaskIds);
+
 public record TaskSubtaskResponse(
     Guid Id,
     string Content,

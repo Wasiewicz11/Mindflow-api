@@ -48,4 +48,36 @@ public class TasksController(ITaskService taskService) : ControllerBase
         if (!deleted) return NotFound();
         return NoContent();
     }
+
+    [HttpPost("{id:guid}/subtasks")]
+    public async Task<IActionResult> CreateSubtask(Guid id, [FromBody] TaskSubtaskRequest request)
+    {
+        var updated = await taskService.CreateSubtaskAsync(id, request);
+        if (updated is null) return NotFound();
+        return Ok(updated);
+    }
+
+    [HttpPut("{id:guid}/subtasks/{subtaskId:guid}")]
+    public async Task<IActionResult> UpdateSubtask(Guid id, Guid subtaskId, [FromBody] TaskSubtaskRequest request)
+    {
+        var updated = await taskService.UpdateSubtaskAsync(id, subtaskId, request);
+        if (updated is null) return NotFound();
+        return Ok(updated);
+    }
+
+    [HttpDelete("{id:guid}/subtasks/{subtaskId:guid}")]
+    public async Task<IActionResult> DeleteSubtask(Guid id, Guid subtaskId)
+    {
+        var updated = await taskService.DeleteSubtaskAsync(id, subtaskId);
+        if (updated is null) return NotFound();
+        return Ok(updated);
+    }
+
+    [HttpPut("{id:guid}/subtasks/reorder")]
+    public async Task<IActionResult> ReorderSubtasks(Guid id, [FromBody] ReorderTaskSubtasksRequest request)
+    {
+        var updated = await taskService.ReorderSubtasksAsync(id, request);
+        if (updated is null) return NotFound();
+        return Ok(updated);
+    }
 }
