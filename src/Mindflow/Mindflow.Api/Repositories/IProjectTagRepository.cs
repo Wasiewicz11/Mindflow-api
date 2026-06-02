@@ -11,4 +11,8 @@ public interface IProjectTagRepository
     /// case-insensitive match was found, otherwise the trimmed input.
     /// </summary>
     Task<IReadOnlyList<string>> EnsureExistAsync(Guid projectId, IReadOnlyCollection<string> names);
+
+    Task<IReadOnlyList<string>> RenameAsync(Guid projectId, string currentName, string newName);
+
+    Task<IReadOnlyList<string>> DeleteAsync(Guid projectId, string name);
 }
