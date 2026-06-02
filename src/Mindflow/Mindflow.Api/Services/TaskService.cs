@@ -77,6 +77,7 @@ public class TaskService(
             Status = request.Status ?? TaskStatus.NotStarted,
             DueDate = request.DueDate,
             Tags = tags,
+            Subtasks = NormalizeSubtasks(request.Subtasks),
             CreatedAt = DateTimeOffset.UtcNow
         };
 
@@ -98,7 +99,8 @@ public class TaskService(
                 priority = created.Priority.ToString(),
                 status = created.Status.ToString(),
                 project_id = created.ProjectId,
-                tags_count = created.Tags.Count
+                tags_count = created.Tags.Count,
+                subtasks_count = created.Subtasks.Count
             });
 
         await NotifySafelyAsync(
@@ -130,6 +132,7 @@ public class TaskService(
         var previousProjectId = task.ProjectId;
         var previousStatus = task.Status;
         var previousTags = task.Tags.ToList();
+        var previousSubtasks = task.Subtasks.Select(ToSubtaskResponse).ToArray();
 
         if (request.Content is not null) task.Content = request.Content;
         if (request.Description is not null) task.Description = request.Description;
@@ -139,6 +142,10 @@ public class TaskService(
         if (request.ProjectId.HasValue) task.ProjectId = request.ProjectId;
         if (request.Status.HasValue) task.Status = request.Status.Value;
         if (request.Tags is not null) task.Tags = NormalizeTags(request.Tags);
+        if (request.Subtasks is not null)
+        {
+            ApplySubtasks(task.Subtasks, request.Subtasks);
+        }
 
         // Sync task tags into the (possibly new) project's tag pool.
         // Covers tag edits as well as moves between projects (copy all into target).
@@ -166,7 +173,8 @@ public class TaskService(
             previousDueDate,
             previousProjectId,
             previousStatus,
-            previousTags);
+            previousTags,
+            previousSubtasks);
 
         if (previousSpaceId.HasValue && previousSpaceId != currentSpaceId)
         {
@@ -222,10 +230,54 @@ public class TaskService(
     }
 
     private static TaskListResponse ToListResponse(TaskItem t) =>
-        new(t.Id, t.Content, t.IsCompleted, t.Priority, t.Status, t.DueDate, t.ProjectId, t.Tags.ToArray(), t.CreatedAt);
+        new(
+            t.Id,
+            t.Content,
+            t.IsCompleted,
+            t.Priority,
+            t.Status,
+            t.DueDate,
+            t.ProjectId,
+            t.Tags.ToArray(),
+            t.Subtasks.Count(s => s.IsCompleted),
+            t.Subtasks.Count,
+            GetDueSubtasks(t).Length,
+            GetDueSubtasks(t),
+            t.CreatedAt);
 
     private static TaskDetailResponse ToDetailResponse(TaskItem t) =>
-        new(t.Id, t.Content, t.Description, t.IsCompleted, t.Priority, t.Status, t.DueDate, t.ProjectId, t.Tags.ToArray(), t.CreatedAt);
+        new(
+            t.Id,
+            t.Content,
+            t.Description,
+            t.IsCompleted,
+            t.Priority,
+            t.Status,
+            t.DueDate,
+            t.ProjectId,
+            t.Tags.ToArray(),
+            t.Subtasks.Count(s => s.IsCompleted),
+            t.Subtasks.Count,
+            GetDueSubtasks(t).Length,
+            GetDueSubtasks(t),
+            t.Subtasks
+                .OrderBy(s => s.SortOrder)
+                .ThenBy(s => s.CreatedAt)
+                .Select(ToSubtaskResponse)
+                .ToArray(),
+            t.CreatedAt);
+
+    private static TaskSubtaskResponse ToSubtaskResponse(TaskSubtask s) =>
+        new(s.Id, s.Content, s.IsCompleted, s.Description, s.DueDate, s.SortOrder, s.CreatedAt);
+
+    private static TaskSubtaskResponse[] GetDueSubtasks(TaskItem t) =>
+        t.Subtasks
+            .Where(s => !s.IsCompleted && s.DueDate.HasValue)
+            .OrderBy(s => s.DueDate)
+            .ThenBy(s => s.SortOrder)
+            .ThenBy(s => s.CreatedAt)
+            .Select(ToSubtaskResponse)
+            .ToArray();
 
     private static List<string> NormalizeTags(IReadOnlyCollection<string>? tags)
     {
@@ -242,6 +294,81 @@ public class TaskService(
         return result;
     }
 
+    private static List<TaskSubtask> NormalizeSubtasks(IReadOnlyCollection<TaskSubtaskRequest>? subtasks)
+    {
+        if (subtasks is null) return new List<TaskSubtask>();
+
+        var result = new List<TaskSubtask>();
+        var index = 0;
+        foreach (var raw in subtasks)
+        {
+            if (string.IsNullOrWhiteSpace(raw.Content))
+            {
+                index++;
+                continue;
+            }
+
+            var id = Guid.TryParse(raw.Id, out var parsedId) ? parsedId : Guid.NewGuid();
+            result.Add(new TaskSubtask
+            {
+                Id = id,
+                Content = raw.Content.Trim(),
+                Description = string.IsNullOrWhiteSpace(raw.Description) ? null : raw.Description,
+                IsCompleted = raw.IsCompleted,
+                DueDate = raw.DueDate,
+                SortOrder = raw.SortOrder ?? index,
+                CreatedAt = DateTimeOffset.UtcNow
+            });
+            index++;
+        }
+
+        return result;
+    }
+
+    private static void ApplySubtasks(ICollection<TaskSubtask> current, IReadOnlyCollection<TaskSubtaskRequest> subtasks)
+    {
+        var remaining = current.ToDictionary(s => s.Id);
+        var index = 0;
+
+        foreach (var raw in subtasks)
+        {
+            if (string.IsNullOrWhiteSpace(raw.Content))
+            {
+                index++;
+                continue;
+            }
+
+            TaskSubtask? subtask = null;
+            var hasExistingId = Guid.TryParse(raw.Id, out var parsedId) && remaining.TryGetValue(parsedId, out subtask);
+            if (!hasExistingId)
+            {
+                subtask = new TaskSubtask
+                {
+                    Id = Guid.TryParse(raw.Id, out var newId) ? newId : Guid.NewGuid(),
+                    Content = raw.Content.Trim(),
+                    CreatedAt = DateTimeOffset.UtcNow
+                };
+                current.Add(subtask);
+            }
+            else
+            {
+                remaining.Remove(parsedId);
+            }
+
+            subtask!.Content = raw.Content.Trim();
+            subtask.Description = string.IsNullOrWhiteSpace(raw.Description) ? null : raw.Description;
+            subtask.IsCompleted = raw.IsCompleted;
+            subtask.DueDate = raw.DueDate;
+            subtask.SortOrder = raw.SortOrder ?? index;
+            index++;
+        }
+
+        foreach (var removed in remaining.Values)
+        {
+            current.Remove(removed);
+        }
+    }
+
     private async Task RecordTaskUpdateActivityAsync(
         Guid userId,
         TaskItem updated,
@@ -253,7 +380,8 @@ public class TaskService(
         DateOnly? previousDueDate,
         Guid? previousProjectId,
         TaskStatus previousStatus,
-        IReadOnlyCollection<string> previousTags)
+        IReadOnlyCollection<string> previousTags,
+        IReadOnlyCollection<TaskSubtaskResponse> previousSubtasks)
     {
         if (updated.Content != previousContent)
         {
@@ -377,6 +505,28 @@ public class TaskService(
                 });
         }
 
+        var currentSubtasks = updated.Subtasks
+            .OrderBy(s => s.SortOrder)
+            .ThenBy(s => s.CreatedAt)
+            .Select(ToSubtaskResponse)
+            .ToArray();
+        if (!SubtaskListsEqual(previousSubtasks, currentSubtasks))
+        {
+            await taskActivityService.RecordUserTaskEventAsync(
+                TaskActivityEventType.TaskSubtasksChanged,
+                userId,
+                updated.Id,
+                currentSpaceId,
+                updated.ProjectId,
+                new
+                {
+                    previous_subtasks_count = previousSubtasks.Count,
+                    new_subtasks_count = currentSubtasks.Length,
+                    completed_subtasks_count = currentSubtasks.Count(s => s.IsCompleted),
+                    due_subtasks_count = currentSubtasks.Count(s => s.DueDate.HasValue && !s.IsCompleted)
+                });
+        }
+
         if (updated.Status != previousStatus)
         {
             if (updated.Status == TaskStatus.Completed)
@@ -420,6 +570,24 @@ public class TaskService(
         while (ea.MoveNext() && eb.MoveNext())
         {
             if (!string.Equals(ea.Current, eb.Current, StringComparison.Ordinal)) return false;
+        }
+        return true;
+    }
+
+    private static bool SubtaskListsEqual(IReadOnlyCollection<TaskSubtaskResponse> a, IReadOnlyCollection<TaskSubtaskResponse> b)
+    {
+        if (a.Count != b.Count) return false;
+        using var ea = a.GetEnumerator();
+        using var eb = b.GetEnumerator();
+        while (ea.MoveNext() && eb.MoveNext())
+        {
+            if (ea.Current.Id != eb.Current.Id
+                || ea.Current.Content != eb.Current.Content
+                || ea.Current.Description != eb.Current.Description
+                || ea.Current.IsCompleted != eb.Current.IsCompleted
+                || ea.Current.DueDate != eb.Current.DueDate
+                || ea.Current.SortOrder != eb.Current.SortOrder)
+                return false;
         }
         return true;
     }

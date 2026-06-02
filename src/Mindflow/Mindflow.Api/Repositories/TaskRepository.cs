@@ -11,6 +11,7 @@ public class TaskRepository(MindflowDbContext db) : ITaskRepository
         var accessibleProjectIds = await GetAccessibleProjectIdsAsync(userId);
 
         return await db.Tasks
+            .Include(t => t.Subtasks)
             .Where(t => t.UserId == userId
                         || (t.ProjectId != null && accessibleProjectIds.Contains(t.ProjectId.Value)))
             .OrderByDescending(t => t.CreatedAt)
@@ -19,7 +20,9 @@ public class TaskRepository(MindflowDbContext db) : ITaskRepository
 
     public async Task<TaskItem?> GetByIdAsync(Guid id)
     {
-        return await db.Tasks.FirstOrDefaultAsync(t => t.Id == id);
+        return await db.Tasks
+            .Include(t => t.Subtasks)
+            .FirstOrDefaultAsync(t => t.Id == id);
     }
 
     public async Task<TaskItem?> CreateAsync(TaskItem task)
@@ -48,6 +51,7 @@ public class TaskRepository(MindflowDbContext db) : ITaskRepository
     public async Task<IEnumerable<TaskItem>> GetAllForProjectAsync(Guid projectId)
     {
         return await db.Tasks
+            .Include(t => t.Subtasks)
             .Where(t => t.ProjectId == projectId)
             .OrderByDescending(t => t.CreatedAt)
             .ToListAsync();

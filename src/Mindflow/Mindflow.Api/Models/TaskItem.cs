@@ -18,5 +18,6 @@ public class TaskItem
     public TaskStatus Status { get; set; }
     public DateOnly? DueDate { get; set; }
     public List<string> Tags { get; set; } = new();
+    public List<TaskSubtask> Subtasks { get; set; } = new();
     public DateTimeOffset CreatedAt { get; set; }
 }

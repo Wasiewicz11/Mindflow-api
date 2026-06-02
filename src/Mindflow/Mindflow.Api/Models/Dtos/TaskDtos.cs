@@ -11,7 +11,8 @@ public record CreateTaskRequest(
     TaskStatus? Status,
     DateOnly? DueDate,
     Guid? ProjectId,
-    IReadOnlyCollection<string>? Tags);
+    IReadOnlyCollection<string>? Tags,
+    IReadOnlyCollection<TaskSubtaskRequest>? Subtasks);
 
 public record UpdateTaskRequest(
     string? Content,
@@ -21,7 +22,25 @@ public record UpdateTaskRequest(
     DateOnly? DueDate,
     bool ClearDueDate,
     Guid? ProjectId,
-    IReadOnlyCollection<string>? Tags);
+    IReadOnlyCollection<string>? Tags,
+    IReadOnlyCollection<TaskSubtaskRequest>? Subtasks);
+
+public record TaskSubtaskRequest(
+    string? Id,
+    string Content,
+    bool IsCompleted,
+    [MaxLength(10000)] string? Description,
+    DateOnly? DueDate,
+    int? SortOrder);
+
+public record TaskSubtaskResponse(
+    Guid Id,
+    string Content,
+    bool IsCompleted,
+    string? Description,
+    DateOnly? DueDate,
+    int SortOrder,
+    DateTimeOffset CreatedAt);
 
 public record TaskListResponse(
     Guid Id,
@@ -32,6 +51,10 @@ public record TaskListResponse(
     DateOnly? DueDate,
     Guid? ProjectId,
     IReadOnlyCollection<string> Tags,
+    int SubtaskCompletedCount,
+    int SubtaskTotalCount,
+    int SubtaskDueCount,
+    IReadOnlyCollection<TaskSubtaskResponse> DueSubtasks,
     DateTimeOffset CreatedAt);
 
 public record TaskDetailResponse(
@@ -44,4 +67,9 @@ public record TaskDetailResponse(
     DateOnly? DueDate,
     Guid? ProjectId,
     IReadOnlyCollection<string> Tags,
+    int SubtaskCompletedCount,
+    int SubtaskTotalCount,
+    int SubtaskDueCount,
+    IReadOnlyCollection<TaskSubtaskResponse> DueSubtasks,
+    IReadOnlyCollection<TaskSubtaskResponse> Subtasks,
     DateTimeOffset CreatedAt);

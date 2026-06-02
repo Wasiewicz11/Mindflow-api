@@ -13,6 +13,7 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
     public DbSet<Project> Projects { get; set; }
     public DbSet<ProjectTag> ProjectTags { get; set; }
     public DbSet<TaskItem> Tasks { get; set; }
+    public DbSet<TaskSubtask> TaskSubtasks { get; set; }
     public DbSet<TaskActivityEvent> TaskActivityEvents { get; set; }
     public DbSet<CalendarBlock> CalendarBlocks { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
@@ -66,6 +67,20 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
 
             entity.HasIndex(t => t.UserId);
             entity.HasIndex(t => t.ProjectId);
+        });
+
+        modelBuilder.Entity<TaskSubtask>(entity =>
+        {
+            entity.ToTable("task_subtasks");
+
+            entity.HasOne<TaskItem>()
+                .WithMany(t => t.Subtasks)
+                .HasForeignKey(s => s.TaskItemId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(s => s.TaskItemId);
+            entity.HasIndex(s => new { s.TaskItemId, s.SortOrder });
+            entity.HasIndex(s => s.DueDate);
         });
 
         modelBuilder.Entity<CalendarBlock>(entity =>

@@ -20,6 +20,7 @@ public enum TaskActivityEventType
     TaskPriorityChanged,
     TaskProjectChanged,
     TaskTagsChanged,
+    TaskSubtasksChanged,
     TaskRecurrenceCreated,
     TaskRecurrenceChanged,
     TaskRecurrenceInstanceCreated,
