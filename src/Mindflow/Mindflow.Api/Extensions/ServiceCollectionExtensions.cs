@@ -152,6 +152,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IStorageService, SupabaseStorageService>();
         services.AddScoped<ISpaceService, SpaceService>();
         services.AddScoped<IProjectService, ProjectService>();
+        services.AddScoped<IProjectTagService, ProjectTagService>();
         services.AddScoped<ITaskService, TaskService>();
         services.AddScoped<ITaskActivityService, TaskActivityService>();
         services.AddScoped<ICalendarBlockService, CalendarBlockService>();

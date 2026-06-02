@@ -60,6 +60,10 @@ public class TaskService(
         {
             tags = (await projectTagRepository.EnsureExistAsync(request.ProjectId.Value, tags)).ToList();
         }
+        else if (!request.ProjectId.HasValue)
+        {
+            tags.Clear();
+        }
 
         var task = new TaskItem
         {
@@ -141,6 +145,10 @@ public class TaskService(
         if (task.ProjectId.HasValue && task.Tags.Count > 0)
         {
             task.Tags = (await projectTagRepository.EnsureExistAsync(task.ProjectId.Value, task.Tags)).ToList();
+        }
+        else if (!task.ProjectId.HasValue)
+        {
+            task.Tags.Clear();
         }
 
         var updated = await taskRepository.UpdateAsync(task);
