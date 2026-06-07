@@ -17,6 +17,8 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
     public DbSet<TaskActivityEvent> TaskActivityEvents { get; set; }
     public DbSet<CalendarBlock> CalendarBlocks { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
+    public DbSet<AiSuggestion> AiSuggestions { get; set; }
+    public DbSet<SuggestionAction> SuggestionActions { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -123,6 +125,41 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
             entity.HasIndex(e => new { e.TaskId, e.OccurredAt });
             entity.HasIndex(e => e.ProjectId);
             entity.HasIndex(e => e.SpaceId);
+        });
+
+        modelBuilder.Entity<AiSuggestion>(entity =>
+        {
+            entity.ToTable("ai_suggestions");
+
+            entity.Property(s => s.Status)
+                .HasConversion<string>();
+
+            entity.HasIndex(s => new { s.UserId, s.Status });
+            entity.HasIndex(s => new { s.UserId, s.GeneratedForDate });
+        });
+
+        modelBuilder.Entity<SuggestionAction>(entity =>
+        {
+            entity.ToTable("suggestion_actions");
+
+            entity.Property(a => a.ActionType)
+                .HasConversion<string>();
+
+            entity.Property(a => a.Payload)
+                .HasColumnType("jsonb")
+                .HasDefaultValueSql("'{}'::jsonb");
+
+            entity.HasOne<AiSuggestion>()
+                .WithMany(s => s.Actions)
+                .HasForeignKey(a => a.SuggestionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne<TaskItem>()
+                .WithMany()
+                .HasForeignKey(a => a.TaskId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(a => a.SuggestionId);
         });
     }
 }

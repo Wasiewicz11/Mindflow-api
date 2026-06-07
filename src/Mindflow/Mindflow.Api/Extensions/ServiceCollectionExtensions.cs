@@ -12,6 +12,7 @@ using Mindflow.Api.Hubs;
 using Mindflow.Api.Models.Enums;
 using Mindflow.Api.Repositories;
 using Mindflow.Api.Services;
+using Mindflow.Api.Services.Ai;
 
 namespace Mindflow.Api.Extensions;
 
@@ -181,6 +182,25 @@ public static class ServiceCollectionExtensions
         var credentials = new BasicAWSCredentials(accessKey, secretKey);
         services.AddSingleton<IAmazonS3>(_ => new AmazonS3Client(credentials, s3Config));
         services.AddHttpClient();
+
+        return services;
+    }
+
+    public static IServiceCollection AddMindflowAi(this IServiceCollection services, IConfiguration config)
+    {
+        services.Configure<AiOptions>(config.GetSection(AiOptions.SectionName));
+
+        services.AddScoped<IDaySnapshotBuilder, DaySnapshotBuilder>();
+        services.AddScoped<ISuggestionRepository, SuggestionRepository>();
+        services.AddScoped<ISuggestionActionExecutor, SuggestionActionExecutor>();
+        services.AddScoped<IAiSuggestionOrchestrator, AiSuggestionOrchestrator>();
+        services.AddScoped<ISuggestionService, SuggestionService>();
+
+        services.AddHttpClient<GeminiSuggestionProvider>();
+        services.AddHttpClient<OpenAiSuggestionProvider>();
+        services.AddScoped<IAiSuggestionProvider>(sp => sp.GetRequiredService<GeminiSuggestionProvider>());
+        services.AddScoped<IAiSuggestionProvider>(sp => sp.GetRequiredService<OpenAiSuggestionProvider>());
+        services.AddScoped<IAiSuggestionProvider, RuleBasedSuggestionProvider>();
 
         return services;
     }
