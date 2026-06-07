@@ -10,6 +10,7 @@ public record CreateTaskRequest(
     TaskPriority? Priority,
     TaskStatus? Status,
     DateOnly? DueDate,
+    [Range(0.01, 1000)] decimal? EstimatedHours,
     Guid? ProjectId,
     IReadOnlyCollection<string>? Tags,
     IReadOnlyCollection<TaskSubtaskRequest>? Subtasks);
@@ -21,6 +22,8 @@ public record UpdateTaskRequest(
     TaskStatus? Status,
     DateOnly? DueDate,
     bool ClearDueDate,
+    [Range(0.01, 1000)] decimal? EstimatedHours,
+    bool ClearEstimatedHours,
     Guid? ProjectId,
     IReadOnlyCollection<string>? Tags);
 
@@ -50,6 +53,7 @@ public record TaskListResponse(
     TaskPriority Priority,
     TaskStatus Status,
     DateOnly? DueDate,
+    decimal? EstimatedHours,
     Guid? ProjectId,
     IReadOnlyCollection<string> Tags,
     int SubtaskCompletedCount,
@@ -66,6 +70,7 @@ public record TaskDetailResponse(
     TaskPriority Priority,
     TaskStatus Status,
     DateOnly? DueDate,
+    decimal? EstimatedHours,
     Guid? ProjectId,
     IReadOnlyCollection<string> Tags,
     int SubtaskCompletedCount,
