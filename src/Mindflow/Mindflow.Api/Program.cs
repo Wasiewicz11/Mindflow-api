@@ -13,6 +13,7 @@ builder.Services.AddMindflowAuth(config);
 builder.Services.AddMindflowStorage(config);
 builder.Services.AddMindflowRepositories();
 builder.Services.AddMindflowServices();
+builder.Services.AddMindflowAi(config);
 builder.Services.AddSignalR();
 
 builder.Services.AddControllers()

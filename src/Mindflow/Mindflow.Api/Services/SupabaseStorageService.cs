@@ -17,13 +17,22 @@ public class SupabaseStorageService(
         var imageBytes = await http.GetByteArrayAsync(sourceUrl);
 
         using var stream = new MemoryStream(imageBytes);
+        return await UploadAsync(stream, key, "image/jpeg");
+    }
+
+    public async Task<string> UploadAsync(Stream stream, string key, string contentType)
+    {
+        if (stream.CanSeek)
+        {
+            stream.Position = 0;
+        }
 
         await s3.PutObjectAsync(new PutObjectRequest
         {
             BucketName = _bucket,
             Key = key,
             InputStream = stream,
-            ContentType = "image/jpeg"
+            ContentType = contentType
         });
 
         return key;
