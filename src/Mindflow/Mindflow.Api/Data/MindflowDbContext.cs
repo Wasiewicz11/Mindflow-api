@@ -63,6 +63,9 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
             entity.Property(t => t.Priority)
                 .HasConversion<string>();
 
+            entity.Property(t => t.EstimatedHours)
+                .HasColumnType("numeric(6,2)");
+
             entity.Property(t => t.Tags)
                 .HasColumnType("text[]")
                 .HasDefaultValueSql("'{}'::text[]")

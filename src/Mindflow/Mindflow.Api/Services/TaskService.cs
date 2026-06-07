@@ -76,6 +76,7 @@ public class TaskService(
             Priority = request.Priority ?? TaskPriority.P3,
             Status = request.Status ?? TaskStatus.NotStarted,
             DueDate = request.DueDate,
+            EstimatedHours = request.EstimatedHours,
             Tags = tags,
             Subtasks = NormalizeSubtasks(request.Subtasks),
             CreatedAt = DateTimeOffset.UtcNow
@@ -96,6 +97,7 @@ public class TaskService(
                 title_present = !string.IsNullOrWhiteSpace(created.Content),
                 description_present = !string.IsNullOrWhiteSpace(created.Description),
                 due_date = created.DueDate,
+                estimated_hours = created.EstimatedHours,
                 priority = created.Priority.ToString(),
                 status = created.Status.ToString(),
                 project_id = created.ProjectId,
@@ -138,6 +140,8 @@ public class TaskService(
         if (request.Priority.HasValue) task.Priority = request.Priority.Value;
         if (request.ClearDueDate) task.DueDate = null;
         else if (request.DueDate.HasValue) task.DueDate = request.DueDate;
+        if (request.ClearEstimatedHours) task.EstimatedHours = null;
+        else if (request.EstimatedHours.HasValue) task.EstimatedHours = request.EstimatedHours;
         if (request.ProjectId.HasValue) task.ProjectId = request.ProjectId;
         if (request.Status.HasValue) task.Status = request.Status.Value;
         if (request.Tags is not null) task.Tags = NormalizeTags(request.Tags);
