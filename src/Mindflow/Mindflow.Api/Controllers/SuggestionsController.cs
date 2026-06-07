@@ -13,6 +13,14 @@ public class SuggestionsController(ISuggestionService suggestionService) : Contr
     public async Task<IActionResult> GetPending()
         => Ok(await suggestionService.GetPendingAsync());
 
+    [HttpPost("generate")]
+    public async Task<IActionResult> Generate()
+        => Ok(await suggestionService.GenerateOnDemandAsync());
+
+    [HttpGet("quota")]
+    public async Task<IActionResult> Quota()
+        => Ok(await suggestionService.GetQuotaAsync());
+
     [HttpPost("{id:guid}/accept")]
     public async Task<IActionResult> Accept(Guid id)
         => await suggestionService.AcceptAsync(id) ? NoContent() : NotFound();

@@ -15,6 +15,8 @@ public class GeminiSuggestionProvider(
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(_options.Gemini.ApiKey);
 
+    public bool IsAi => true;
+
     public async Task<IReadOnlyList<SuggestionDraft>> GenerateAsync(DaySnapshot snapshot, CancellationToken ct = default)
     {
         var model = _options.Gemini.Model;

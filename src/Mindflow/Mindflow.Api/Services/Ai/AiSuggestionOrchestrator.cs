@@ -9,16 +9,17 @@ public class AiSuggestionOrchestrator(
 {
     private readonly AiOptions _options = options.Value;
 
-    public async Task<OrchestratorResult> GenerateAsync(DaySnapshot snapshot, CancellationToken ct = default)
+    public async Task<OrchestratorResult> GenerateAsync(DaySnapshot snapshot, bool aiAllowed, CancellationToken ct = default)
     {
         var ordered = OrderByConfiguredPriority(providers)
             .Where(p => p.IsConfigured)
+            .Where(p => aiAllowed || !p.IsAi)
             .ToList();
 
         if (ordered.Count == 0)
         {
-            logger.LogWarning("Brak skonfigurowanego providera AI — żadna sugestia nie zostanie wygenerowana.");
-            return new OrchestratorResult(null, []);
+            logger.LogWarning("Brak dostępnego providera (aiAllowed={AiAllowed}) — żadna sugestia nie powstanie.", aiAllowed);
+            return new OrchestratorResult(null, false, []);
         }
 
         foreach (var provider in ordered)
@@ -29,7 +30,7 @@ public class AiSuggestionOrchestrator(
                 if (drafts.Count > 0)
                 {
                     logger.LogInformation("Sugestie wygenerowane przez providera {Provider}.", provider.Name);
-                    return new OrchestratorResult(provider.Name, drafts);
+                    return new OrchestratorResult(provider.Name, provider.IsAi, drafts);
                 }
 
                 logger.LogInformation("Provider {Provider} nie zwrócił sugestii — próbuję kolejnego.", provider.Name);
@@ -40,7 +41,7 @@ public class AiSuggestionOrchestrator(
             }
         }
 
-        return new OrchestratorResult(null, []);
+        return new OrchestratorResult(null, false, []);
     }
 
     private IEnumerable<IAiSuggestionProvider> OrderByConfiguredPriority(IEnumerable<IAiSuggestionProvider> source)

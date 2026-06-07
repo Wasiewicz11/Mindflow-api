@@ -19,6 +19,7 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<AiSuggestion> AiSuggestions { get; set; }
     public DbSet<SuggestionAction> SuggestionActions { get; set; }
+    public DbSet<AiUsageDaily> AiUsageDaily { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -160,6 +161,12 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasIndex(a => a.SuggestionId);
+        });
+
+        modelBuilder.Entity<AiUsageDaily>(entity =>
+        {
+            entity.ToTable("ai_usage_daily");
+            entity.HasKey(u => new { u.UserId, u.Date });
         });
     }
 }

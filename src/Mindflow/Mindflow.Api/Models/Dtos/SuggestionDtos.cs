@@ -16,3 +16,7 @@ public record SuggestionActionResponse(
     string TaskTitle,
     SuggestionActionType ActionType,
     string Summary);
+
+public record GenerateSuggestionsResponse(string Mode, int AiUsedToday, int AiLimit, int Created);
+
+public record SuggestionQuotaResponse(int AiUsedToday, int AiLimit);
