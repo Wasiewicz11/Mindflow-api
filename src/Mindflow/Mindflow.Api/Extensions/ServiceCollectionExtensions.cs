@@ -192,6 +192,7 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<IDaySnapshotBuilder, DaySnapshotBuilder>();
         services.AddScoped<ISuggestionRepository, SuggestionRepository>();
+        services.AddScoped<IAiUsageRepository, AiUsageRepository>();
         services.AddScoped<ISuggestionActionExecutor, SuggestionActionExecutor>();
         services.AddScoped<IAiSuggestionOrchestrator, AiSuggestionOrchestrator>();
         services.AddScoped<ISuggestionService, SuggestionService>();

@@ -12,6 +12,7 @@ public class SuggestionService(
     IDaySnapshotBuilder snapshotBuilder,
     IAiSuggestionOrchestrator orchestrator,
     ISuggestionRepository repository,
+    IAiUsageRepository usageRepository,
     ISuggestionActionExecutor actionExecutor,
     ICurrentUserService currentUserService,
     IOptions<AiOptions> options,
@@ -20,44 +21,41 @@ public class SuggestionService(
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly AiOptions _options = options.Value;
 
+    // Ścieżka crona — zawsze z AI, nie dotyka dziennego limitu ręcznych wywołań.
     public async Task<int> GenerateForUserAsync(Guid userId, CancellationToken ct = default)
     {
-        var snapshotResult = await snapshotBuilder.BuildAsync(userId, ct);
-        if (snapshotResult.Snapshot.Tasks.Count == 0)
-            return 0;
+        var (created, _) = await GenerateInternalAsync(userId, aiAllowed: true, ct);
+        return created;
+    }
 
-        var (providerName, drafts) = await orchestrator.GenerateAsync(snapshotResult.Snapshot, ct);
-        if (drafts.Count == 0)
-            return 0;
+    // Ścieżka ręczna (przycisk) — limit ManualAiDailyLimit wywołań AI dziennie, potem offline.
+    public async Task<GenerateSuggestionsResponse> GenerateOnDemandAsync()
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var used = await usageRepository.GetAiCallsAsync(userId, today);
+        var aiAllowed = used < _options.ManualAiDailyLimit;
 
-        await repository.ExpirePendingForUserAsync(userId);
-
-        var now = DateTimeOffset.UtcNow;
-        var created = 0;
-
-        foreach (var draft in drafts.Take(_options.MaxSuggestionsPerRun))
+        var (created, usedAi) = await GenerateInternalAsync(userId, aiAllowed);
+        if (usedAi)
         {
-            var actions = MapActions(draft.Actions, snapshotResult.RefToTaskId);
-            if (actions.Count == 0) continue;
-
-            await repository.AddAsync(new AiSuggestion
-            {
-                Id = Guid.NewGuid(),
-                UserId = userId,
-                Title = Truncate(draft.Title, 200),
-                Body = Truncate(draft.Body, 2000),
-                Status = SuggestionStatus.Pending,
-                GeneratedForDate = snapshotResult.Snapshot.Today,
-                Provider = providerName,
-                CreatedAt = now,
-                Actions = actions
-            });
-            created++;
+            await usageRepository.IncrementAiCallsAsync(userId, today);
+            used++;
         }
 
-        logger.LogInformation("Utworzono {Count} sugestii dla usera {UserId} (provider {Provider}).",
-            created, userId, providerName);
-        return created;
+        return new GenerateSuggestionsResponse(
+            usedAi ? "ai" : "offline",
+            used,
+            _options.ManualAiDailyLimit,
+            created);
+    }
+
+    public async Task<SuggestionQuotaResponse> GetQuotaAsync()
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var used = await usageRepository.GetAiCallsAsync(userId, today);
+        return new SuggestionQuotaResponse(used, _options.ManualAiDailyLimit);
     }
 
     public async Task<IReadOnlyList<SuggestionResponse>> GetPendingAsync()
@@ -125,6 +123,46 @@ public class SuggestionService(
         suggestion.DecidedAt = DateTimeOffset.UtcNow;
         await repository.SaveChangesAsync();
         return true;
+    }
+
+    private async Task<(int Created, bool UsedAi)> GenerateInternalAsync(Guid userId, bool aiAllowed, CancellationToken ct = default)
+    {
+        var snapshotResult = await snapshotBuilder.BuildAsync(userId, ct);
+        if (snapshotResult.Snapshot.Tasks.Count == 0)
+            return (0, false);
+
+        var result = await orchestrator.GenerateAsync(snapshotResult.Snapshot, aiAllowed, ct);
+        if (result.Drafts.Count == 0)
+            return (0, false);
+
+        await repository.ExpirePendingForUserAsync(userId);
+
+        var now = DateTimeOffset.UtcNow;
+        var created = 0;
+
+        foreach (var draft in result.Drafts.Take(_options.MaxSuggestionsPerRun))
+        {
+            var actions = MapActions(draft.Actions, snapshotResult.RefToTaskId);
+            if (actions.Count == 0) continue;
+
+            await repository.AddAsync(new AiSuggestion
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                Title = Truncate(draft.Title, 200),
+                Body = Truncate(draft.Body, 2000),
+                Status = SuggestionStatus.Pending,
+                GeneratedForDate = snapshotResult.Snapshot.Today,
+                Provider = result.ProviderName,
+                CreatedAt = now,
+                Actions = actions
+            });
+            created++;
+        }
+
+        logger.LogInformation("Utworzono {Count} sugestii dla usera {UserId} (provider {Provider}).",
+            created, userId, result.ProviderName);
+        return (created, result.UsedAi);
     }
 
     private List<SuggestionAction> MapActions(

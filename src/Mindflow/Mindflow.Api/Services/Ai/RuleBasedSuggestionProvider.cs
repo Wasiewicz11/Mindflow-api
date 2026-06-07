@@ -11,6 +11,8 @@ public class RuleBasedSuggestionProvider(IOptions<AiOptions> options) : IAiSugge
 
     public bool IsConfigured => _options.EnableLocalFallback;
 
+    public bool IsAi => false;
+
     public Task<IReadOnlyList<SuggestionDraft>> GenerateAsync(DaySnapshot snapshot, CancellationToken ct = default)
     {
         var today = snapshot.Today.ToString("yyyy-MM-dd");

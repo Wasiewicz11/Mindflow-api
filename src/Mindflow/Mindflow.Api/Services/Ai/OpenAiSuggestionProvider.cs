@@ -16,6 +16,8 @@ public class OpenAiSuggestionProvider(
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(_options.OpenAi.ApiKey);
 
+    public bool IsAi => true;
+
     public async Task<IReadOnlyList<SuggestionDraft>> GenerateAsync(DaySnapshot snapshot, CancellationToken ct = default)
     {
         var body = new

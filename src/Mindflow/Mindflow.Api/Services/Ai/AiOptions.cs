@@ -7,6 +7,7 @@ public class AiOptions
     public string[] ProviderOrder { get; set; } = ["Gemini", "OpenAi", "RuleBased"];
     public bool EnableLocalFallback { get; set; } = true;
     public int MaxSuggestionsPerRun { get; set; } = 3;
+    public int ManualAiDailyLimit { get; set; } = 2;
     public ProviderCredentials Gemini { get; set; } = new() { Model = "gemini-2.0-flash" };
     public ProviderCredentials OpenAi { get; set; } = new() { Model = "gpt-4o-mini" };
 }
