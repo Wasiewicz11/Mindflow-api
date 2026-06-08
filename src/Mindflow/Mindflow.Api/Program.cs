@@ -48,6 +48,7 @@ app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapGet("/health", () => Results.Ok());
 app.MapHub<TasksHub>("/hubs/tasks");
 
 app.Run();
