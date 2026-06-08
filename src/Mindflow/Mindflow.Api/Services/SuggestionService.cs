@@ -135,6 +135,13 @@ public class SuggestionService(
         if (result.Drafts.Count == 0)
             return (0, false);
 
+        var today = snapshotResult.Snapshot.Today;
+
+        // Podpisy sugestii już dziś rozstrzygniętych (odrzucone/zaakceptowane) — nie powtarzamy ich.
+        var seenSignatures = (await repository.GetDecidedTodayAsync(userId, today))
+            .Select(s => ActionSignature(s.Actions))
+            .ToHashSet();
+
         await repository.ExpirePendingForUserAsync(userId);
 
         var now = DateTimeOffset.UtcNow;
@@ -145,6 +152,10 @@ public class SuggestionService(
             var actions = MapActions(draft.Actions, snapshotResult.RefToTaskId);
             if (actions.Count == 0) continue;
 
+            // seenSignatures.Add zwraca false gdy podpis już był → pomija duplikat (także w tym przebiegu).
+            if (!seenSignatures.Add(ActionSignature(actions)))
+                continue;
+
             await repository.AddAsync(new AiSuggestion
             {
                 Id = Guid.NewGuid(),
@@ -152,7 +163,7 @@ public class SuggestionService(
                 Title = Truncate(draft.Title, 200),
                 Body = Truncate(draft.Body, 2000),
                 Status = SuggestionStatus.Pending,
-                GeneratedForDate = snapshotResult.Snapshot.Today,
+                GeneratedForDate = today,
                 Provider = result.ProviderName,
                 CreatedAt = now,
                 Actions = actions
@@ -162,7 +173,7 @@ public class SuggestionService(
 
         logger.LogInformation("Utworzono {Count} sugestii dla usera {UserId} (provider {Provider}).",
             created, userId, result.ProviderName);
-        return (created, result.UsedAi);
+        return (created, result.UsedAi && created > 0);
     }
 
     private List<SuggestionAction> MapActions(
@@ -214,4 +225,9 @@ public class SuggestionService(
     }
 
     private static string Truncate(string value, int max) => value.Length <= max ? value : value[..max];
+
+    private static string ActionSignature(IEnumerable<SuggestionAction> actions)
+        => string.Join(";", actions
+            .Select(a => $"{a.TaskId}:{a.ActionType}")
+            .OrderBy(s => s, StringComparer.Ordinal));
 }
