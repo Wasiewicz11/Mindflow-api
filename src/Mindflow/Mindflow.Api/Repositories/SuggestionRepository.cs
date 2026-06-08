@@ -14,6 +14,15 @@ public class SuggestionRepository(MindflowDbContext db) : ISuggestionRepository
             .OrderByDescending(s => s.CreatedAt)
             .ToListAsync();
 
+    public async Task<IReadOnlyList<AiSuggestion>> GetDecidedTodayAsync(Guid userId, DateOnly date)
+        => await db.AiSuggestions
+            .AsNoTracking()
+            .Include(s => s.Actions)
+            .Where(s => s.UserId == userId
+                        && s.GeneratedForDate == date
+                        && (s.Status == SuggestionStatus.Rejected || s.Status == SuggestionStatus.Accepted))
+            .ToListAsync();
+
     public async Task<AiSuggestion?> GetByIdWithActionsAsync(Guid id)
         => await db.AiSuggestions
             .Include(s => s.Actions)
