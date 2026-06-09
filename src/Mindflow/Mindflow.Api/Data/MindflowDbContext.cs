@@ -16,6 +16,7 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
     public DbSet<TaskSubtask> TaskSubtasks { get; set; }
     public DbSet<TaskActivityEvent> TaskActivityEvents { get; set; }
     public DbSet<CalendarBlock> CalendarBlocks { get; set; }
+    public DbSet<GoogleCalendarConnection> GoogleCalendarConnections { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<AiSuggestion> AiSuggestions { get; set; }
     public DbSet<SuggestionAction> SuggestionActions { get; set; }
@@ -105,6 +106,7 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
             entity.HasIndex(b => b.UserId);
             entity.HasIndex(b => b.TaskId);
             entity.HasIndex(b => new { b.UserId, b.StartAt });
+            entity.HasIndex(b => new { b.UserId, b.ExternalEventId });
         });
 
         modelBuilder.Entity<TaskActivityEvent>(entity =>
@@ -170,6 +172,19 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
         {
             entity.ToTable("ai_usage_daily");
             entity.HasKey(u => new { u.UserId, u.Date });
+        });
+
+        modelBuilder.Entity<GoogleCalendarConnection>(entity =>
+        {
+            entity.ToTable("google_calendar_connections");
+
+            entity.HasOne(c => c.User)
+                .WithMany()
+                .HasForeignKey(c => c.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(c => c.UserId).IsUnique();
+            entity.HasIndex(c => c.WatchChannelId);
         });
     }
 }

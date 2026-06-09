@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Mindflow.Api.Data;
 using Mindflow.Api.Models;
+using Mindflow.Api.Models.Enums;
 
 namespace Mindflow.Api.Repositories;
 
@@ -17,6 +18,19 @@ public class CalendarBlockRepository(MindflowDbContext db) : ICalendarBlockRepos
     public async Task<CalendarBlock?> GetByIdAsync(Guid id)
     {
         return await db.CalendarBlocks.FirstOrDefaultAsync(b => b.Id == id);
+    }
+
+    public async Task<CalendarBlock?> GetByExternalEventIdAsync(Guid userId, string externalEventId)
+    {
+        return await db.CalendarBlocks
+            .FirstOrDefaultAsync(b => b.UserId == userId && b.ExternalEventId == externalEventId);
+    }
+
+    public async Task<IReadOnlyList<CalendarBlock>> GetByProviderAsync(Guid userId, CalendarBlockProvider provider)
+    {
+        return await db.CalendarBlocks
+            .Where(b => b.UserId == userId && b.Provider == provider)
+            .ToListAsync();
     }
 
     public async Task<CalendarBlock> CreateAsync(CalendarBlock block)
