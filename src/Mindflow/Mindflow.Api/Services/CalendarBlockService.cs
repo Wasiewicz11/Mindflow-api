@@ -4,6 +4,7 @@ using Mindflow.Api.Models;
 using Mindflow.Api.Models.Dtos;
 using Mindflow.Api.Models.Enums;
 using Mindflow.Api.Repositories;
+using Mindflow.Api.Services.GoogleCalendar;
 using Task = System.Threading.Tasks.Task;
 
 namespace Mindflow.Api.Services;
@@ -15,6 +16,7 @@ public class CalendarBlockService(
     IAccessService accessService,
     ITaskActivityService taskActivityService,
     ITasksNotifier notifier,
+    IGoogleCalendarSyncService googleCalendarSync,
     ILogger<CalendarBlockService> logger) : ICalendarBlockService
 {
     public async Task<IEnumerable<CalendarBlockResponse>> GetAsync(DateOnly from, DateOnly to)
@@ -80,6 +82,8 @@ public class CalendarBlockService(
             "CalendarBlockCreated",
             created.Id);
 
+        await googleCalendarSync.PushBlockCreatedAsync(created);
+
         return response;
     }
 
@@ -90,6 +94,9 @@ public class CalendarBlockService(
 
         if (block is null || block.UserId != userId)
             throw new NotFoundException($"Calendar block with id {id} not found");
+
+        if (block.Provider != CalendarBlockProvider.Local)
+            throw new BadRequestException("Google calendar events are read-only and cannot be edited here.");
 
         var title = NormalizeTitle(request.Title);
         if (request.TaskId is null && title is null)
@@ -123,6 +130,8 @@ public class CalendarBlockService(
             "CalendarBlockUpdated",
             updated.Id);
 
+        await googleCalendarSync.PushBlockUpdatedAsync(updated);
+
         return response;
     }
 
@@ -134,8 +143,13 @@ public class CalendarBlockService(
         if (block is null || block.UserId != userId)
             return false;
 
+        if (block.Provider != CalendarBlockProvider.Local)
+            return false;
+
         var deleted = await calendarBlockRepository.DeleteAsync(block);
         if (!deleted) return false;
+
+        await googleCalendarSync.PushBlockDeletedAsync(block);
 
         if (block.TaskId is Guid taskId)
         {
@@ -163,19 +177,7 @@ public class CalendarBlockService(
     }
 
     private static CalendarBlockResponse ToResponse(CalendarBlock block) =>
-        new(
-            block.Id,
-            block.TaskId,
-            block.UserId,
-            block.Title,
-            block.StartAt,
-            block.DurationMinutes,
-            block.CreatedAt,
-            block.UpdatedAt,
-            block.Provider,
-            block.ExternalEventId,
-            block.GoogleCalendarId,
-            block.SyncStatus);
+        CalendarBlockMapper.ToResponse(block);
 
     private async Task RecordCalendarBlockUpdateActivityAsync(
         Guid userId,
