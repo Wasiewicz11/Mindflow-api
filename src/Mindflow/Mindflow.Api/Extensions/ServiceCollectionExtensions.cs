@@ -103,7 +103,13 @@ public static class ServiceCollectionExtensions
         return builder.AddJwtBearer(scheme, options =>
         {
             options.Authority = "https://accounts.google.com";
-            options.Audience = config["Google:ClientId"];
+            var audiences = new List<string>();
+            var webClientId = config["Google:ClientId"];
+            var iosClientId = config["Google:IosClientId"];
+            if (!string.IsNullOrWhiteSpace(webClientId)) audiences.Add(webClientId);
+            if (!string.IsNullOrWhiteSpace(iosClientId)) audiences.Add(iosClientId);
+            options.TokenValidationParameters.ValidAudiences = audiences;
+
             options.Events = new JwtBearerEvents
             {
                 OnTokenValidated = context =>
