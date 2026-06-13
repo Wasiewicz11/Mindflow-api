@@ -6,6 +6,9 @@ public record GoogleCalendarStatusResponse(
     bool Connected,
     string? Email,
     DateTimeOffset? ConnectedAt,
-    bool PushEnabled);
+    bool PushEnabled,
+    string? SourceCalendarId);
 
 public record GoogleCalendarSyncResponse(int Changes);
+
+public record SetSourceCalendarRequest(string CalendarId);

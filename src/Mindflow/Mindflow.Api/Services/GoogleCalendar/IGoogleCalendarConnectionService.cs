@@ -12,6 +12,10 @@ public interface IGoogleCalendarConnectionService
 
     Task<GoogleCalendarStatusResponse> GetStatusAsync();
 
+    Task<IReadOnlyList<GoogleCalendarListEntry>> GetCalendarsAsync(CancellationToken ct = default);
+
+    Task SetSourceCalendarAsync(string calendarId, CancellationToken ct = default);
+
     Task DisconnectAsync(CancellationToken ct = default);
 
     Task<int> SyncCurrentUserAsync(CancellationToken ct = default);
