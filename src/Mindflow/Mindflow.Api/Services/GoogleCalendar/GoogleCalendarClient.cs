@@ -24,12 +24,12 @@ public class GoogleCalendarClient(
     private readonly GoogleCalendarOptions _options = options.Value;
 
     private string ClientId =>
-        _options.ClientId ?? configuration["Google:ClientId"]
-        ?? throw new InvalidOperationException("Google OAuth client id is not configured.");
+        configuration["Google:ClientId"]
+        ?? throw new InvalidOperationException("Google:ClientId is not configured.");
 
     private string ClientSecret =>
-        _options.ClientSecret
-        ?? throw new InvalidOperationException("Google:Calendar:ClientSecret is not configured.");
+        configuration["Google:ClientSecret"]
+        ?? throw new InvalidOperationException("Google:ClientSecret is not configured.");
 
     private string RedirectUri =>
         _options.RedirectUri

@@ -4,12 +4,6 @@ public class GoogleCalendarOptions
 {
     public const string SectionName = "Google:Calendar";
 
-    /// <summary>OAuth client id (reuses the Sign-In client). Falls back to Google:ClientId.</summary>
-    public string? ClientId { get; set; }
-
-    /// <summary>OAuth client secret — required for the authorization code exchange.</summary>
-    public string? ClientSecret { get; set; }
-
     /// <summary>Backend callback Google redirects to after consent. Must be whitelisted in the Google Cloud OAuth client.</summary>
     public string? RedirectUri { get; set; }
 
