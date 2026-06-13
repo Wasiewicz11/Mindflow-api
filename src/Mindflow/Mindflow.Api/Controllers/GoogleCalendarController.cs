@@ -59,6 +59,21 @@ public class GoogleCalendarController(
     }
 
     [Authorize]
+    [HttpGet("calendars")]
+    public async Task<IActionResult> Calendars(CancellationToken ct)
+    {
+        return Ok(await connectionService.GetCalendarsAsync(ct));
+    }
+
+    [Authorize]
+    [HttpPut("source")]
+    public async Task<IActionResult> SetSource([FromBody] SetSourceCalendarRequest request, CancellationToken ct)
+    {
+        await connectionService.SetSourceCalendarAsync(request.CalendarId, ct);
+        return NoContent();
+    }
+
+    [Authorize]
     [HttpDelete]
     public async Task<IActionResult> Disconnect(CancellationToken ct)
     {

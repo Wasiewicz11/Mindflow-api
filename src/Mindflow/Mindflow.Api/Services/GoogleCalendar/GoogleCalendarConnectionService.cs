@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using Mindflow.Api.Exceptions;
 using Mindflow.Api.Hubs;
 using Mindflow.Api.Models;
 using Mindflow.Api.Models.Dtos;
@@ -75,13 +76,58 @@ public class GoogleCalendarConnectionService(
         var userId = await currentUserService.GetCurrentUserIdAsync();
         var connection = await connectionRepository.GetByUserIdAsync(userId);
         if (connection is null)
-            return new GoogleCalendarStatusResponse(false, null, null, false);
+            return new GoogleCalendarStatusResponse(false, null, null, false, null);
 
         return new GoogleCalendarStatusResponse(
             true,
             connection.GoogleAccountEmail,
             connection.CreatedAt,
-            connection.WatchChannelId is not null);
+            connection.WatchChannelId is not null,
+            connection.SourceCalendarId);
+    }
+
+    public async Task<IReadOnlyList<GoogleCalendarListEntry>> GetCalendarsAsync(CancellationToken ct = default)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        var connection = await connectionRepository.GetByUserIdAsync(userId);
+        if (connection is null) return [];
+        return await client.ListCalendarsAsync(connection, ct);
+    }
+
+    public async Task SetSourceCalendarAsync(string calendarId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(calendarId))
+            throw new BadRequestException("Calendar id is required.");
+
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        var connection = await connectionRepository.GetByUserIdAsync(userId)
+            ?? throw new NotFoundException("Google Calendar is not connected.");
+
+        if (string.Equals(connection.SourceCalendarId, calendarId, StringComparison.Ordinal))
+            return;
+
+        var calendars = await client.ListCalendarsAsync(connection, ct);
+        if (calendars.All(c => c.Id != calendarId))
+            throw new BadRequestException("Selected calendar is not available on this Google account.");
+
+        // 1) drop the mirror blocks that came from the previous calendar
+        var mirrored = await calendarBlockRepository.GetByProviderAsync(userId, CalendarBlockProvider.Google);
+        foreach (var block in mirrored)
+        {
+            await calendarBlockRepository.DeleteAsync(block);
+            try { await notifier.CalendarBlockDeletedAsync(block.Id, userId); }
+            catch (Exception ex) { logger.LogWarning(ex, "SignalR publish failed while switching source calendar."); }
+        }
+
+        // 2) point at the new calendar and reset the per-calendar sync token
+        connection.SourceCalendarId = calendarId;
+        connection.SyncToken = null;
+        connection.UpdatedAt = DateTimeOffset.UtcNow;
+        await connectionRepository.UpdateAsync(connection);
+
+        // 3) move the push channel to the new calendar, then pull a fresh full sync
+        await syncService.EnsureWatchAsync(connection, ct);
+        await syncService.SyncUserAsync(userId, ct);
     }
 
     public async Task DisconnectAsync(CancellationToken ct = default)

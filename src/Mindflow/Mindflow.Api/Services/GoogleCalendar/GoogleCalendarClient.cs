@@ -71,6 +71,32 @@ public class GoogleCalendarClient(
         return created.Id;
     }
 
+    public async Task<IReadOnlyList<GoogleCalendarListEntry>> ListCalendarsAsync(GoogleCalendarConnection connection, CancellationToken ct)
+    {
+        using var service = BuildService(connection);
+        var entries = new List<GoogleCalendarListEntry>();
+        string? pageToken = null;
+
+        do
+        {
+            var request = service.CalendarList.List();
+            request.PageToken = pageToken;
+            var response = await request.ExecuteAsync(ct);
+
+            foreach (var item in response.Items ?? [])
+            {
+                // hide our own "Mindflow" calendar — it's the push target, never a mirror source
+                if (item.Id == connection.DedicatedCalendarId) continue;
+                entries.Add(new GoogleCalendarListEntry(item.Id, item.Summary, item.Primary ?? false, item.BackgroundColor));
+            }
+
+            pageToken = response.NextPageToken;
+        }
+        while (!string.IsNullOrEmpty(pageToken));
+
+        return entries;
+    }
+
     public async Task<string> UpsertEventAsync(GoogleCalendarConnection connection, CalendarBlock block, CancellationToken ct)
     {
         using var service = BuildService(connection);
