@@ -76,14 +76,21 @@ public class GoogleCalendarConnectionService(
         var userId = await currentUserService.GetCurrentUserIdAsync();
         var connection = await connectionRepository.GetByUserIdAsync(userId);
         if (connection is null)
-            return new GoogleCalendarStatusResponse(false, null, null, false, null);
+            return new GoogleCalendarStatusResponse(false, null, null, false, null, false, null, null);
+
+        var pushEnabled = connection.WatchChannelId is not null
+            && connection.WatchExpiresAt > DateTimeOffset.UtcNow
+            && !connection.RequiresReconnect;
 
         return new GoogleCalendarStatusResponse(
             true,
             connection.GoogleAccountEmail,
             connection.CreatedAt,
-            connection.WatchChannelId is not null,
-            connection.SourceCalendarId);
+            pushEnabled,
+            connection.SourceCalendarId,
+            connection.RequiresReconnect,
+            connection.WatchExpiresAt,
+            connection.LastSyncedAt);
     }
 
     public async Task<IReadOnlyList<GoogleCalendarListEntry>> GetCalendarsAsync(CancellationToken ct = default)
@@ -138,10 +145,26 @@ public class GoogleCalendarConnectionService(
         await RemoveConnectionAsync(connection, ct);
     }
 
-    public async Task<int> SyncCurrentUserAsync(CancellationToken ct = default)
+    public async Task<GoogleCalendarSyncResponse> SyncCurrentUserAsync(CancellationToken ct = default)
     {
         var userId = await currentUserService.GetCurrentUserIdAsync();
-        return await syncService.SyncUserAsync(userId, ct);
+        var connection = await connectionRepository.GetByUserIdAsync(userId);
+        if (connection is null)
+            return new GoogleCalendarSyncResponse(0, 0);
+
+        if (connection.RequiresReconnect)
+            throw new GoogleCalendarReconnectRequiredException();
+
+        var changes = await syncService.SyncUserAsync(userId, ct);
+
+        if (connection.WatchChannelId is null
+            || connection.WatchExpiresAt <= DateTimeOffset.UtcNow.AddDays(2))
+        {
+            await syncService.EnsureWatchAsync(connection, ct);
+        }
+
+        var pushed = await syncService.RetryPendingLocalBlocksAsync(userId, ct);
+        return new GoogleCalendarSyncResponse(changes, pushed);
     }
 
     public async Task HandleWebhookAsync(string? channelId, string? token, string? resourceState, CancellationToken ct = default)
@@ -173,6 +196,7 @@ public class GoogleCalendarConnectionService(
             {
                 await syncService.SyncUserAsync(connection.UserId, ct);
                 await syncService.EnsureWatchAsync(connection, ct);
+                await syncService.RetryPendingLocalBlocksAsync(connection.UserId, ct);
             }
             catch (Exception ex)
             {

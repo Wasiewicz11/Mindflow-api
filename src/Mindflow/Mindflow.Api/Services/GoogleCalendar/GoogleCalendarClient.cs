@@ -9,14 +9,17 @@ using Google.Apis.Calendar.v3;
 using Google.Apis.Calendar.v3.Data;
 using Google.Apis.Services;
 using Microsoft.Extensions.Options;
+using Mindflow.Api.Exceptions;
 using Mindflow.Api.Models;
+using Mindflow.Api.Repositories;
 
 namespace Mindflow.Api.Services.GoogleCalendar;
 
 public class GoogleCalendarClient(
     IOptions<GoogleCalendarOptions> options,
     IConfiguration configuration,
-    IGoogleTokenProtector tokenProtector) : IGoogleCalendarClient
+    IGoogleTokenProtector tokenProtector,
+    IGoogleCalendarConnectionRepository connectionRepository) : IGoogleCalendarClient
 {
     private const string ApplicationName = "Mindflow";
     private const string PrimaryCalendar = "primary";
@@ -66,14 +69,14 @@ public class GoogleCalendarClient(
 
     public async Task<string> CreateDedicatedCalendarAsync(GoogleCalendarConnection connection, string calendarName, CancellationToken ct)
     {
-        using var service = BuildService(connection);
+        using var service = await BuildServiceAsync(connection, ct);
         var created = await service.Calendars.Insert(new Calendar { Summary = calendarName }).ExecuteAsync(ct);
         return created.Id;
     }
 
     public async Task<IReadOnlyList<GoogleCalendarListEntry>> ListCalendarsAsync(GoogleCalendarConnection connection, CancellationToken ct)
     {
-        using var service = BuildService(connection);
+        using var service = await BuildServiceAsync(connection, ct);
         var entries = new List<GoogleCalendarListEntry>();
         string? pageToken = null;
 
@@ -99,7 +102,7 @@ public class GoogleCalendarClient(
 
     public async Task<string> UpsertEventAsync(GoogleCalendarConnection connection, CalendarBlock block, CancellationToken ct)
     {
-        using var service = BuildService(connection);
+        using var service = await BuildServiceAsync(connection, ct);
         var calendarId = block.GoogleCalendarId ?? connection.DedicatedCalendarId;
 
         var body = new Event
@@ -121,7 +124,7 @@ public class GoogleCalendarClient(
 
     public async Task DeleteEventAsync(GoogleCalendarConnection connection, string calendarId, string externalEventId, CancellationToken ct)
     {
-        using var service = BuildService(connection);
+        using var service = await BuildServiceAsync(connection, ct);
         try
         {
             await service.Events.Delete(calendarId, externalEventId).ExecuteAsync(ct);
@@ -134,7 +137,7 @@ public class GoogleCalendarClient(
 
     public async Task<GoogleSyncResult> ListChangesAsync(GoogleCalendarConnection connection, string? syncToken, CancellationToken ct)
     {
-        using var service = BuildService(connection);
+        using var service = await BuildServiceAsync(connection, ct);
         var calendarId = connection.SourceCalendarId ?? PrimaryCalendar;
 
         var changes = new List<GoogleEventChange>();
@@ -186,7 +189,7 @@ public class GoogleCalendarClient(
     public async Task<GoogleWatchResult> StartWatchAsync(
         GoogleCalendarConnection connection, string channelId, string channelToken, string webhookUrl, CancellationToken ct)
     {
-        using var service = BuildService(connection);
+        using var service = await BuildServiceAsync(connection, ct);
         var calendarId = connection.SourceCalendarId ?? PrimaryCalendar;
 
         var channel = new Channel
@@ -207,7 +210,7 @@ public class GoogleCalendarClient(
 
     public async Task StopWatchAsync(GoogleCalendarConnection connection, string channelId, string resourceId, CancellationToken ct)
     {
-        using var service = BuildService(connection);
+        using var service = await BuildServiceAsync(connection, ct);
         try
         {
             await service.Channels.Stop(new Channel { Id = channelId, ResourceId = resourceId }).ExecuteAsync(ct);
@@ -242,12 +245,21 @@ public class GoogleCalendarClient(
             Scopes = [CalendarService.Scope.Calendar]
         });
 
-    private CalendarService BuildService(GoogleCalendarConnection connection)
+    private async Task<CalendarService> BuildServiceAsync(GoogleCalendarConnection connection, CancellationToken ct)
     {
+        await RefreshAccessTokenIfNeededAsync(connection, ct);
+
+        var now = DateTimeOffset.UtcNow;
+        var expiresInSeconds = connection.AccessTokenExpiresAt is DateTimeOffset expiresAt
+            ? Math.Max(0, (long)(expiresAt - now).TotalSeconds)
+            : 0;
+
         var token = new TokenResponse
         {
             RefreshToken = tokenProtector.Unprotect(connection.RefreshTokenEncrypted),
-            AccessToken = connection.AccessTokenEncrypted is null ? null : tokenProtector.Unprotect(connection.AccessTokenEncrypted)
+            AccessToken = connection.AccessTokenEncrypted is null ? null : tokenProtector.Unprotect(connection.AccessTokenEncrypted),
+            ExpiresInSeconds = expiresInSeconds,
+            IssuedUtc = now.UtcDateTime
         };
 
         var credential = new UserCredential(CreateFlow(), connection.UserId.ToString(), token);
@@ -256,6 +268,41 @@ public class GoogleCalendarClient(
             HttpClientInitializer = credential,
             ApplicationName = ApplicationName
         });
+    }
+
+    private async Task RefreshAccessTokenIfNeededAsync(GoogleCalendarConnection connection, CancellationToken ct)
+    {
+        if (connection.RequiresReconnect)
+            throw new GoogleCalendarReconnectRequiredException();
+
+        if (connection.AccessTokenEncrypted is not null
+            && connection.AccessTokenExpiresAt > DateTimeOffset.UtcNow.AddMinutes(2))
+            return;
+
+        try
+        {
+            var refreshToken = tokenProtector.Unprotect(connection.RefreshTokenEncrypted);
+            var refreshed = await CreateFlow().RefreshTokenAsync(connection.UserId.ToString(), refreshToken, ct);
+            if (string.IsNullOrWhiteSpace(refreshed.AccessToken))
+                throw new InvalidOperationException("Google did not return a refreshed access token.");
+
+            var now = DateTimeOffset.UtcNow;
+            connection.AccessTokenEncrypted = tokenProtector.Protect(refreshed.AccessToken);
+            connection.AccessTokenExpiresAt = refreshed.ExpiresInSeconds is long seconds
+                ? now.AddSeconds(seconds)
+                : now.AddHours(1);
+            connection.RequiresReconnect = false;
+            connection.UpdatedAt = now;
+            await connectionRepository.UpdateAsync(connection);
+        }
+        catch (TokenResponseException ex) when (
+            string.Equals(ex.Error?.Error, "invalid_grant", StringComparison.OrdinalIgnoreCase))
+        {
+            connection.RequiresReconnect = true;
+            connection.UpdatedAt = DateTimeOffset.UtcNow;
+            await connectionRepository.UpdateAsync(connection);
+            throw new GoogleCalendarReconnectRequiredException();
+        }
     }
 
     private static string? ExtractEmail(string? idToken)

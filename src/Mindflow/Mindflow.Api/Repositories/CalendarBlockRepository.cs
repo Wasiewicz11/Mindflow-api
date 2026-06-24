@@ -33,6 +33,16 @@ public class CalendarBlockRepository(MindflowDbContext db) : ICalendarBlockRepos
             .ToListAsync();
     }
 
+    public async Task<IReadOnlyList<CalendarBlock>> GetPendingGooglePushAsync(Guid userId)
+    {
+        return await db.CalendarBlocks
+            .Where(b => b.UserId == userId
+                && b.Provider == CalendarBlockProvider.Local
+                && (b.SyncStatus != CalendarBlockSyncStatus.Synced || b.ExternalEventId == null))
+            .OrderBy(b => b.StartAt)
+            .ToListAsync();
+    }
+
     public async Task<CalendarBlock> CreateAsync(CalendarBlock block)
     {
         db.CalendarBlocks.Add(block);

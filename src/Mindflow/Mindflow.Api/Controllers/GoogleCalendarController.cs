@@ -85,8 +85,7 @@ public class GoogleCalendarController(
     [HttpPost("sync")]
     public async Task<IActionResult> Sync(CancellationToken ct)
     {
-        var changes = await connectionService.SyncCurrentUserAsync(ct);
-        return Ok(new GoogleCalendarSyncResponse(changes));
+        return Ok(await connectionService.SyncCurrentUserAsync(ct));
     }
 
     [AllowAnonymous]

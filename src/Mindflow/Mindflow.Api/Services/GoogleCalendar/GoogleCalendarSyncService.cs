@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Microsoft.Extensions.Options;
+using Mindflow.Api.Exceptions;
 using Mindflow.Api.Hubs;
 using Mindflow.Api.Models;
 using Mindflow.Api.Models.Enums;
@@ -40,7 +41,9 @@ public class GoogleCalendarSyncService(
         }
 
         connection.SyncToken = result.NewSyncToken;
-        connection.UpdatedAt = DateTimeOffset.UtcNow;
+        connection.LastSyncedAt = DateTimeOffset.UtcNow;
+        connection.RequiresReconnect = false;
+        connection.UpdatedAt = connection.LastSyncedAt.Value;
         await connectionRepository.UpdateAsync(connection);
 
         return applied;
@@ -152,6 +155,44 @@ public class GoogleCalendarSyncService(
         {
             logger.LogWarning(ex, "Failed to delete Google event for block {BlockId}.", block.Id);
         }
+    }
+
+    public async Task<int> RetryPendingLocalBlocksAsync(Guid userId, CancellationToken ct = default)
+    {
+        var connection = await connectionRepository.GetByUserIdAsync(userId);
+        if (connection is null) return 0;
+
+        var pending = await calendarBlockRepository.GetPendingGooglePushAsync(userId);
+        var pushed = 0;
+
+        foreach (var block in pending)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            try
+            {
+                block.GoogleCalendarId = connection.DedicatedCalendarId;
+                var eventId = await client.UpsertEventAsync(connection, block, ct);
+                block.ExternalEventId = eventId;
+                block.SyncStatus = CalendarBlockSyncStatus.Synced;
+                block.UpdatedAt = DateTimeOffset.UtcNow;
+                var updated = await calendarBlockRepository.UpdateAsync(block);
+                await SafeNotifyAsync(
+                    () => notifier.CalendarBlockUpdatedAsync(CalendarBlockMapper.ToResponse(updated)),
+                    "push-retry");
+                pushed++;
+            }
+            catch (GoogleCalendarReconnectRequiredException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to retry Google push for block {BlockId}.", block.Id);
+            }
+        }
+
+        return pushed;
     }
 
     public async Task EnsureWatchAsync(GoogleCalendarConnection connection, CancellationToken ct = default)

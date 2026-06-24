@@ -18,7 +18,7 @@ public interface IGoogleCalendarConnectionService
 
     Task DisconnectAsync(CancellationToken ct = default);
 
-    Task<int> SyncCurrentUserAsync(CancellationToken ct = default);
+    Task<GoogleCalendarSyncResponse> SyncCurrentUserAsync(CancellationToken ct = default);
 
     Task HandleWebhookAsync(string? channelId, string? token, string? resourceState, CancellationToken ct = default);
 

@@ -7,8 +7,11 @@ public record GoogleCalendarStatusResponse(
     string? Email,
     DateTimeOffset? ConnectedAt,
     bool PushEnabled,
-    string? SourceCalendarId);
+    string? SourceCalendarId,
+    bool RequiresReconnect,
+    DateTimeOffset? WatchExpiresAt,
+    DateTimeOffset? LastSyncedAt);
 
-public record GoogleCalendarSyncResponse(int Changes);
+public record GoogleCalendarSyncResponse(int Changes, int Pushed);
 
 public record SetSourceCalendarRequest(string CalendarId);

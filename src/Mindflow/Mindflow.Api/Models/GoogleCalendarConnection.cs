@@ -30,6 +30,9 @@ public class GoogleCalendarConnection
     public string? WatchToken { get; set; }
     public DateTimeOffset? WatchExpiresAt { get; set; }
 
+    public bool RequiresReconnect { get; set; }
+    public DateTimeOffset? LastSyncedAt { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 

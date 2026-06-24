@@ -16,6 +16,9 @@ public interface IGoogleCalendarSyncService
     /// <summary>Best-effort removal of a local block's mirrored Google event.</summary>
     Task PushBlockDeletedAsync(CalendarBlock block, CancellationToken ct = default);
 
+    /// <summary>Retry local blocks that have not reached Google yet. Returns the number successfully pushed.</summary>
+    Task<int> RetryPendingLocalBlocksAsync(Guid userId, CancellationToken ct = default);
+
     /// <summary>Start (or renew) the push notification channel for a connection.</summary>
     Task EnsureWatchAsync(GoogleCalendarConnection connection, CancellationToken ct = default);
 }

@@ -9,6 +9,7 @@ public interface ICalendarBlockRepository
     Task<CalendarBlock?> GetByIdAsync(Guid id);
     Task<CalendarBlock?> GetByExternalEventIdAsync(Guid userId, string externalEventId);
     Task<IReadOnlyList<CalendarBlock>> GetByProviderAsync(Guid userId, CalendarBlockProvider provider);
+    Task<IReadOnlyList<CalendarBlock>> GetPendingGooglePushAsync(Guid userId);
     Task<CalendarBlock> CreateAsync(CalendarBlock block);
     Task<CalendarBlock> UpdateAsync(CalendarBlock block);
     Task<bool> DeleteAsync(CalendarBlock block);
