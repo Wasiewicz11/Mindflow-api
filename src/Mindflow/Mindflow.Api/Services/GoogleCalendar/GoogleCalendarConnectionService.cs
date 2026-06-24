@@ -39,12 +39,32 @@ public class GoogleCalendarConnectionService(
             return false;
         }
 
-        // a fresh consent supersedes any previous connection
         var previous = await connectionRepository.GetByUserIdAsync(userId);
+        var now = DateTimeOffset.UtcNow;
+
+        if (previous is not null
+            && string.Equals(previous.GoogleAccountEmail, tokens.Email, StringComparison.OrdinalIgnoreCase))
+        {
+            // Reconnect the same Google account in place. In particular, keep the existing
+            // dedicated Mindflow calendar instead of creating another calendar on every consent.
+            previous.GoogleAccountEmail = tokens.Email;
+            previous.RefreshTokenEncrypted = tokenProtector.Protect(tokens.RefreshToken);
+            previous.AccessTokenEncrypted = tokenProtector.Protect(tokens.AccessToken);
+            previous.AccessTokenExpiresAt = tokens.ExpiresAt;
+            previous.RequiresReconnect = false;
+            previous.UpdatedAt = now;
+            await connectionRepository.UpdateAsync(previous);
+
+            await StopWatchSafelyAsync(previous, ct);
+            ResetSourceSelection(previous, now);
+            await connectionRepository.UpdateAsync(previous);
+            return true;
+        }
+
+        // A different Google account gets its own dedicated calendar and mirror state.
         if (previous is not null)
             await RemoveConnectionAsync(previous, ct);
 
-        var now = DateTimeOffset.UtcNow;
         var connection = new GoogleCalendarConnection
         {
             Id = Guid.NewGuid(),
@@ -54,7 +74,7 @@ public class GoogleCalendarConnectionService(
             AccessTokenEncrypted = tokenProtector.Protect(tokens.AccessToken),
             AccessTokenExpiresAt = tokens.ExpiresAt,
             DedicatedCalendarId = string.Empty,
-            SourceCalendarId = "primary",
+            SourceCalendarId = null,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -63,10 +83,6 @@ public class GoogleCalendarConnectionService(
             await client.CreateDedicatedCalendarAsync(connection, _options.DedicatedCalendarName, ct);
 
         await connectionRepository.CreateAsync(connection);
-
-        // initial mirror pull + start the push channel (no-op locally without a public webhook)
-        await syncService.SyncUserAsync(userId, ct);
-        await syncService.EnsureWatchAsync(connection, ct);
 
         return true;
     }
@@ -135,6 +151,7 @@ public class GoogleCalendarConnectionService(
         // 3) move the push channel to the new calendar, then pull a fresh full sync
         await syncService.EnsureWatchAsync(connection, ct);
         await syncService.SyncUserAsync(userId, ct);
+        await syncService.RetryPendingLocalBlocksAsync(userId, ct);
     }
 
     public async Task DisconnectAsync(CancellationToken ct = default)
@@ -154,6 +171,11 @@ public class GoogleCalendarConnectionService(
 
         if (connection.RequiresReconnect)
             throw new GoogleCalendarReconnectRequiredException();
+
+        // OAuth succeeded, but the user still has to explicitly choose which Google
+        // calendar should be mirrored. Never silently fall back to "primary" here.
+        if (string.IsNullOrWhiteSpace(connection.SourceCalendarId))
+            return new GoogleCalendarSyncResponse(0, 0);
 
         var changes = await syncService.SyncUserAsync(userId, ct);
 
@@ -192,6 +214,9 @@ public class GoogleCalendarConnectionService(
         var connections = await connectionRepository.GetWatchesExpiringBeforeAsync(threshold);
         foreach (var connection in connections)
         {
+            if (string.IsNullOrWhiteSpace(connection.SourceCalendarId))
+                continue;
+
             try
             {
                 await syncService.SyncUserAsync(connection.UserId, ct);
@@ -207,11 +232,7 @@ public class GoogleCalendarConnectionService(
 
     private async Task RemoveConnectionAsync(GoogleCalendarConnection connection, CancellationToken ct)
     {
-        if (!string.IsNullOrWhiteSpace(connection.WatchChannelId) && !string.IsNullOrWhiteSpace(connection.WatchResourceId))
-        {
-            try { await client.StopWatchAsync(connection, connection.WatchChannelId, connection.WatchResourceId, ct); }
-            catch (Exception ex) { logger.LogWarning(ex, "Failed to stop Google watch on disconnect."); }
-        }
+        await StopWatchSafelyAsync(connection, ct);
 
         var mirrored = await calendarBlockRepository.GetByProviderAsync(connection.UserId, CalendarBlockProvider.Google);
         foreach (var block in mirrored)
@@ -222,5 +243,27 @@ public class GoogleCalendarConnectionService(
         }
 
         await connectionRepository.DeleteAsync(connection);
+    }
+
+    private async Task StopWatchSafelyAsync(GoogleCalendarConnection connection, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(connection.WatchChannelId)
+            || string.IsNullOrWhiteSpace(connection.WatchResourceId))
+            return;
+
+        try { await client.StopWatchAsync(connection, connection.WatchChannelId, connection.WatchResourceId, ct); }
+        catch (Exception ex) { logger.LogWarning(ex, "Failed to stop Google Calendar watch channel."); }
+    }
+
+    private static void ResetSourceSelection(GoogleCalendarConnection connection, DateTimeOffset now)
+    {
+        connection.SourceCalendarId = null;
+        connection.SyncToken = null;
+        connection.WatchChannelId = null;
+        connection.WatchResourceId = null;
+        connection.WatchToken = null;
+        connection.WatchExpiresAt = null;
+        connection.LastSyncedAt = null;
+        connection.UpdatedAt = now;
     }
 }

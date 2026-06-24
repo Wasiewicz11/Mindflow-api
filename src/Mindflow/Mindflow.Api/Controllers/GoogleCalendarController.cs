@@ -42,7 +42,7 @@ public class GoogleCalendarController(
         try
         {
             var ok = await connectionService.CompleteConnectAsync(code, userId, ct);
-            return Redirect(ReturnUrl(ok ? "connected" : "error"));
+            return Redirect(ReturnUrl(ok ? "select-calendar" : "error"));
         }
         catch (Exception ex)
         {
