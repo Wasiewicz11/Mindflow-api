@@ -15,6 +15,7 @@ public class PomodoroController(
     IPomodoroEventBroker eventBroker) : ControllerBase
 {
     [HttpGet("session")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<IActionResult> Get()
     {
         var session = await service.GetAsync();
