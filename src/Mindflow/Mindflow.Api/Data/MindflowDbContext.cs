@@ -21,6 +21,7 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
     public DbSet<AiSuggestion> AiSuggestions { get; set; }
     public DbSet<SuggestionAction> SuggestionActions { get; set; }
     public DbSet<AiUsageDaily> AiUsageDaily { get; set; }
+    public DbSet<PomodoroSessionState> PomodoroSessions { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -185,6 +186,25 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
 
             entity.HasIndex(c => c.UserId).IsUnique();
             entity.HasIndex(c => c.WatchChannelId);
+        });
+
+        modelBuilder.Entity<PomodoroSessionState>(entity =>
+        {
+            entity.ToTable("pomodoro_sessions");
+
+            entity.Property(session => session.Title)
+                .HasMaxLength(255);
+
+            entity.Property(session => session.Phase)
+                .HasConversion<string>();
+
+            entity.HasOne(session => session.User)
+                .WithMany()
+                .HasForeignKey(session => session.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(session => session.UserId)
+                .IsUnique();
         });
     }
 }

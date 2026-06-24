@@ -148,12 +148,14 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITaskSubtaskRepository, TaskSubtaskRepository>();
         services.AddScoped<ICalendarBlockRepository, CalendarBlockRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+        services.AddScoped<IPomodoroSessionRepository, PomodoroSessionRepository>();
         return services;
     }
 
     public static IServiceCollection AddMindflowServices(this IServiceCollection services)
     {
         services.AddHttpContextAccessor();
+        services.AddSingleton<IPomodoroEventBroker, PomodoroEventBroker>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IAccessService, AccessService>();
@@ -166,6 +168,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITaskSubtaskService, TaskSubtaskService>();
         services.AddScoped<ITaskActivityService, TaskActivityService>();
         services.AddScoped<ICalendarBlockService, CalendarBlockService>();
+        services.AddScoped<IPomodoroSessionService, PomodoroSessionService>();
         services.AddScoped<ITasksNotifier, TasksNotifier>();
         services.AddScoped<TokenService>();
         return services;
