@@ -22,6 +22,9 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
     public DbSet<SuggestionAction> SuggestionActions { get; set; }
     public DbSet<AiUsageDaily> AiUsageDaily { get; set; }
     public DbSet<PomodoroSessionState> PomodoroSessions { get; set; }
+    public DbSet<BrainMap> BrainMaps { get; set; }
+    public DbSet<BrainNode> BrainNodes { get; set; }
+    public DbSet<BrainEdge> BrainEdges { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -205,6 +208,47 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
 
             entity.HasIndex(session => session.UserId)
                 .IsUnique();
+        });
+
+        modelBuilder.Entity<BrainMap>(entity =>
+        {
+            entity.ToTable("brain_maps");
+
+            entity.HasOne(map => map.User)
+                .WithMany()
+                .HasForeignKey(map => map.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(map => new { map.UserId, map.Key })
+                .IsUnique();
+        });
+
+        modelBuilder.Entity<BrainNode>(entity =>
+        {
+            entity.ToTable("brain_nodes");
+
+            entity.HasOne(node => node.BrainMap)
+                .WithMany(map => map.Nodes)
+                .HasForeignKey(node => node.BrainMapId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(node => new { node.BrainMapId, node.Key })
+                .IsUnique();
+        });
+
+        modelBuilder.Entity<BrainEdge>(entity =>
+        {
+            entity.ToTable("brain_edges");
+
+            entity.HasOne(edge => edge.BrainMap)
+                .WithMany(map => map.Edges)
+                .HasForeignKey(edge => edge.BrainMapId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(edge => new { edge.BrainMapId, edge.Key })
+                .IsUnique();
+            entity.HasIndex(edge => new { edge.BrainMapId, edge.FromNodeKey });
+            entity.HasIndex(edge => new { edge.BrainMapId, edge.ToNodeKey });
         });
     }
 }
