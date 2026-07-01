@@ -45,6 +45,15 @@ public class BrainGraphService(
 
     private static void Validate(BrainGraphDto graph)
     {
+        if (graph is null)
+            throw new BadRequestException("Brain graph payload is required.");
+
+        if (graph.Nodes is null)
+            throw new BadRequestException("Brain graph nodes are required.");
+
+        if (graph.Edges is null)
+            throw new BadRequestException("Brain graph edges are required.");
+
         if (graph.Nodes.Count > MaxNodes)
             throw new BadRequestException($"Brain graph can contain at most {MaxNodes} nodes.");
 

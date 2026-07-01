@@ -19,6 +19,8 @@ public class BrainGraphRepository(MindflowDbContext db) : IBrainGraphRepository
 
     public async Task<BrainMap> UpsertDefaultAsync(Guid userId, BrainMap graph)
     {
+        await using var transaction = await db.Database.BeginTransactionAsync();
+
         var existing = await db.BrainMaps
             .Include(map => map.Nodes)
             .Include(map => map.Edges)
@@ -26,13 +28,21 @@ public class BrainGraphRepository(MindflowDbContext db) : IBrainGraphRepository
 
         if (existing is null)
         {
+            foreach (var node in graph.Nodes)
+                node.BrainMapId = graph.Id;
+
+            foreach (var edge in graph.Edges)
+                edge.BrainMapId = graph.Id;
+
             db.BrainMaps.Add(graph);
             await db.SaveChangesAsync();
+            await transaction.CommitAsync();
             return graph;
         }
 
         db.BrainEdges.RemoveRange(existing.Edges);
         db.BrainNodes.RemoveRange(existing.Nodes);
+        await db.SaveChangesAsync();
 
         existing.Title = graph.Title;
         existing.Version = graph.Version;
@@ -51,6 +61,7 @@ public class BrainGraphRepository(MindflowDbContext db) : IBrainGraphRepository
         }
 
         await db.SaveChangesAsync();
+        await transaction.CommitAsync();
 
         existing.Nodes = graph.Nodes;
         existing.Edges = graph.Edges;
