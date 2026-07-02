@@ -150,6 +150,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<IPomodoroSessionRepository, PomodoroSessionRepository>();
         services.AddScoped<IBrainGraphRepository, BrainGraphRepository>();
+        services.AddScoped<IGoalDayRepository, GoalDayRepository>();
         return services;
     }
 
@@ -171,6 +172,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICalendarBlockService, CalendarBlockService>();
         services.AddScoped<IPomodoroSessionService, PomodoroSessionService>();
         services.AddScoped<IBrainGraphService, BrainGraphService>();
+        services.AddScoped<IGoalDayService, GoalDayService>();
         services.AddScoped<ITasksNotifier, TasksNotifier>();
         services.AddScoped<TokenService>();
         return services;

@@ -25,6 +25,7 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
     public DbSet<BrainMap> BrainMaps { get; set; }
     public DbSet<BrainNode> BrainNodes { get; set; }
     public DbSet<BrainEdge> BrainEdges { get; set; }
+    public DbSet<GoalDay> GoalDays { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -249,6 +250,38 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
                 .IsUnique();
             entity.HasIndex(edge => new { edge.BrainMapId, edge.FromNodeKey });
             entity.HasIndex(edge => new { edge.BrainMapId, edge.ToNodeKey });
+        });
+
+        modelBuilder.Entity<GoalDay>(entity =>
+        {
+            entity.ToTable("goal_days");
+
+            entity.Property(day => day.DayShort)
+                .HasMaxLength(20);
+
+            entity.Property(day => day.DateLabel)
+                .HasMaxLength(20);
+
+            entity.Property(day => day.Title)
+                .HasMaxLength(255);
+
+            entity.Property(day => day.SectionsJson)
+                .HasColumnName("sections")
+                .HasColumnType("jsonb")
+                .HasDefaultValueSql("'[]'::jsonb");
+
+            entity.Property(day => day.LinkedTaskIdsJson)
+                .HasColumnName("linked_task_ids")
+                .HasColumnType("jsonb")
+                .HasDefaultValueSql("'[]'::jsonb");
+
+            entity.HasOne(day => day.User)
+                .WithMany()
+                .HasForeignKey(day => day.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(day => new { day.UserId, day.Date })
+                .IsUnique();
         });
     }
 }

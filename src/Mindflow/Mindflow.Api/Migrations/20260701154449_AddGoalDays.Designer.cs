@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Mindflow.Api.Data;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Mindflow.Api.Migrations
 {
     [DbContext(typeof(MindflowDbContext))]
-    partial class MindflowDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260701154449_AddGoalDays")]
+    partial class AddGoalDays
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -121,11 +124,6 @@ namespace Mindflow.Api.Migrations
                         .HasColumnType("character varying(120)")
                         .HasColumnName("from_node_key");
 
-                    b.Property<string>("FromSide")
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)")
-                        .HasColumnName("from_side");
-
                     b.Property<string>("Key")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -148,11 +146,6 @@ namespace Mindflow.Api.Migrations
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)")
                         .HasColumnName("to_node_key");
-
-                    b.Property<string>("ToSide")
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)")
-                        .HasColumnName("to_side");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
