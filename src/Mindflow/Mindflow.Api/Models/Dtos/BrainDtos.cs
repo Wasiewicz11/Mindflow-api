@@ -20,6 +20,8 @@ public record BrainEdgeDto(
     [MaxLength(120)] string Id,
     [MaxLength(120)] string From,
     [MaxLength(120)] string To,
+    [MaxLength(16)] string? FromSide,
+    [MaxLength(16)] string? ToSide,
     [MaxLength(240)] string? Label,
     [MaxLength(40)] string Kind);
 

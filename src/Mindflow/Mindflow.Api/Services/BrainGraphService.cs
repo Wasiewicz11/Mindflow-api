@@ -12,6 +12,13 @@ public class BrainGraphService(
     private const string DefaultKey = "personal-goals";
     private const int MaxNodes = 250;
     private const int MaxEdges = 600;
+    private static readonly HashSet<string> AllowedEdgeSides = new(StringComparer.Ordinal)
+    {
+        "top",
+        "right",
+        "bottom",
+        "left"
+    };
 
     public async Task<BrainGraphDto?> GetDefaultAsync()
     {
@@ -86,6 +93,8 @@ public class BrainGraphService(
                 throw new BadRequestException("Brain edge endpoints are required.");
             if (string.IsNullOrWhiteSpace(edge.Kind))
                 throw new BadRequestException("Brain edge kind is required.");
+            if (!IsValidEdgeSide(edge.FromSide) || !IsValidEdgeSide(edge.ToSide))
+                throw new BadRequestException("Brain edge sides must be top, right, bottom or left.");
             if (!nodeIds.Contains(edge.From) || !nodeIds.Contains(edge.To))
                 throw new BadRequestException("Brain edge endpoints must reference existing nodes.");
             if (!edgeIds.Add(edge.Id))
@@ -120,6 +129,8 @@ public class BrainGraphService(
             Key = edge.Id.Trim(),
             FromNodeKey = edge.From.Trim(),
             ToNodeKey = edge.To.Trim(),
+            FromSide = NormalizeEdgeSide(edge.FromSide),
+            ToSide = NormalizeEdgeSide(edge.ToSide),
             Label = string.IsNullOrWhiteSpace(edge.Label) ? null : edge.Label.Trim(),
             Kind = edge.Kind.Trim(),
             CreatedAt = now,
@@ -166,7 +177,19 @@ public class BrainGraphService(
             edge.Key,
             edge.FromNodeKey,
             edge.ToNodeKey,
+            edge.FromSide,
+            edge.ToSide,
             edge.Label,
             edge.Kind);
+    }
+
+    private static bool IsValidEdgeSide(string? side)
+    {
+        return string.IsNullOrWhiteSpace(side) || AllowedEdgeSides.Contains(side.Trim());
+    }
+
+    private static string? NormalizeEdgeSide(string? side)
+    {
+        return string.IsNullOrWhiteSpace(side) ? null : side.Trim();
     }
 }

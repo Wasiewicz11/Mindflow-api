@@ -16,6 +16,12 @@ public class BrainEdge
     [MaxLength(120)]
     public required string ToNodeKey { get; set; }
 
+    [MaxLength(16)]
+    public string? FromSide { get; set; }
+
+    [MaxLength(16)]
+    public string? ToSide { get; set; }
+
     [MaxLength(240)]
     public string? Label { get; set; }
 
