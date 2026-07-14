@@ -1,9 +1,11 @@
 using Mindflow.Api.Hubs;
+using Mindflow.Api.Exceptions;
 using Mindflow.Api.Models;
 using Mindflow.Api.Models.Dtos;
-using Mindflow.Api.Models.Enums;
 using Mindflow.Api.Repositories;
 using Task = System.Threading.Tasks.Task;
+using TaskActivityEventType = Mindflow.Api.Models.Enums.TaskActivityEventType;
+using TaskStatus = Mindflow.Api.Models.Enums.TaskStatus;
 
 namespace Mindflow.Api.Services;
 
@@ -23,13 +25,17 @@ public class TaskSubtaskService(
         if (string.IsNullOrWhiteSpace(request.Content))
             return TaskResponseMapper.ToDetailResponse(task);
 
+        var status = ResolveStatus(request);
+        EnsureSubtaskDueDateFitsTask(task.DueDate, request.DueDate);
+
         var nextOrder = await subtaskRepository.GetNextSortOrderAsync(taskId);
         await subtaskRepository.CreateAsync(taskId, new TaskSubtask
         {
             Id = Guid.TryParse(request.Id, out var requestId) ? requestId : Guid.NewGuid(),
             Content = request.Content.Trim(),
             Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description,
-            IsCompleted = request.IsCompleted,
+            IsCompleted = status == TaskStatus.Completed,
+            Status = status,
             DueDate = request.DueDate,
             SortOrder = nextOrder,
             CreatedAt = DateTimeOffset.UtcNow
@@ -40,7 +46,8 @@ public class TaskSubtaskService(
 
     public async Task<TaskDetailResponse?> UpdateAsync(Guid taskId, Guid subtaskId, TaskSubtaskRequest request)
     {
-        if (!await CanAccessTaskAsync(taskId)) return null;
+        var task = await GetAccessibleTaskForCurrentUserAsync(taskId);
+        if (task is null) return null;
 
         var subtask = await subtaskRepository.GetByIdForTaskAsync(taskId, subtaskId);
         if (subtask is null) return null;
@@ -50,8 +57,12 @@ public class TaskSubtaskService(
             subtask.Content = request.Content.Trim();
         }
 
+        var status = ResolveStatus(request);
+        EnsureSubtaskDueDateFitsTask(task.DueDate, request.DueDate);
+
         subtask.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description;
-        subtask.IsCompleted = request.IsCompleted;
+        subtask.IsCompleted = status == TaskStatus.Completed;
+        subtask.Status = status;
         subtask.DueDate = request.DueDate;
         if (request.SortOrder.HasValue) subtask.SortOrder = request.SortOrder.Value;
 
@@ -85,6 +96,17 @@ public class TaskSubtaskService(
     {
         var userId = await currentUserService.GetCurrentUserIdAsync();
         return await accessService.CanAccessTaskAsync(taskId, userId);
+    }
+
+    private static TaskStatus ResolveStatus(TaskSubtaskRequest request) =>
+        request.Status ?? (request.IsCompleted ? TaskStatus.Completed : TaskStatus.NotStarted);
+
+    private static void EnsureSubtaskDueDateFitsTask(DateOnly? taskDueDate, DateOnly? subtaskDueDate)
+    {
+        if (taskDueDate.HasValue && subtaskDueDate.HasValue && subtaskDueDate.Value > taskDueDate.Value)
+        {
+            throw new BadRequestException("Subtask due date cannot be later than task due date.");
+        }
     }
 
     private async Task<TaskDetailResponse?> ReturnUpdatedTaskAsync(Guid taskId)

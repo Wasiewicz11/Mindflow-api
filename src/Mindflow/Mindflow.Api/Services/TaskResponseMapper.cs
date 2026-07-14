@@ -47,6 +47,7 @@ internal static class TaskResponseMapper
             subtask.Id,
             subtask.Content,
             subtask.IsCompleted,
+            subtask.Status,
             subtask.Description,
             subtask.DueDate,
             subtask.SortOrder,

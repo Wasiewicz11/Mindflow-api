@@ -31,6 +31,7 @@ public record TaskSubtaskRequest(
     string? Id,
     string Content,
     bool IsCompleted,
+    TaskStatus? Status,
     [MaxLength(10000)] string? Description,
     DateOnly? DueDate,
     int? SortOrder);
@@ -41,6 +42,7 @@ public record TaskSubtaskResponse(
     Guid Id,
     string Content,
     bool IsCompleted,
+    TaskStatus Status,
     string? Description,
     DateOnly? DueDate,
     int SortOrder,

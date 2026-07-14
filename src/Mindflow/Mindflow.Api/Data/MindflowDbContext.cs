@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Mindflow.Api.Models;
+using TaskStatus = Mindflow.Api.Models.Enums.TaskStatus;
 
 namespace Mindflow.Api.Data;
 
@@ -84,6 +85,10 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
         modelBuilder.Entity<TaskSubtask>(entity =>
         {
             entity.ToTable("task_subtasks");
+
+            entity.Property(s => s.Status)
+                .HasConversion<string>()
+                .HasDefaultValue(TaskStatus.NotStarted);
 
             entity.HasOne<TaskItem>()
                 .WithMany(t => t.Subtasks)

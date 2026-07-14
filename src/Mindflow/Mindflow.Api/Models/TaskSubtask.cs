@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using TaskStatus = Mindflow.Api.Models.Enums.TaskStatus;
 
 namespace Mindflow.Api.Models;
 
@@ -11,6 +12,7 @@ public class TaskSubtask
     [MaxLength(10000)]
     public string? Description { get; set; }
     public bool IsCompleted { get; set; }
+    public TaskStatus Status { get; set; }
     public DateOnly? DueDate { get; set; }
     public int SortOrder { get; set; }
     public DateTimeOffset CreatedAt { get; set; }

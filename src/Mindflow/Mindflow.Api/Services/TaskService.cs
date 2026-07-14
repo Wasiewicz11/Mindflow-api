@@ -78,7 +78,7 @@ public class TaskService(
             DueDate = request.DueDate,
             EstimatedHours = request.EstimatedHours,
             Tags = tags,
-            Subtasks = NormalizeSubtasks(request.Subtasks),
+            Subtasks = NormalizeSubtasks(request.Subtasks, request.DueDate),
             CreatedAt = DateTimeOffset.UtcNow
         };
 
@@ -145,6 +145,7 @@ public class TaskService(
         if (request.ProjectId.HasValue) task.ProjectId = request.ProjectId;
         if (request.Status.HasValue) task.Status = request.Status.Value;
         if (request.Tags is not null) task.Tags = NormalizeTags(request.Tags);
+        NormalizeSubtaskDueDates(task);
 
         if (task.ProjectId.HasValue && task.Tags.Count > 0)
         {
@@ -240,7 +241,7 @@ public class TaskService(
         return result;
     }
 
-    private static List<TaskSubtask> NormalizeSubtasks(IReadOnlyCollection<TaskSubtaskRequest>? subtasks)
+    private static List<TaskSubtask> NormalizeSubtasks(IReadOnlyCollection<TaskSubtaskRequest>? subtasks, DateOnly? taskDueDate)
     {
         if (subtasks is null) return new List<TaskSubtask>();
 
@@ -255,12 +256,16 @@ public class TaskService(
             }
 
             var id = Guid.TryParse(raw.Id, out var parsedId) ? parsedId : Guid.NewGuid();
+            var status = ResolveSubtaskStatus(raw);
+            EnsureSubtaskDueDateFitsTask(taskDueDate, raw.DueDate);
+
             result.Add(new TaskSubtask
             {
                 Id = id,
                 Content = raw.Content.Trim(),
                 Description = string.IsNullOrWhiteSpace(raw.Description) ? null : raw.Description,
-                IsCompleted = raw.IsCompleted,
+                IsCompleted = status == TaskStatus.Completed,
+                Status = status,
                 DueDate = raw.DueDate,
                 SortOrder = raw.SortOrder ?? index,
                 CreatedAt = DateTimeOffset.UtcNow
@@ -269,6 +274,27 @@ public class TaskService(
         }
 
         return result;
+    }
+
+    private static TaskStatus ResolveSubtaskStatus(TaskSubtaskRequest request) =>
+        request.Status ?? (request.IsCompleted ? TaskStatus.Completed : TaskStatus.NotStarted);
+
+    private static void EnsureSubtaskDueDateFitsTask(DateOnly? taskDueDate, DateOnly? subtaskDueDate)
+    {
+        if (taskDueDate.HasValue && subtaskDueDate.HasValue && subtaskDueDate.Value > taskDueDate.Value)
+        {
+            throw new BadRequestException("Subtask due date cannot be later than task due date.");
+        }
+    }
+
+    private static void NormalizeSubtaskDueDates(TaskItem task)
+    {
+        if (!task.DueDate.HasValue) return;
+
+        foreach (var subtask in task.Subtasks.Where(subtask => subtask.DueDate.HasValue && subtask.DueDate.Value > task.DueDate.Value))
+        {
+            subtask.DueDate = task.DueDate.Value;
+        }
     }
 
     private async Task RecordTaskUpdateActivityAsync(
