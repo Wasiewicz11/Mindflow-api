@@ -60,6 +60,7 @@ public record TaskListResponse(
     int SubtaskTotalCount,
     int SubtaskDueCount,
     IReadOnlyCollection<TaskSubtaskResponse> DueSubtasks,
+    IReadOnlyCollection<TaskSubtaskResponse> Subtasks,
     DateTimeOffset CreatedAt);
 
 public record TaskDetailResponse(

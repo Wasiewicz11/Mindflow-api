@@ -20,6 +20,7 @@ internal static class TaskResponseMapper
             task.Subtasks.Count,
             GetDueSubtasks(task).Length,
             GetDueSubtasks(task),
+            GetOrderedSubtasks(task),
             task.CreatedAt);
 
     public static TaskDetailResponse ToDetailResponse(TaskItem task) =>
@@ -38,11 +39,7 @@ internal static class TaskResponseMapper
             task.Subtasks.Count,
             GetDueSubtasks(task).Length,
             GetDueSubtasks(task),
-            task.Subtasks
-                .OrderBy(s => s.SortOrder)
-                .ThenBy(s => s.CreatedAt)
-                .Select(ToSubtaskResponse)
-                .ToArray(),
+            GetOrderedSubtasks(task),
             task.CreatedAt);
 
     private static TaskSubtaskResponse ToSubtaskResponse(TaskSubtask subtask) =>
@@ -60,6 +57,13 @@ internal static class TaskResponseMapper
             .Where(s => !s.IsCompleted && s.DueDate.HasValue)
             .OrderBy(s => s.DueDate)
             .ThenBy(s => s.SortOrder)
+            .ThenBy(s => s.CreatedAt)
+            .Select(ToSubtaskResponse)
+            .ToArray();
+
+    private static TaskSubtaskResponse[] GetOrderedSubtasks(TaskItem task) =>
+        task.Subtasks
+            .OrderBy(s => s.SortOrder)
             .ThenBy(s => s.CreatedAt)
             .Select(ToSubtaskResponse)
             .ToArray();
