@@ -51,6 +51,7 @@ public class TaskService(
     public async Task<TaskDetailResponse?> CreateAsync(CreateTaskRequest request)
     {
         var userId = await currentUserService.GetCurrentUserIdAsync();
+        EnsureDueTimeIsValid(request.DueDate, request.DueTime);
 
         if (request.ProjectId.HasValue && !await accessService.CanAccessProjectAsync(request.ProjectId.Value, userId))
             return null;
@@ -76,6 +77,7 @@ public class TaskService(
             Priority = request.Priority ?? TaskPriority.P3,
             Status = request.Status ?? TaskStatus.NotStarted,
             DueDate = request.DueDate,
+            DueTime = request.DueTime,
             EstimatedHours = request.EstimatedHours,
             Tags = tags,
             Subtasks = NormalizeSubtasks(request.Subtasks, request.DueDate),
@@ -97,6 +99,7 @@ public class TaskService(
                 title_present = !string.IsNullOrWhiteSpace(created.Content),
                 description_present = !string.IsNullOrWhiteSpace(created.Description),
                 due_date = created.DueDate,
+                due_time = created.DueTime,
                 estimated_hours = created.EstimatedHours,
                 priority = created.Priority.ToString(),
                 status = created.Status.ToString(),
@@ -131,6 +134,7 @@ public class TaskService(
         var previousDescription = task.Description;
         var previousPriority = task.Priority;
         var previousDueDate = task.DueDate;
+        var previousDueTime = task.DueTime;
         var previousProjectId = task.ProjectId;
         var previousStatus = task.Status;
         var previousTags = task.Tags.ToList();
@@ -138,8 +142,15 @@ public class TaskService(
         if (request.Content is not null) task.Content = request.Content;
         if (request.Description is not null) task.Description = request.Description;
         if (request.Priority.HasValue) task.Priority = request.Priority.Value;
-        if (request.ClearDueDate) task.DueDate = null;
+        if (request.ClearDueDate)
+        {
+            task.DueDate = null;
+            task.DueTime = null;
+        }
         else if (request.DueDate.HasValue) task.DueDate = request.DueDate;
+        if (request.ClearDueTime) task.DueTime = null;
+        else if (request.DueTime.HasValue) task.DueTime = request.DueTime;
+        EnsureDueTimeIsValid(task.DueDate, task.DueTime);
         if (request.ClearEstimatedHours) task.EstimatedHours = null;
         else if (request.EstimatedHours.HasValue) task.EstimatedHours = request.EstimatedHours;
         if (request.ProjectId.HasValue) task.ProjectId = request.ProjectId;
@@ -169,6 +180,7 @@ public class TaskService(
             previousDescription,
             previousPriority,
             previousDueDate,
+            previousDueTime,
             previousProjectId,
             previousStatus,
             previousTags);
@@ -213,6 +225,7 @@ public class TaskService(
             new
             {
                 due_date = task.DueDate,
+                due_time = task.DueTime,
                 priority = task.Priority.ToString(),
                 status = task.Status.ToString(),
                 project_id = task.ProjectId
@@ -239,6 +252,17 @@ public class TaskService(
             if (seen.Add(trimmed)) result.Add(trimmed);
         }
         return result;
+    }
+
+    private static void EnsureDueTimeIsValid(DateOnly? dueDate, TimeOnly? dueTime)
+    {
+        if (!dueTime.HasValue) return;
+
+        if (!dueDate.HasValue)
+            throw new BadRequestException("A due date is required when setting a due time.");
+
+        if (dueTime.Value.ToTimeSpan().Ticks % TimeSpan.TicksPerMinute != 0)
+            throw new BadRequestException("Due time must use whole minutes.");
     }
 
     private static List<TaskSubtask> NormalizeSubtasks(IReadOnlyCollection<TaskSubtaskRequest>? subtasks, DateOnly? taskDueDate)
@@ -306,6 +330,7 @@ public class TaskService(
         string? previousDescription,
         TaskPriority previousPriority,
         DateOnly? previousDueDate,
+        TimeOnly? previousDueTime,
         Guid? previousProjectId,
         TaskStatus previousStatus,
         IReadOnlyCollection<string> previousTags)
@@ -391,6 +416,30 @@ public class TaskService(
                         postponed_by_days = updated.DueDate.Value.DayNumber - previousDueDate.Value.DayNumber
                     });
             }
+        }
+
+        if (updated.DueTime != previousDueTime)
+        {
+            var eventType = (previousDueTime.HasValue, updated.DueTime.HasValue) switch
+            {
+                (false, true) => TaskActivityEventType.TaskTimeSet,
+                (true, false) => TaskActivityEventType.TaskTimeRemoved,
+                _ => TaskActivityEventType.TaskTimeChanged
+            };
+
+            await taskActivityService.RecordUserTaskEventAsync(
+                eventType,
+                userId,
+                updated.Id,
+                currentSpaceId,
+                updated.ProjectId,
+                new
+                {
+                    previous_due_time = previousDueTime,
+                    new_due_time = updated.DueTime,
+                    due_date = updated.DueDate,
+                    source = "task_due_time"
+                });
         }
 
         if (updated.ProjectId != previousProjectId)

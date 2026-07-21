@@ -77,6 +77,9 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
             entity.Property(t => t.EstimatedHours)
                 .HasColumnType("numeric(6,2)");
 
+            entity.Property(t => t.DueTime)
+                .HasColumnType("time without time zone");
+
             entity.Property(t => t.Tags)
                 .HasColumnType("text[]")
                 .HasDefaultValueSql("'{}'::text[]")

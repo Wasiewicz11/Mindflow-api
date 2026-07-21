@@ -204,6 +204,7 @@ public class NotificationService(
 
         var briefsSent = 0;
         var eveningSummariesSent = 0;
+        var taskRemindersSent = 0;
         foreach (var user in users)
         {
             var settings = settingsByUser.TryGetValue(user.Id, out var existing)
@@ -232,10 +233,64 @@ public class NotificationService(
                 if (await SendEveningSummaryOnceAsync(user.Id, localDate, GetTimeZoneOrUtc(user.TimeZone), ct))
                     eveningSummariesSent++;
             }
+
+            taskRemindersSent += await SendDueTaskRemindersAsync(
+                user.Id,
+                now,
+                GetTimeZoneOrUtc(user.TimeZone),
+                settings,
+                ct);
         }
 
         var blockRemindersSent = await SendDueBlockRemindersAsync(now, userIds, settingsByUser, ct);
-        return new NotificationJobResponse(briefsSent, blockRemindersSent, eveningSummariesSent);
+        return new NotificationJobResponse(briefsSent, blockRemindersSent, taskRemindersSent, eveningSummariesSent);
+    }
+
+    private async Task<int> SendDueTaskRemindersAsync(
+        Guid userId,
+        DateTimeOffset now,
+        TimeZoneInfo timeZone,
+        NotificationSettings settings,
+        CancellationToken ct)
+    {
+        if (!settings.BlockRemindersEnabled) return 0;
+
+        var localDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, timeZone).DateTime);
+        var tasks = await db.Tasks
+            .AsNoTracking()
+            .Where(task => task.UserId == userId
+                           && !task.IsCompleted
+                           && task.Status != TaskStatus.Completed
+                           && task.DueDate.HasValue
+                           && task.DueTime.HasValue
+                           && task.DueDate.Value >= localDate.AddDays(-1)
+                           && task.DueDate.Value <= localDate.AddDays(1))
+            .ToListAsync(ct);
+
+        var sent = 0;
+        foreach (var task in tasks)
+        {
+            var dueAt = ToUtc(task.DueDate!.Value, task.DueTime!.Value, timeZone);
+            if (!dueAt.HasValue || dueAt.Value <= now) continue;
+
+            var minutesUntilDue = (int)Math.Round((dueAt.Value - now).TotalMinutes);
+            if (Math.Abs(minutesUntilDue - settings.BlockReminderMinutes) > BlockReminderToleranceMinutes)
+                continue;
+
+            var exactMinutes = Math.Max(1, minutesUntilDue);
+            var deliveryKey = $"task:{task.Id:N}:{task.DueDate:yyyy-MM-dd}:{task.DueTime:HH\\:mm}:reminder";
+            if (await SendOnceAsync(
+                    userId,
+                    deliveryKey,
+                    "Termin zadania",
+                    $"Za {exactMinutes} min termin zadania „{Truncate(task.Content, 120)}”",
+                    deliveryKey,
+                    null,
+                    ct))
+                sent++;
+        }
+
+        return sent;
     }
 
     private async Task<int> SendDueBlockRemindersAsync(
@@ -656,6 +711,20 @@ public class NotificationService(
     {
         var localMidnight = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
         return new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(localMidnight, timeZone));
+    }
+
+    private static DateTimeOffset? ToUtc(DateOnly date, TimeOnly time, TimeZoneInfo timeZone)
+    {
+        var localDateTime = date.ToDateTime(time, DateTimeKind.Unspecified);
+        if (timeZone.IsInvalidTime(localDateTime)) return null;
+
+        if (timeZone.IsAmbiguousTime(localDateTime))
+        {
+            var offset = timeZone.GetAmbiguousTimeOffsets(localDateTime).Max();
+            return new DateTimeOffset(localDateTime, offset).ToUniversalTime();
+        }
+
+        return new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(localDateTime, timeZone));
     }
 
     private static NotificationSettingsResponse ToResponse(NotificationSettings settings, int subscriptionCount) => new(

@@ -34,7 +34,9 @@ public class SuggestionActionExecutor(
                 if (payload.TryGetValue("priority", out var raw)
                     && Enum.TryParse<TaskPriority>(raw, ignoreCase: true, out var priority))
                 {
-                    return new UpdateTaskRequest(null, null, priority, null, null, false, null, false, null, null);
+                    return new UpdateTaskRequest(
+                        null, null, priority, null, null, false,
+                        null, false, null, false, null, null);
                 }
                 return null;
 
@@ -42,7 +44,9 @@ public class SuggestionActionExecutor(
                 if (payload.TryGetValue("date", out var dateRaw)
                     && DateOnly.TryParse(dateRaw, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
                 {
-                    return new UpdateTaskRequest(null, null, null, null, date, false, null, false, null, null);
+                    return new UpdateTaskRequest(
+                        null, null, null, null, date, false,
+                        null, false, null, false, null, null);
                 }
                 return null;
 

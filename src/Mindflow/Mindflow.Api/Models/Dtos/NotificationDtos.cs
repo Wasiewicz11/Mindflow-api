@@ -55,4 +55,5 @@ public record NotificationInboxItemResponse(
 public record NotificationJobResponse(
     int BriefsSent,
     int BlockRemindersSent,
+    int TaskRemindersSent,
     int EveningSummariesSent);

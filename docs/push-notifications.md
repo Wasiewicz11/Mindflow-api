@@ -4,7 +4,7 @@ Ta funkcja wysyla:
 
 - poranny brief o wybranej godzinie (domyslnie 06:00), z liczba zadan na dzis w projektach oraz konkretnymi zaleglymi zadaniami;
 - drugi brief (domyslnie 13:00);
-- przypomnienie przed blokiem w kalendarzu (domyslnie 10 minut);
+- przypomnienie przed blokiem w kalendarzu lub terminem zwyklego zadania z ustawiona godzina (domyslnie 10 minut);
 - wieczorne podsumowanie (domyslnie 20:00), z liczba ukonczonych zadan i konkretnymi niewykonanymi zadaniami z terminem na dzis lub wczesniej.
 
 Ustawienia sa per uzytkownik, a subskrypcja jest per urzadzenie. Kazda automatyczna wiadomosc ma klucz deduplikujacy w bazie, wiec ponowne wywolanie zadania nie powinno wyslac jej drugi raz.
@@ -20,7 +20,7 @@ dotnet ef database update \
   --startup-project src/Mindflow/Mindflow.Api/Mindflow.Api.csproj
 ```
 
-Migracja `AddPushNotifications` tworzy tabele `notification_settings`, `push_notification_subscriptions` i `push_notification_deliveries`. Kolejna migracja `AddPushNotificationDeviceName` dodaje nazwę urządzenia do listy subskrypcji, a `AddNotificationInbox` tworzy centrum zapisanych porannych i popołudniowych briefów oraz podsumowań dnia. Zawsze zastosuj wszystkie oczekujące migracje tą samą komendą.
+Migracja `AddPushNotifications` tworzy tabele `notification_settings`, `push_notification_subscriptions` i `push_notification_deliveries`. Kolejna migracja `AddPushNotificationDeviceName` dodaje nazwę urządzenia do listy subskrypcji, `AddNotificationInbox` tworzy centrum zapisanych porannych i popołudniowych briefów oraz podsumowań dnia, a `AddTaskDueTime` dodaje opcjonalną godzinę terminu do zwykłych zadań. Zawsze zastosuj wszystkie oczekujące migracje tą samą komendą.
 
 ## 2. Wygeneruj klucze VAPID
 
@@ -93,4 +93,4 @@ curl -X POST 'https://twoj-backend.onrender.com/internal/jobs/notifications' \
   -H 'X-Job-Key: LOSOWY_DLUGI_SEKRET'
 ```
 
-Odpowiedz zawiera liczbe wyslanych briefow, przypomnien o blokach i podsumowan wieczornych.
+Odpowiedz zawiera liczbe wyslanych briefow, przypomnien o blokach, przypomnien o zadaniach z godzina i podsumowan wieczornych.
