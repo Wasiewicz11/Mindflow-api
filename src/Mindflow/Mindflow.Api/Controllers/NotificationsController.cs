@@ -36,11 +36,26 @@ public class NotificationsController(
         return NoContent();
     }
 
+    [HttpGet("subscriptions")]
+    public async Task<ActionResult<IReadOnlyList<PushNotificationSubscriptionResponse>>> GetSubscriptions(CancellationToken ct)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        return Ok(await notificationService.GetSubscriptionsAsync(userId, ct));
+    }
+
     [HttpDelete("subscriptions")]
     public async Task<IActionResult> Unsubscribe(DeletePushNotificationSubscriptionRequest request, CancellationToken ct)
     {
         var userId = await currentUserService.GetCurrentUserIdAsync();
         await notificationService.UnsubscribeAsync(userId, request.Endpoint, ct);
+        return NoContent();
+    }
+
+    [HttpDelete("subscriptions/{subscriptionId:guid}")]
+    public async Task<IActionResult> Unsubscribe(Guid subscriptionId, CancellationToken ct)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        await notificationService.UnsubscribeAsync(userId, subscriptionId, ct);
         return NoContent();
     }
 

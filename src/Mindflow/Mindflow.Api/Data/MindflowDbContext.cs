@@ -141,6 +141,7 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
             entity.Property(s => s.Endpoint).HasMaxLength(2048);
             entity.Property(s => s.P256dh).HasMaxLength(255);
             entity.Property(s => s.Auth).HasMaxLength(255);
+            entity.Property(s => s.DeviceName).HasMaxLength(120);
             entity.HasOne<User>()
                 .WithMany()
                 .HasForeignKey(s => s.UserId)

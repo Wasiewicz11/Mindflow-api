@@ -20,7 +20,7 @@ dotnet ef database update \
   --startup-project src/Mindflow/Mindflow.Api/Mindflow.Api.csproj
 ```
 
-Migracja `AddPushNotifications` tworzy tabele `notification_settings`, `push_notification_subscriptions` i `push_notification_deliveries`.
+Migracja `AddPushNotifications` tworzy tabele `notification_settings`, `push_notification_subscriptions` i `push_notification_deliveries`. Kolejna migracja `AddPushNotificationDeviceName` dodaje nazwę urządzenia do listy subskrypcji. Zawsze zastosuj wszystkie oczekujące migracje tą samą komendą.
 
 ## 2. Wygeneruj klucze VAPID
 

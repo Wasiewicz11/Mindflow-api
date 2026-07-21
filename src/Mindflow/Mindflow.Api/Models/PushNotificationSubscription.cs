@@ -12,6 +12,8 @@ public class PushNotificationSubscription
     public required string P256dh { get; set; }
     [MaxLength(255)]
     public required string Auth { get; set; }
+    [MaxLength(120)]
+    public string? DeviceName { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }

@@ -59,6 +59,23 @@ public class NotificationService(
         return ToResponse(settings, subscriptionCount);
     }
 
+    public async Task<IReadOnlyList<PushNotificationSubscriptionResponse>> GetSubscriptionsAsync(
+        Guid userId,
+        CancellationToken ct = default)
+    {
+        return await db.PushNotificationSubscriptions
+            .AsNoTracking()
+            .Where(subscription => subscription.UserId == userId)
+            .OrderByDescending(subscription => subscription.UpdatedAt)
+            .Select(subscription => new PushNotificationSubscriptionResponse(
+                subscription.Id,
+                subscription.Endpoint,
+                subscription.DeviceName ?? "Przeglądarka",
+                subscription.CreatedAt,
+                subscription.UpdatedAt))
+            .ToListAsync(ct);
+    }
+
     public async Task SubscribeAsync(Guid userId, PushNotificationSubscriptionRequest request, CancellationToken ct = default)
     {
         var endpoint = request.Endpoint?.Trim();
@@ -70,6 +87,7 @@ public class NotificationService(
             throw new BadRequestException("Invalid push subscription keys.");
 
         var timeZone = GetTimeZoneOrThrow(request.TimeZone);
+        var deviceName = NormalizeDeviceName(request.DeviceName);
         var user = await db.Users.FindAsync([userId], ct)
             ?? throw new NotFoundException("User not found.");
         var now = DateTimeOffset.UtcNow;
@@ -85,6 +103,7 @@ public class NotificationService(
                 Endpoint = endpoint,
                 P256dh = request.P256dh,
                 Auth = request.Auth,
+                DeviceName = deviceName,
                 CreatedAt = now,
                 UpdatedAt = now
             };
@@ -95,6 +114,7 @@ public class NotificationService(
             subscription.UserId = userId;
             subscription.P256dh = request.P256dh;
             subscription.Auth = request.Auth;
+            subscription.DeviceName = deviceName;
             subscription.UpdatedAt = now;
         }
 
@@ -109,6 +129,16 @@ public class NotificationService(
 
         var subscription = await db.PushNotificationSubscriptions
             .SingleOrDefaultAsync(s => s.UserId == userId && s.Endpoint == endpoint.Trim(), ct);
+        if (subscription is null) return;
+
+        db.PushNotificationSubscriptions.Remove(subscription);
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task UnsubscribeAsync(Guid userId, Guid subscriptionId, CancellationToken ct = default)
+    {
+        var subscription = await db.PushNotificationSubscriptions
+            .SingleOrDefaultAsync(s => s.Id == subscriptionId && s.UserId == userId, ct);
         if (subscription is null) return;
 
         db.PushNotificationSubscriptions.Remove(subscription);
@@ -518,6 +548,17 @@ public class NotificationService(
                || host.Equals("updates.push.services.mozilla.com", StringComparison.OrdinalIgnoreCase)
                || host.EndsWith(".push.apple.com", StringComparison.OrdinalIgnoreCase)
                || host.EndsWith(".notify.windows.com", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeDeviceName(string? deviceName)
+    {
+        if (string.IsNullOrWhiteSpace(deviceName)) return "Przeglądarka";
+
+        var normalized = deviceName.Trim();
+        if (normalized.Length > 120)
+            throw new BadRequestException("Device name is too long.");
+
+        return normalized;
     }
 
     private static bool IsWithinScheduleWindow(TimeOnly currentTime, TimeOnly scheduledTime)
