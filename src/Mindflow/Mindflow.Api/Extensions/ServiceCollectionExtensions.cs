@@ -173,6 +173,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPomodoroSessionService, PomodoroSessionService>();
         services.AddScoped<IBrainGraphService, BrainGraphService>();
         services.AddScoped<IGoalDayService, GoalDayService>();
+        services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<ITasksNotifier, TasksNotifier>();
         services.AddScoped<TokenService>();
         return services;

@@ -17,6 +17,9 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
     public DbSet<TaskSubtask> TaskSubtasks { get; set; }
     public DbSet<TaskActivityEvent> TaskActivityEvents { get; set; }
     public DbSet<CalendarBlock> CalendarBlocks { get; set; }
+    public DbSet<NotificationSettings> NotificationSettings { get; set; }
+    public DbSet<PushNotificationSubscription> PushNotificationSubscriptions { get; set; }
+    public DbSet<PushNotificationDelivery> PushNotificationDeliveries { get; set; }
     public DbSet<GoogleCalendarConnection> GoogleCalendarConnections { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<AiSuggestion> AiSuggestions { get; set; }
@@ -117,6 +120,45 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
             entity.HasIndex(b => b.TaskId);
             entity.HasIndex(b => new { b.UserId, b.StartAt });
             entity.HasIndex(b => new { b.UserId, b.ExternalEventId });
+        });
+
+        modelBuilder.Entity<NotificationSettings>(entity =>
+        {
+            entity.ToTable("notification_settings");
+            entity.HasKey(s => s.UserId);
+            entity.Property(s => s.MorningBriefTime).HasColumnType("time without time zone");
+            entity.Property(s => s.MiddayBriefTime).HasColumnType("time without time zone");
+            entity.Property(s => s.EveningSummaryTime).HasColumnType("time without time zone");
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(s => s.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PushNotificationSubscription>(entity =>
+        {
+            entity.ToTable("push_notification_subscriptions");
+            entity.Property(s => s.Endpoint).HasMaxLength(2048);
+            entity.Property(s => s.P256dh).HasMaxLength(255);
+            entity.Property(s => s.Auth).HasMaxLength(255);
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(s => s.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(s => s.UserId);
+            entity.HasIndex(s => s.Endpoint).IsUnique();
+        });
+
+        modelBuilder.Entity<PushNotificationDelivery>(entity =>
+        {
+            entity.ToTable("push_notification_deliveries");
+            entity.Property(d => d.DeliveryKey).HasMaxLength(255);
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(d => new { d.UserId, d.DeliveryKey }).IsUnique();
+            entity.HasIndex(d => d.SentAt);
         });
 
         modelBuilder.Entity<TaskActivityEvent>(entity =>
