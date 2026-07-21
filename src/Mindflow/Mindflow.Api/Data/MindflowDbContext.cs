@@ -20,6 +20,7 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
     public DbSet<NotificationSettings> NotificationSettings { get; set; }
     public DbSet<PushNotificationSubscription> PushNotificationSubscriptions { get; set; }
     public DbSet<PushNotificationDelivery> PushNotificationDeliveries { get; set; }
+    public DbSet<NotificationInboxItem> NotificationInboxItems { get; set; }
     public DbSet<GoogleCalendarConnection> GoogleCalendarConnections { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<AiSuggestion> AiSuggestions { get; set; }
@@ -160,6 +161,20 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
                 .OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(d => new { d.UserId, d.DeliveryKey }).IsUnique();
             entity.HasIndex(d => d.SentAt);
+        });
+
+        modelBuilder.Entity<NotificationInboxItem>(entity =>
+        {
+            entity.ToTable("notification_inbox_items");
+            entity.Property(item => item.Kind).HasConversion<string>().HasMaxLength(32);
+            entity.Property(item => item.Title).HasMaxLength(160);
+            entity.Property(item => item.Body).HasMaxLength(2000);
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(item => item.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(item => new { item.UserId, item.CreatedAt });
+            entity.HasIndex(item => new { item.UserId, item.ReadAt });
         });
 
         modelBuilder.Entity<TaskActivityEvent>(entity =>

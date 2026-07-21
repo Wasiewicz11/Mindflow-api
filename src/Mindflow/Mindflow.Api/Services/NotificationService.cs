@@ -145,6 +145,34 @@ public class NotificationService(
         await db.SaveChangesAsync(ct);
     }
 
+    public async Task<IReadOnlyList<NotificationInboxItemResponse>> GetInboxItemsAsync(
+        Guid userId,
+        CancellationToken ct = default)
+    {
+        return await db.NotificationInboxItems
+            .AsNoTracking()
+            .Where(item => item.UserId == userId)
+            .OrderByDescending(item => item.CreatedAt)
+            .Select(item => new NotificationInboxItemResponse(
+                item.Id,
+                item.Kind.ToString(),
+                item.Title,
+                item.Body,
+                item.CreatedAt,
+                item.ReadAt))
+            .ToListAsync(ct);
+    }
+
+    public async Task MarkInboxItemReadAsync(Guid userId, Guid notificationId, CancellationToken ct = default)
+    {
+        var item = await db.NotificationInboxItems
+            .SingleOrDefaultAsync(item => item.Id == notificationId && item.UserId == userId, ct);
+        if (item is null || item.ReadAt.HasValue) return;
+
+        item.ReadAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(ct);
+    }
+
     public async Task<NotificationTestResponse> SendTestAsync(Guid userId, CancellationToken ct = default)
     {
         var sent = await SendToUserAsync(
@@ -152,6 +180,7 @@ public class NotificationService(
             "Mindflow jest gotowy",
             "Powiadomienia będą tu przypominać o planie dnia i nadchodzących blokach.",
             "mindflow:test",
+            "/",
             ct);
 
         if (!sent)
@@ -277,6 +306,7 @@ public class NotificationService(
                     "Nadchodzący blok",
                     $"Za {exactMinutes} min zaczyna się „{Truncate(title, 120)}”",
                     deliveryKey,
+                    null,
                     ct))
                 sent++;
         }
@@ -303,6 +333,7 @@ public class NotificationService(
             title,
             body,
             $"mindflow:brief:{briefKind}",
+            briefKind == "morning" ? NotificationInboxKind.MorningBrief : NotificationInboxKind.MiddayBrief,
             ct);
     }
 
@@ -339,6 +370,7 @@ public class NotificationService(
             "Podsumowanie dnia",
             body,
             "mindflow:summary:evening",
+            NotificationInboxKind.EveningSummary,
             ct);
     }
 
@@ -372,6 +404,7 @@ public class NotificationService(
         string title,
         string body,
         string tag,
+        NotificationInboxKind? inboxKind,
         CancellationToken ct)
     {
         var alreadySent = await db.PushNotificationDeliveries
@@ -379,14 +412,59 @@ public class NotificationService(
             .AnyAsync(delivery => delivery.UserId == userId && delivery.DeliveryKey == deliveryKey, ct);
         if (alreadySent) return false;
 
-        if (!await SendToUserAsync(userId, title, body, tag, ct)) return false;
+        var now = DateTimeOffset.UtcNow;
+        var inboxItem = inboxKind is NotificationInboxKind kind
+            ? new NotificationInboxItem
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                Kind = kind,
+                Title = title,
+                Body = body,
+                CreatedAt = now
+            }
+            : null;
+        var targetUrl = inboxItem is null ? "/" : $"/?notification={inboxItem.Id:N}";
+
+        if (inboxItem is not null)
+        {
+            db.NotificationInboxItems.Add(inboxItem);
+            await db.SaveChangesAsync(ct);
+        }
+
+        bool sent;
+        try
+        {
+            sent = await SendToUserAsync(userId, title, body, tag, targetUrl, ct);
+        }
+        catch
+        {
+            if (inboxItem is not null)
+            {
+                db.NotificationInboxItems.Remove(inboxItem);
+                await db.SaveChangesAsync(ct);
+            }
+
+            throw;
+        }
+
+        if (!sent)
+        {
+            if (inboxItem is not null)
+            {
+                db.NotificationInboxItems.Remove(inboxItem);
+                await db.SaveChangesAsync(ct);
+            }
+
+            return false;
+        }
 
         var delivery = new PushNotificationDelivery
         {
             Id = Guid.NewGuid(),
             UserId = userId,
             DeliveryKey = deliveryKey,
-            SentAt = DateTimeOffset.UtcNow
+            SentAt = now
         };
         db.PushNotificationDeliveries.Add(delivery);
 
@@ -398,6 +476,12 @@ public class NotificationService(
         catch (DbUpdateException)
         {
             db.Entry(delivery).State = EntityState.Detached;
+            if (inboxItem is not null)
+            {
+                db.NotificationInboxItems.Remove(inboxItem);
+                await db.SaveChangesAsync(ct);
+            }
+
             return false;
         }
     }
@@ -407,6 +491,7 @@ public class NotificationService(
         string title,
         string body,
         string tag,
+        string targetUrl,
         CancellationToken ct)
     {
         var subscriptions = await db.PushNotificationSubscriptions
@@ -421,7 +506,7 @@ public class NotificationService(
             title,
             body,
             tag,
-            url = "/"
+            url = targetUrl
         });
         var expiredSubscriptions = new List<PushNotificationSubscription>();
         var sent = false;

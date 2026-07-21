@@ -44,6 +44,14 @@ public record DeletePushNotificationSubscriptionRequest(
 
 public record NotificationTestResponse(bool Sent);
 
+public record NotificationInboxItemResponse(
+    Guid Id,
+    string Kind,
+    string Title,
+    string Body,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? ReadAt);
+
 public record NotificationJobResponse(
     int BriefsSent,
     int BlockRemindersSent,
