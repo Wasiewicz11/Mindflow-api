@@ -15,6 +15,8 @@ public class TaskService(
     ICurrentUserService currentUserService,
     IAccessService accessService,
     ITaskActivityService taskActivityService,
+    ITaskTimeEntryRepository timeEntryRepository,
+    ITaskTimeEntryService timeEntryService,
     ITasksNotifier notifier,
     ILogger<TaskService> logger
     ) : ITaskService
@@ -23,7 +25,9 @@ public class TaskService(
     {
         var userId = await currentUserService.GetCurrentUserIdAsync();
         var tasks = await taskRepository.GetAllForUserAsync(userId);
-        return tasks.Select(TaskResponseMapper.ToListResponse);
+        var taskList = tasks.ToList();
+        var loggedMinutes = await timeEntryRepository.GetDurationMinutesByTaskIdsAsync(userId, taskList.Select(task => task.Id).ToArray());
+        return taskList.Select(task => TaskResponseMapper.ToListResponse(task, GetLoggedMinutes(loggedMinutes, task.Id)));
     }
 
     public async Task<IEnumerable<TaskListResponse>> GetAllForProjectAsync(Guid projectId)
@@ -34,7 +38,9 @@ public class TaskService(
             throw new UnauthorizedAccessException();
 
         var tasks = await taskRepository.GetAllForProjectAsync(projectId);
-        return tasks.Select(TaskResponseMapper.ToListResponse);
+        var taskList = tasks.ToList();
+        var loggedMinutes = await timeEntryRepository.GetDurationMinutesByTaskIdsAsync(userId, taskList.Select(task => task.Id).ToArray());
+        return taskList.Select(task => TaskResponseMapper.ToListResponse(task, GetLoggedMinutes(loggedMinutes, task.Id)));
     }
 
     public async Task<TaskDetailResponse?> GetByIdAsync(Guid id)
@@ -45,7 +51,10 @@ public class TaskService(
             return null;
 
         var task = await taskRepository.GetByIdReadOnlyAsync(id);
-        return task is null ? null : TaskResponseMapper.ToDetailResponse(task);
+        if (task is null) return null;
+
+        var loggedMinutes = await timeEntryRepository.GetDurationMinutesForTaskAsync(userId, task.Id);
+        return TaskResponseMapper.ToDetailResponse(task, loggedMinutes);
     }
 
     public async Task<TaskDetailResponse?> CreateAsync(CreateTaskRequest request)
@@ -185,7 +194,95 @@ public class TaskService(
             "TaskUpdated",
             updated.Id);
 
-        return TaskResponseMapper.ToDetailResponse(updated);
+        var loggedMinutes = await timeEntryRepository.GetDurationMinutesForTaskAsync(userId, updated.Id);
+        return TaskResponseMapper.ToDetailResponse(updated, loggedMinutes);
+    }
+
+    public async Task<CompleteTaskResponse?> CompleteAsync(Guid id, CompleteTaskRequest request)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+
+        if (!await accessService.CanAccessTaskAsync(id, userId))
+            throw new NotFoundException($"Task with id {id} not found");
+
+        var task = await taskRepository.GetByIdAsync(id);
+        if (task is null) throw new NotFoundException($"Task with id {id} not found");
+
+        var previousSpaceId = await taskRepository.GetSpaceIdForTaskAsync(task);
+        var previousContent = task.Content;
+        var previousDescription = task.Description;
+        var previousPriority = task.Priority;
+        var previousDueDate = task.DueDate;
+        var previousProjectId = task.ProjectId;
+        var previousStatus = task.Status;
+        var previousTags = task.Tags.ToList();
+
+        if (request.ClearEstimatedHours) task.EstimatedHours = null;
+        else if (request.EstimatedHours.HasValue) task.EstimatedHours = request.EstimatedHours;
+
+        task.Status = TaskStatus.Completed;
+        task.IsCompleted = true;
+
+        TaskTimeEntry? createdEntry = null;
+        if (HasTimeEntryInput(request))
+        {
+            var entryRequest = new CreateTaskTimeEntryRequest(
+                request.WorkDate,
+                request.DurationMinutes,
+                request.StartAt,
+                request.EndAt,
+                request.EstimatedHours,
+                request.ClearEstimatedHours);
+            createdEntry = timeEntryService.BuildEntry(userId, task, entryRequest, DateTimeOffset.UtcNow, requireTime: true);
+            createdEntry = await timeEntryRepository.CreateAsync(createdEntry);
+        }
+        else
+        {
+            task = await taskRepository.UpdateAsync(task) ?? task;
+        }
+
+        var currentSpaceId = await taskRepository.GetSpaceIdForTaskAsync(task);
+        await RecordTaskUpdateActivityAsync(
+            userId,
+            task,
+            previousSpaceId,
+            currentSpaceId,
+            previousContent,
+            previousDescription,
+            previousPriority,
+            previousDueDate,
+            previousProjectId,
+            previousStatus,
+            previousTags);
+
+        if (createdEntry is not null)
+        {
+            await taskActivityService.RecordUserTaskEventAsync(
+                TaskActivityEventType.TaskTimeSet,
+                userId,
+                task.Id,
+                currentSpaceId,
+                task.ProjectId,
+                new
+                {
+                    time_entry_id = createdEntry.Id,
+                    work_date = createdEntry.WorkDate,
+                    start_at = createdEntry.StartAt,
+                    end_at = createdEntry.EndAt,
+                    duration_minutes = createdEntry.DurationMinutes,
+                    estimated_hours = createdEntry.EstimatedHours
+                });
+        }
+
+        await NotifySafelyAsync(
+            () => notifier.TaskUpdatedAsync(task, currentSpaceId),
+            "TaskUpdated",
+            task.Id);
+
+        var loggedMinutes = await timeEntryRepository.GetDurationMinutesForTaskAsync(userId, task.Id);
+        return new CompleteTaskResponse(
+            TaskResponseMapper.ToDetailResponse(task, loggedMinutes),
+            createdEntry is null ? null : timeEntryService.ToResponse(createdEntry));
     }
 
     public async Task<bool> DeleteAsync(Guid id)
@@ -452,6 +549,12 @@ public class TaskService(
         }
         return true;
     }
+
+    private static bool HasTimeEntryInput(CompleteTaskRequest request) =>
+        request.DurationMinutes.HasValue || request.StartAt.HasValue || request.EndAt.HasValue;
+
+    private static int GetLoggedMinutes(IReadOnlyDictionary<Guid, int> loggedMinutes, Guid taskId) =>
+        loggedMinutes.TryGetValue(taskId, out var minutes) ? minutes : 0;
 
     private async Task NotifySafelyAsync(Func<Task> publish, string eventName, Guid taskId)
     {

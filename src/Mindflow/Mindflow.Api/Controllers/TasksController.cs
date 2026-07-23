@@ -8,7 +8,10 @@ namespace Mindflow.Api.Controllers;
 [ApiController]
 [Route("tasks")]
 [Authorize]
-public class TasksController(ITaskService taskService, ITaskSubtaskService subtaskService) : ControllerBase
+public class TasksController(
+    ITaskService taskService,
+    ITaskSubtaskService subtaskService,
+    ITaskTimeEntryService timeEntryService) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAll()
@@ -39,6 +42,30 @@ public class TasksController(ITaskService taskService, ITaskSubtaskService subta
         var updated = await taskService.UpdateAsync(id, request);
         if (updated is null) return NotFound();
         return Ok(updated);
+    }
+
+    [HttpPost("{id:guid}/complete")]
+    public async Task<IActionResult> Complete(Guid id, [FromBody] CompleteTaskRequest request)
+    {
+        var completed = await taskService.CompleteAsync(id, request);
+        if (completed is null) return NotFound();
+        return Ok(completed);
+    }
+
+    [HttpGet("{id:guid}/time-entries")]
+    public async Task<IActionResult> GetTimeEntries(Guid id)
+    {
+        var entries = await timeEntryService.GetForTaskAsync(id);
+        if (entries is null) return NotFound();
+        return Ok(entries);
+    }
+
+    [HttpPost("{id:guid}/time-entries")]
+    public async Task<IActionResult> CreateTimeEntry(Guid id, [FromBody] CreateTaskTimeEntryRequest request)
+    {
+        var created = await timeEntryService.CreateAsync(id, request);
+        if (created is null) return NotFound();
+        return Ok(created);
     }
 
     [HttpDelete("{id:guid}")]
