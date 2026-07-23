@@ -10,7 +10,8 @@ public record CreateTaskTimeEntryRequest(
     DateTimeOffset? StartAt,
     DateTimeOffset? EndAt,
     [Range(0.01, 1000)] decimal? EstimatedHours,
-    bool ClearEstimatedHours);
+    bool ClearEstimatedHours,
+    [MaxLength(2000)] string? Notes);
 
 public record UpdateTaskTimeEntryRequest(
     DateOnly? WorkDate,
@@ -18,7 +19,8 @@ public record UpdateTaskTimeEntryRequest(
     DateTimeOffset? StartAt,
     DateTimeOffset? EndAt,
     [Range(0.01, 1000)] decimal? EstimatedHours,
-    bool ClearEstimatedHours);
+    bool ClearEstimatedHours,
+    [MaxLength(2000)] string? Notes);
 
 public record CompleteTaskRequest(
     [Range(0.01, 1000)] decimal? EstimatedHours,
@@ -26,7 +28,8 @@ public record CompleteTaskRequest(
     DateOnly? WorkDate,
     [Range(1, 1440)] int? DurationMinutes,
     DateTimeOffset? StartAt,
-    DateTimeOffset? EndAt);
+    DateTimeOffset? EndAt,
+    [MaxLength(2000)] string? Notes);
 
 public record TaskTimeEntryResponse(
     Guid Id,
@@ -42,6 +45,7 @@ public record TaskTimeEntryResponse(
     DateTimeOffset? StartAt,
     DateTimeOffset? EndAt,
     decimal? EstimatedHours,
+    string? Notes,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 

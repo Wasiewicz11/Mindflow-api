@@ -246,7 +246,8 @@ public class TaskService(
                 request.StartAt,
                 request.EndAt,
                 request.EstimatedHours,
-                request.ClearEstimatedHours);
+                request.ClearEstimatedHours,
+                request.Notes);
             createdEntry = timeEntryService.BuildEntry(userId, task, entryRequest, DateTimeOffset.UtcNow, requireTime: true);
             createdEntry = await timeEntryRepository.CreateAsync(createdEntry);
         }
@@ -285,7 +286,8 @@ public class TaskService(
                     start_at = createdEntry.StartAt,
                     end_at = createdEntry.EndAt,
                     duration_minutes = createdEntry.DurationMinutes,
-                    estimated_hours = createdEntry.EstimatedHours
+                    estimated_hours = createdEntry.EstimatedHours,
+                    notes_present = !string.IsNullOrWhiteSpace(createdEntry.Notes)
                 });
         }
 

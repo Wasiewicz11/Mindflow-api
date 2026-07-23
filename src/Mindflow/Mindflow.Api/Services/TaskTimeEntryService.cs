@@ -78,6 +78,7 @@ public class TaskTimeEntryService(
         var previousEndAt = entry.EndAt;
         var previousDurationMinutes = entry.DurationMinutes;
         var previousEstimatedHours = entry.EstimatedHours;
+        var previousNotes = entry.Notes;
 
         var hasTimingInput = request.WorkDate.HasValue
             || request.DurationMinutes.HasValue
@@ -92,7 +93,8 @@ public class TaskTimeEntryService(
                     request.StartAt,
                     request.EndAt,
                     request.EstimatedHours,
-                    request.ClearEstimatedHours),
+                    request.ClearEstimatedHours,
+                    request.Notes),
                 requireTime: true)
             : new NormalizedTimeInput(entry.WorkDate, entry.DurationMinutes, entry.StartAt, entry.EndAt);
 
@@ -111,6 +113,9 @@ public class TaskTimeEntryService(
             entry.EstimatedHours = request.EstimatedHours;
             if (task is not null) task.EstimatedHours = request.EstimatedHours;
         }
+
+        if (request.Notes is not null)
+            entry.Notes = NormalizeNotes(request.Notes);
 
         entry.UpdatedAt = DateTimeOffset.UtcNow;
 
@@ -136,7 +141,9 @@ public class TaskTimeEntryService(
                     previous_duration_minutes = previousDurationMinutes,
                     duration_minutes = entry.DurationMinutes,
                     previous_estimated_hours = previousEstimatedHours,
-                    estimated_hours = entry.EstimatedHours
+                    estimated_hours = entry.EstimatedHours,
+                    previous_notes_present = !string.IsNullOrWhiteSpace(previousNotes),
+                    notes_present = !string.IsNullOrWhiteSpace(entry.Notes)
                 });
         }
 
@@ -201,6 +208,7 @@ public class TaskTimeEntryService(
             StartAt = normalized.StartAt,
             EndAt = normalized.EndAt,
             EstimatedHours = request.EstimatedHours,
+            Notes = NormalizeNotes(request.Notes),
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -221,6 +229,7 @@ public class TaskTimeEntryService(
             entry.StartAt,
             entry.EndAt,
             entry.EstimatedHours,
+            entry.Notes,
             entry.CreatedAt,
             entry.UpdatedAt);
 
@@ -240,8 +249,15 @@ public class TaskTimeEntryService(
                 start_at = entry.StartAt,
                 end_at = entry.EndAt,
                 duration_minutes = entry.DurationMinutes,
-                estimated_hours = entry.EstimatedHours
+                estimated_hours = entry.EstimatedHours,
+                notes_present = !string.IsNullOrWhiteSpace(entry.Notes)
             });
+    }
+
+    private static string? NormalizeNotes(string? notes)
+    {
+        var normalized = notes?.Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 
     private static NormalizedTimeInput NormalizeTimeInput(CreateTaskTimeEntryRequest request, bool requireTime)

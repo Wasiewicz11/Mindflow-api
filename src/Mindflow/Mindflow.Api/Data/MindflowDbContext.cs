@@ -129,6 +129,9 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
             entity.Property(entry => entry.EstimatedHours)
                 .HasColumnType("numeric(6,2)");
 
+            entity.Property(entry => entry.Notes)
+                .HasMaxLength(2000);
+
             entity.HasOne<TaskItem>()
                 .WithMany()
                 .HasForeignKey(entry => entry.TaskId)

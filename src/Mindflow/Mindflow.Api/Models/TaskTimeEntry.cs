@@ -20,6 +20,8 @@ public class TaskTimeEntry
     public DateTimeOffset? StartAt { get; set; }
     public DateTimeOffset? EndAt { get; set; }
     public decimal? EstimatedHours { get; set; }
+    [MaxLength(2000)]
+    public string? Notes { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }
