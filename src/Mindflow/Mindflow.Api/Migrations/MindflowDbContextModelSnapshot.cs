@@ -1237,6 +1237,100 @@ namespace Mindflow.Api.Migrations
                     b.ToTable("task_subtasks", (string)null);
                 });
 
+            modelBuilder.Entity("Mindflow.Api.Models.TaskTimeEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("DurationMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("duration_minutes");
+
+                    b.Property<DateTimeOffset?>("EndAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("end_at");
+
+                    b.Property<decimal?>("EstimatedHours")
+                        .HasColumnType("numeric(6,2)")
+                        .HasColumnName("estimated_hours");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<DateTimeOffset?>("StartAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("start_at");
+
+                    b.PrimitiveCollection<List<string>>("Tags")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text[]")
+                        .HasColumnName("tags")
+                        .HasDefaultValueSql("'{}'::text[]");
+
+                    b.Property<string>("TaskContent")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("task_content");
+
+                    b.Property<Guid?>("TaskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("task_id");
+
+                    b.Property<string>("TaskPriority")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("task_priority");
+
+                    b.Property<string>("TaskStatus")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("task_status");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateOnly>("WorkDate")
+                        .HasColumnType("date")
+                        .HasColumnName("work_date");
+
+                    b.HasKey("Id")
+                        .HasName("pk_task_time_entries");
+
+                    b.HasIndex("ProjectId")
+                        .HasDatabaseName("ix_task_time_entries_project_id");
+
+                    b.HasIndex("TaskId")
+                        .HasDatabaseName("ix_task_time_entries_task_id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_task_time_entries_user_id");
+
+                    b.HasIndex("UserId", "ProjectId")
+                        .HasDatabaseName("ix_task_time_entries_user_id_project_id");
+
+                    b.HasIndex("UserId", "TaskId")
+                        .HasDatabaseName("ix_task_time_entries_user_id_task_id");
+
+                    b.HasIndex("UserId", "WorkDate")
+                        .HasDatabaseName("ix_task_time_entries_user_id_work_date");
+
+                    b.ToTable("task_time_entries", (string)null);
+                });
+
             modelBuilder.Entity("Mindflow.Api.Models.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1468,6 +1562,15 @@ namespace Mindflow.Api.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_task_subtasks_tasks_task_item_id");
+                });
+
+            modelBuilder.Entity("Mindflow.Api.Models.TaskTimeEntry", b =>
+                {
+                    b.HasOne("Mindflow.Api.Models.TaskItem", null)
+                        .WithMany()
+                        .HasForeignKey("TaskId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_task_time_entries_tasks_task_id");
                 });
 
             modelBuilder.Entity("Mindflow.Api.Models.UserIdentity", b =>

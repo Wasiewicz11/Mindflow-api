@@ -146,6 +146,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IProjectTagRepository, ProjectTagRepository>();
         services.AddScoped<ITaskRepository, TaskRepository>();
         services.AddScoped<ITaskSubtaskRepository, TaskSubtaskRepository>();
+        services.AddScoped<ITaskTimeEntryRepository, TaskTimeEntryRepository>();
         services.AddScoped<ICalendarBlockRepository, CalendarBlockRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<IPomodoroSessionRepository, PomodoroSessionRepository>();
@@ -168,6 +169,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IProjectTagService, ProjectTagService>();
         services.AddScoped<ITaskService, TaskService>();
         services.AddScoped<ITaskSubtaskService, TaskSubtaskService>();
+        services.AddScoped<ITaskTimeEntryService, TaskTimeEntryService>();
         services.AddScoped<ITaskActivityService, TaskActivityService>();
         services.AddScoped<ICalendarBlockService, CalendarBlockService>();
         services.AddScoped<IPomodoroSessionService, PomodoroSessionService>();

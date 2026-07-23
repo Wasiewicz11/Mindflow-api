@@ -15,6 +15,7 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
     public DbSet<ProjectTag> ProjectTags { get; set; }
     public DbSet<TaskItem> Tasks { get; set; }
     public DbSet<TaskSubtask> TaskSubtasks { get; set; }
+    public DbSet<TaskTimeEntry> TaskTimeEntries { get; set; }
     public DbSet<TaskActivityEvent> TaskActivityEvents { get; set; }
     public DbSet<CalendarBlock> CalendarBlocks { get; set; }
     public DbSet<NotificationSettings> NotificationSettings { get; set; }
@@ -105,6 +106,40 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
             entity.HasIndex(s => s.TaskItemId);
             entity.HasIndex(s => new { s.TaskItemId, s.SortOrder });
             entity.HasIndex(s => s.DueDate);
+        });
+
+        modelBuilder.Entity<TaskTimeEntry>(entity =>
+        {
+            entity.ToTable("task_time_entries");
+
+            entity.Property(entry => entry.TaskContent)
+                .HasMaxLength(1000);
+
+            entity.Property(entry => entry.TaskPriority)
+                .HasConversion<string>();
+
+            entity.Property(entry => entry.TaskStatus)
+                .HasConversion<string>();
+
+            entity.Property(entry => entry.Tags)
+                .HasColumnType("text[]")
+                .HasDefaultValueSql("'{}'::text[]")
+                .IsRequired();
+
+            entity.Property(entry => entry.EstimatedHours)
+                .HasColumnType("numeric(6,2)");
+
+            entity.HasOne<TaskItem>()
+                .WithMany()
+                .HasForeignKey(entry => entry.TaskId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasIndex(entry => entry.UserId);
+            entity.HasIndex(entry => entry.TaskId);
+            entity.HasIndex(entry => entry.ProjectId);
+            entity.HasIndex(entry => new { entry.UserId, entry.WorkDate });
+            entity.HasIndex(entry => new { entry.UserId, entry.TaskId });
+            entity.HasIndex(entry => new { entry.UserId, entry.ProjectId });
         });
 
         modelBuilder.Entity<CalendarBlock>(entity =>

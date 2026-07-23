@@ -12,6 +12,7 @@ namespace Mindflow.Api.Services;
 public class TaskSubtaskService(
     ITaskRepository taskRepository,
     ITaskSubtaskRepository subtaskRepository,
+    ITaskTimeEntryRepository timeEntryRepository,
     ICurrentUserService currentUserService,
     IAccessService accessService,
     ITaskActivityService taskActivityService,
@@ -23,7 +24,11 @@ public class TaskSubtaskService(
         var task = await GetAccessibleTaskForCurrentUserAsync(taskId);
         if (task is null) return null;
         if (string.IsNullOrWhiteSpace(request.Content))
-            return TaskResponseMapper.ToDetailResponse(task);
+        {
+            var userId = await currentUserService.GetCurrentUserIdAsync();
+            var loggedMinutes = await timeEntryRepository.GetDurationMinutesForTaskAsync(userId, task.Id);
+            return TaskResponseMapper.ToDetailResponse(task, loggedMinutes);
+        }
 
         var status = ResolveStatus(request);
         EnsureSubtaskDueDateFitsTask(task.DueDate, request.DueDate);
@@ -135,7 +140,8 @@ public class TaskSubtaskService(
             "TaskUpdated",
             updated.Id);
 
-        return TaskResponseMapper.ToDetailResponse(updated);
+        var loggedMinutes = await timeEntryRepository.GetDurationMinutesForTaskAsync(userId, updated.Id);
+        return TaskResponseMapper.ToDetailResponse(updated, loggedMinutes);
     }
 
     private async Task NotifySafelyAsync(Func<Task> publish, string eventName, Guid taskId)

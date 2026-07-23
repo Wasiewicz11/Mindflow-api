@@ -5,7 +5,7 @@ namespace Mindflow.Api.Services;
 
 internal static class TaskResponseMapper
 {
-    public static TaskListResponse ToListResponse(TaskItem task) =>
+    public static TaskListResponse ToListResponse(TaskItem task, int loggedMinutes = 0) =>
         new(
             task.Id,
             task.Content,
@@ -15,6 +15,7 @@ internal static class TaskResponseMapper
             task.DueDate,
             task.DueTime,
             task.EstimatedHours,
+            loggedMinutes,
             task.ProjectId,
             task.Tags.ToArray(),
             task.Subtasks.Count(s => s.IsCompleted),
@@ -24,7 +25,7 @@ internal static class TaskResponseMapper
             GetOrderedSubtasks(task),
             task.CreatedAt);
 
-    public static TaskDetailResponse ToDetailResponse(TaskItem task) =>
+    public static TaskDetailResponse ToDetailResponse(TaskItem task, int loggedMinutes = 0) =>
         new(
             task.Id,
             task.Content,
@@ -35,6 +36,7 @@ internal static class TaskResponseMapper
             task.DueDate,
             task.DueTime,
             task.EstimatedHours,
+            loggedMinutes,
             task.ProjectId,
             task.Tags.ToArray(),
             task.Subtasks.Count(s => s.IsCompleted),
