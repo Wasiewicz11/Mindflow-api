@@ -60,6 +60,13 @@ public class TaskTimeEntryRepository(MindflowDbContext db) : ITaskTimeEntryRepos
         return entry;
     }
 
+    public async Task<TaskTimeEntry> UpdateAsync(TaskTimeEntry entry)
+    {
+        db.TaskTimeEntries.Update(entry);
+        await db.SaveChangesAsync();
+        return entry;
+    }
+
     public async Task<bool> DeleteAsync(TaskTimeEntry entry)
     {
         db.TaskTimeEntries.Remove(entry);

@@ -56,6 +56,100 @@ public class TaskTimeEntryService(
         return new TaskTimeEntryMutationResponse(ToResponse(created), TaskResponseMapper.ToDetailResponse(task, loggedMinutes));
     }
 
+    public async Task<UpdateTaskTimeEntryResponse?> UpdateAsync(Guid id, UpdateTaskTimeEntryRequest request)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        var entry = await timeEntryRepository.GetByIdAsync(id);
+
+        if (entry is null || entry.UserId != userId)
+            return null;
+
+        TaskItem? task = null;
+        Guid? spaceId = null;
+        if (entry.TaskId is Guid taskId)
+        {
+            task = await taskRepository.GetByIdAsync(taskId);
+            if (task is not null)
+                spaceId = await taskRepository.GetSpaceIdForTaskAsync(task);
+        }
+
+        var previousWorkDate = entry.WorkDate;
+        var previousStartAt = entry.StartAt;
+        var previousEndAt = entry.EndAt;
+        var previousDurationMinutes = entry.DurationMinutes;
+        var previousEstimatedHours = entry.EstimatedHours;
+
+        var hasTimingInput = request.WorkDate.HasValue
+            || request.DurationMinutes.HasValue
+            || request.StartAt.HasValue
+            || request.EndAt.HasValue;
+
+        var normalized = hasTimingInput
+            ? NormalizeTimeInput(
+                new CreateTaskTimeEntryRequest(
+                    request.WorkDate ?? entry.WorkDate,
+                    request.DurationMinutes ?? (!request.StartAt.HasValue && !request.EndAt.HasValue ? entry.DurationMinutes : null),
+                    request.StartAt,
+                    request.EndAt,
+                    request.EstimatedHours,
+                    request.ClearEstimatedHours),
+                requireTime: true)
+            : new NormalizedTimeInput(entry.WorkDate, entry.DurationMinutes, entry.StartAt, entry.EndAt);
+
+        entry.WorkDate = normalized.WorkDate;
+        entry.DurationMinutes = normalized.DurationMinutes;
+        entry.StartAt = normalized.StartAt;
+        entry.EndAt = normalized.EndAt;
+
+        if (request.ClearEstimatedHours)
+        {
+            entry.EstimatedHours = null;
+            if (task is not null) task.EstimatedHours = null;
+        }
+        else if (request.EstimatedHours.HasValue)
+        {
+            entry.EstimatedHours = request.EstimatedHours;
+            if (task is not null) task.EstimatedHours = request.EstimatedHours;
+        }
+
+        entry.UpdatedAt = DateTimeOffset.UtcNow;
+
+        var updated = await timeEntryRepository.UpdateAsync(entry);
+
+        if (entry.TaskId is Guid eventTaskId)
+        {
+            await taskActivityService.RecordUserTaskEventAsync(
+                TaskActivityEventType.TaskTimeSet,
+                userId,
+                eventTaskId,
+                spaceId,
+                entry.ProjectId,
+                new
+                {
+                    time_entry_id = entry.Id,
+                    previous_work_date = previousWorkDate,
+                    work_date = entry.WorkDate,
+                    previous_start_at = previousStartAt,
+                    start_at = entry.StartAt,
+                    previous_end_at = previousEndAt,
+                    end_at = entry.EndAt,
+                    previous_duration_minutes = previousDurationMinutes,
+                    duration_minutes = entry.DurationMinutes,
+                    previous_estimated_hours = previousEstimatedHours,
+                    estimated_hours = entry.EstimatedHours
+                });
+        }
+
+        TaskDetailResponse? taskResponse = null;
+        if (task is not null)
+        {
+            var loggedMinutes = await timeEntryRepository.GetDurationMinutesForTaskAsync(userId, task.Id);
+            taskResponse = TaskResponseMapper.ToDetailResponse(task, loggedMinutes);
+        }
+
+        return new UpdateTaskTimeEntryResponse(ToResponse(updated), taskResponse);
+    }
+
     public async Task<bool> DeleteAsync(Guid id)
     {
         var userId = await currentUserService.GetCurrentUserIdAsync();

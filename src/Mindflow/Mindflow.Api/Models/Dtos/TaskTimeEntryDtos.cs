@@ -12,6 +12,14 @@ public record CreateTaskTimeEntryRequest(
     [Range(0.01, 1000)] decimal? EstimatedHours,
     bool ClearEstimatedHours);
 
+public record UpdateTaskTimeEntryRequest(
+    DateOnly? WorkDate,
+    [Range(1, 1440)] int? DurationMinutes,
+    DateTimeOffset? StartAt,
+    DateTimeOffset? EndAt,
+    [Range(0.01, 1000)] decimal? EstimatedHours,
+    bool ClearEstimatedHours);
+
 public record CompleteTaskRequest(
     [Range(0.01, 1000)] decimal? EstimatedHours,
     bool ClearEstimatedHours,
@@ -40,6 +48,10 @@ public record TaskTimeEntryResponse(
 public record TaskTimeEntryMutationResponse(
     TaskTimeEntryResponse TimeEntry,
     TaskDetailResponse Task);
+
+public record UpdateTaskTimeEntryResponse(
+    TaskTimeEntryResponse TimeEntry,
+    TaskDetailResponse? Task);
 
 public record CompleteTaskResponse(
     TaskDetailResponse Task,

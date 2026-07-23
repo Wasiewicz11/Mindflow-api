@@ -10,5 +10,6 @@ public interface ITaskTimeEntryRepository
     Task<int> GetDurationMinutesForTaskAsync(Guid userId, Guid taskId);
     Task<TaskTimeEntry?> GetByIdAsync(Guid id);
     Task<TaskTimeEntry> CreateAsync(TaskTimeEntry entry);
+    Task<TaskTimeEntry> UpdateAsync(TaskTimeEntry entry);
     Task<bool> DeleteAsync(TaskTimeEntry entry);
 }
