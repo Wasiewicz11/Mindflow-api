@@ -17,6 +17,14 @@ public class TimeEntriesController(ITaskTimeEntryService timeEntryService) : Con
         return Ok(entries);
     }
 
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] CreateStandaloneTimeEntryRequest request)
+    {
+        var created = await timeEntryService.CreateStandaloneAsync(request);
+        if (created is null) return NotFound();
+        return Ok(created);
+    }
+
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateTaskTimeEntryRequest request)
     {

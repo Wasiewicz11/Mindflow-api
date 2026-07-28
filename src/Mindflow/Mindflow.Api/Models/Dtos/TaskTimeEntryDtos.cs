@@ -13,6 +13,15 @@ public record CreateTaskTimeEntryRequest(
     bool ClearEstimatedHours,
     [MaxLength(2000)] string? Notes);
 
+public record CreateStandaloneTimeEntryRequest(
+    [Required, MaxLength(1000)] string Content,
+    Guid? ProjectId,
+    DateOnly? WorkDate,
+    [Range(1, 1440)] int? DurationMinutes,
+    DateTimeOffset? StartAt,
+    DateTimeOffset? EndAt,
+    [MaxLength(2000)] string? Notes);
+
 public record UpdateTaskTimeEntryRequest(
     DateOnly? WorkDate,
     [Range(1, 1440)] int? DurationMinutes,

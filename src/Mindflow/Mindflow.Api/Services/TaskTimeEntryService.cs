@@ -56,6 +56,52 @@ public class TaskTimeEntryService(
         return new TaskTimeEntryMutationResponse(ToResponse(created), TaskResponseMapper.ToDetailResponse(task, loggedMinutes));
     }
 
+    public async Task<TaskTimeEntryResponse?> CreateStandaloneAsync(CreateStandaloneTimeEntryRequest request)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        var content = request.Content.Trim();
+        if (string.IsNullOrWhiteSpace(content))
+            throw new BadRequestException("Time entry content is required.");
+
+        if (request.ProjectId.HasValue && !await accessService.CanAccessProjectAsync(request.ProjectId.Value, userId))
+            return null;
+
+        var now = DateTimeOffset.UtcNow;
+        var normalized = NormalizeTimeInput(
+            new CreateTaskTimeEntryRequest(
+                request.WorkDate,
+                request.DurationMinutes,
+                request.StartAt,
+                request.EndAt,
+                null,
+                false,
+                request.Notes),
+            requireTime: true);
+
+        var entry = new TaskTimeEntry
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            TaskId = null,
+            ProjectId = request.ProjectId,
+            TaskContent = content,
+            TaskPriority = TaskPriority.P4,
+            TaskStatus = Mindflow.Api.Models.Enums.TaskStatus.NotStarted,
+            Tags = new List<string>(),
+            WorkDate = normalized.WorkDate,
+            DurationMinutes = normalized.DurationMinutes,
+            StartAt = normalized.StartAt,
+            EndAt = normalized.EndAt,
+            EstimatedHours = null,
+            Notes = NormalizeNotes(request.Notes),
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        var created = await timeEntryRepository.CreateAsync(entry);
+        return ToResponse(created);
+    }
+
     public async Task<UpdateTaskTimeEntryResponse?> UpdateAsync(Guid id, UpdateTaskTimeEntryRequest request)
     {
         var userId = await currentUserService.GetCurrentUserIdAsync();
