@@ -248,12 +248,80 @@ def build_task_payload(spec):
         payload["tags"] = list(spec["tags"])
 
     if spec.get("subtasks"):
-        payload["subtasks"] = [
-            {"id": None, "content": item, "isCompleted": False, "description": None, "dueDate": None, "sortOrder": None}
-            for item in spec["subtasks"]
-        ]
+        payload["subtasks"] = [build_subtask(item) for item in spec["subtasks"]]
 
     return payload
+
+
+def build_subtask(item):
+    """A subtask is either a plain title or an object that may carry its own estimate."""
+    if isinstance(item, str):
+        item = {"content": item}
+    content = (item.get("content") or "").strip()
+    if not content:
+        raise MindflowError("Every subtask needs non-empty 'content'.")
+
+    subtask = {
+        "id": None,
+        "content": content,
+        "isCompleted": bool(item.get("isCompleted")),
+        "status": item.get("status"),
+        "estimatedHours": float(item["estimatedHours"]) if item.get("estimatedHours") is not None else None,
+        "clearEstimatedHours": False,
+        "description": item.get("description"),
+        "dueDate": item.get("dueDate"),
+        "sortOrder": None,
+    }
+    if subtask["status"] and subtask["status"] not in STATUSES:
+        raise MindflowError(f"status must be one of {', '.join(STATUSES)}")
+    return subtask
+
+
+def cmd_subtasks(args):
+    subtasks = request("GET", f"/tasks/{args.id}/subtasks")
+    if args.json:
+        print(json.dumps(subtasks, ensure_ascii=False, indent=2))
+        return 0
+    if not subtasks:
+        print("No subtasks.")
+        return 0
+
+    for subtask in subtasks:
+        mark = "x" if subtask.get("isCompleted") else " "
+        estimate = f"  est {subtask['estimatedHours']}h" if subtask.get("estimatedHours") else ""
+        logged = f"  logged {format_minutes(subtask['loggedMinutes'])}" if subtask.get("loggedMinutes") else ""
+        print(f"[{mark}] {subtask['id']}  {subtask['content']}{estimate}{logged}")
+    return 0
+
+
+def cmd_add_subtask(args):
+    payload = build_subtask({
+        "content": args.content,
+        "estimatedHours": args.estimate,
+        "dueDate": args.due,
+        "description": args.description,
+    })
+    task = request("POST", f"/tasks/{args.id}/subtasks", payload)
+    print(f"Added subtask to '{task['content']}': {args.content}")
+    return 0
+
+
+def cmd_update_subtask(args):
+    payload = build_subtask({
+        "content": args.content,
+        "estimatedHours": args.estimate,
+        "dueDate": args.due,
+    })
+    if args.clear_estimate:
+        payload["estimatedHours"] = None
+        payload["clearEstimatedHours"] = True
+    if args.done:
+        payload["isCompleted"] = True
+        payload["status"] = "Completed"
+
+    request("PATCH", f"/tasks/{args.id}/subtasks/{args.subtask_id}", payload)
+    print(f"Updated subtask {args.subtask_id}")
+    return 0
 
 
 def cmd_add(args):
@@ -371,6 +439,8 @@ def cmd_log_time(args):
         raise MindflowError("Provide the time worked: --minutes, --hours, or --start with --end.")
 
     payload = {"clearEstimatedHours": False}
+    if args.subtask:
+        payload["subtaskId"] = args.subtask
     if minutes is not None:
         payload["durationMinutes"] = minutes
     if args.date:
@@ -470,6 +540,29 @@ def main():
     p.add_argument("--clear-estimate", action="store_true")
     p.set_defaults(func=cmd_update)
 
+    p = sub.add_parser("subtasks", help="list subtasks of a task")
+    p.add_argument("id")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_subtasks)
+
+    p = sub.add_parser("add-subtask", help="add a subtask")
+    p.add_argument("id", help="task id")
+    p.add_argument("content")
+    p.add_argument("--estimate", type=float, help="hours")
+    p.add_argument("--due", help="YYYY-MM-DD")
+    p.add_argument("--description")
+    p.set_defaults(func=cmd_add_subtask)
+
+    p = sub.add_parser("update-subtask", help="update a subtask")
+    p.add_argument("id", help="task id")
+    p.add_argument("subtask_id")
+    p.add_argument("--content")
+    p.add_argument("--estimate", type=float, help="hours")
+    p.add_argument("--clear-estimate", action="store_true")
+    p.add_argument("--due")
+    p.add_argument("--done", action="store_true")
+    p.set_defaults(func=cmd_update_subtask)
+
     p = sub.add_parser("time", help="list time logged on a task")
     p.add_argument("id")
     p.add_argument("--limit", type=int, default=50)
@@ -484,6 +577,7 @@ def main():
     p.add_argument("--start", help="ISO timestamp, use with --end")
     p.add_argument("--end", help="ISO timestamp, use with --start")
     p.add_argument("--notes")
+    p.add_argument("--subtask", help="log against this subtask of the task")
     p.add_argument("--estimate", type=float, help="also set the task estimate, in hours")
     p.set_defaults(func=cmd_log_time)
 

@@ -61,7 +61,17 @@ echo '[
 
 Fields per task: `content` (required), `description`, `projectId`, `priority` (`P1`–`P4`,
 P1 = most urgent), `status` (`NotStarted`, `InProgress`, `Completed`), `dueDate` (`YYYY-MM-DD`),
-`estimatedHours` (number), `tags` (array of strings), `subtasks` (array of strings).
+`estimatedHours` (number), `tags` (array of strings), `subtasks`.
+
+A subtask is either a plain title or an object with its own `content`, `estimatedHours`,
+`dueDate`, `description` or `status`:
+
+```bash
+echo '[{"content": "Migracja", "subtasks": [
+  "Backup bazy",
+  {"content": "Przepisać widoki", "estimatedHours": 3, "dueDate": "2026-09-05"}
+]}]' | python3 .claude/skills/mindflow/mindflow.py add-batch
+```
 
 Then tell the user what landed there — count and titles, not raw ids.
 
@@ -79,10 +89,27 @@ python3 .claude/skills/mindflow/mindflow.py status
 
 Add `--json` to `tasks` or `projects` when you need to process the output rather than show it.
 
+## Subtasks
+
+```bash
+python3 .claude/skills/mindflow/mindflow.py subtasks <task-id>
+python3 .claude/skills/mindflow/mindflow.py add-subtask <task-id> "Przepisać widoki" --estimate 3
+python3 .claude/skills/mindflow/mindflow.py update-subtask <task-id> <subtask-id> --estimate 2
+python3 .claude/skills/mindflow/mindflow.py update-subtask <task-id> <subtask-id> --done
+```
+
+Break a task into subtasks when the user describes steps within one piece of work. Keep a task
+flat when the items are independent — separate tasks are easier to schedule than subtasks.
+
 ## Work time and estimates
 
-An **estimate** is how long a task should take and lives on the task itself. A **time entry** is
-work actually done and is logged against the task. They are separate — do not use one for the other.
+An **estimate** is how long something should take and lives on the task or subtask itself.
+A **time entry** is work actually done. They are separate — do not use one for the other.
+
+A task and its subtasks keep **independent** estimates. The API also reports the sum of the
+subtask estimates separately (`subtasksEstimatedHours`), so "the whole thing is 2h" and a
+breakdown adding up to 3h can coexist. Never overwrite one to make them match — if the user
+points at the gap, show both numbers and ask which one is right.
 
 Set or change an estimate:
 
@@ -92,9 +119,17 @@ python3 .claude/skills/mindflow/mindflow.py update <task-id> --estimate 1.5
 python3 .claude/skills/mindflow/mindflow.py update <task-id> --clear-estimate
 ```
 
-Log work that was done:
+Estimates on subtasks:
 
 ```bash
+python3 .claude/skills/mindflow/mindflow.py add-subtask <task-id> "Testy" --estimate 1.5
+python3 .claude/skills/mindflow/mindflow.py update-subtask <task-id> <subtask-id> --clear-estimate
+```
+
+Log work that was done — add `--subtask` to attribute it to one step rather than the whole task:
+
+```bash
+python3 .claude/skills/mindflow/mindflow.py log-time <task-id> --subtask <subtask-id> --hours 1
 python3 .claude/skills/mindflow/mindflow.py log-time <task-id> --hours 2 --notes "Debug importu"
 python3 .claude/skills/mindflow/mindflow.py log-time <task-id> --minutes 45 --date 2026-08-27
 python3 .claude/skills/mindflow/mindflow.py log-time <task-id> --start 2026-08-28T09:00:00Z --end 2026-08-28T10:30:00Z
