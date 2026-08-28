@@ -17,7 +17,12 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
     public DbSet<TaskTimeEntry> TaskTimeEntries { get; set; }
     public DbSet<TaskActivityEvent> TaskActivityEvents { get; set; }
     public DbSet<CalendarBlock> CalendarBlocks { get; set; }
+    public DbSet<NotificationSettings> NotificationSettings { get; set; }
+    public DbSet<PushNotificationSubscription> PushNotificationSubscriptions { get; set; }
+    public DbSet<PushNotificationDelivery> PushNotificationDeliveries { get; set; }
     public DbSet<GoogleCalendarConnection> GoogleCalendarConnections { get; set; }
+    public DbSet<IntegrationToken> IntegrationTokens { get; set; }
+    public DbSet<IntegrationTokenPermission> IntegrationTokenPermissions { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<AiSuggestion> AiSuggestions { get; set; }
     public DbSet<SuggestionAction> SuggestionActions { get; set; }
@@ -148,9 +153,53 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
             entity.HasIndex(b => new { b.UserId, b.ExternalEventId });
         });
 
+        modelBuilder.Entity<NotificationSettings>(entity =>
+        {
+            entity.ToTable("notification_settings");
+            entity.HasKey(s => s.UserId);
+            entity.Property(s => s.MorningBriefTime).HasColumnType("time without time zone");
+            entity.Property(s => s.MiddayBriefTime).HasColumnType("time without time zone");
+            entity.Property(s => s.EveningSummaryTime).HasColumnType("time without time zone");
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(s => s.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PushNotificationSubscription>(entity =>
+        {
+            entity.ToTable("push_notification_subscriptions");
+            entity.Property(s => s.Endpoint).HasMaxLength(2048);
+            entity.Property(s => s.P256dh).HasMaxLength(255);
+            entity.Property(s => s.Auth).HasMaxLength(255);
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(s => s.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(s => s.UserId);
+            entity.HasIndex(s => s.Endpoint).IsUnique();
+        });
+
+        modelBuilder.Entity<PushNotificationDelivery>(entity =>
+        {
+            entity.ToTable("push_notification_deliveries");
+            entity.Property(d => d.DeliveryKey).HasMaxLength(255);
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(d => new { d.UserId, d.DeliveryKey }).IsUnique();
+            entity.HasIndex(d => d.SentAt);
+        });
+
         modelBuilder.Entity<TaskActivityEvent>(entity =>
         {
             entity.ToTable("task_activity_events");
+
+            entity.HasOne<IntegrationToken>()
+                .WithMany()
+                .HasForeignKey(e => e.IntegrationTokenId)
+                .OnDelete(DeleteBehavior.SetNull);
 
             entity.Property(e => e.EventType)
                 .HasConversion<string>();
@@ -224,6 +273,46 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
 
             entity.HasIndex(c => c.UserId).IsUnique();
             entity.HasIndex(c => c.WatchChannelId);
+        });
+
+        modelBuilder.Entity<IntegrationToken>(entity =>
+        {
+            entity.ToTable("integration_tokens");
+
+            entity.Property(token => token.Name)
+                .HasMaxLength(100);
+
+            entity.Property(token => token.TokenHash)
+                .HasMaxLength(64);
+
+            entity.Property(token => token.TokenPrefix)
+                .HasMaxLength(20);
+
+            entity.HasOne(token => token.User)
+                .WithMany()
+                .HasForeignKey(token => token.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(token => token.UserId);
+            entity.HasIndex(token => token.TokenHash)
+                .IsUnique();
+        });
+
+        modelBuilder.Entity<IntegrationTokenPermission>(entity =>
+        {
+            entity.ToTable("integration_token_permissions");
+
+            entity.Property(permission => permission.Scope)
+                .HasConversion<string>()
+                .HasMaxLength(64);
+
+            entity.HasOne(permission => permission.IntegrationToken)
+                .WithMany(token => token.Permissions)
+                .HasForeignKey(permission => permission.IntegrationTokenId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(permission => new { permission.IntegrationTokenId, permission.Scope })
+                .IsUnique();
         });
 
         modelBuilder.Entity<PomodoroSessionState>(entity =>

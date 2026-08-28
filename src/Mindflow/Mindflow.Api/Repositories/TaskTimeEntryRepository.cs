@@ -28,6 +28,29 @@ public class TaskTimeEntryRepository(MindflowDbContext db) : ITaskTimeEntryRepos
             .ToListAsync();
     }
 
+    public async Task<(IReadOnlyList<TaskTimeEntry> Items, int Total)> GetForUserTaskPagedAsync(
+        Guid userId,
+        Guid taskId,
+        int limit,
+        int offset,
+        CancellationToken ct = default)
+    {
+        var query = db.TaskTimeEntries
+            .AsNoTracking()
+            .Where(entry => entry.UserId == userId && entry.TaskId == taskId);
+
+        var total = await query.CountAsync(ct);
+        var items = await query
+            .OrderByDescending(entry => entry.WorkDate)
+            .ThenBy(entry => entry.StartAt ?? DateTimeOffset.MaxValue)
+            .ThenBy(entry => entry.CreatedAt)
+            .Skip(offset)
+            .Take(limit)
+            .ToListAsync(ct);
+
+        return (items, total);
+    }
+
     public async Task<IReadOnlyDictionary<Guid, int>> GetDurationMinutesByTaskIdsAsync(Guid userId, IReadOnlyCollection<Guid> taskIds)
     {
         if (taskIds.Count == 0) return new Dictionary<Guid, int>();
@@ -56,6 +79,13 @@ public class TaskTimeEntryRepository(MindflowDbContext db) : ITaskTimeEntryRepos
     public async Task<TaskTimeEntry> CreateAsync(TaskTimeEntry entry)
     {
         db.TaskTimeEntries.Add(entry);
+        await db.SaveChangesAsync();
+        return entry;
+    }
+
+    public async Task<TaskTimeEntry> UpdateAsync(TaskTimeEntry entry)
+    {
+        db.TaskTimeEntries.Update(entry);
         await db.SaveChangesAsync();
         return entry;
     }

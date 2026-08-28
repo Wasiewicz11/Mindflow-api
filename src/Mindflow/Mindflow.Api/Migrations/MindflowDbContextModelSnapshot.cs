@@ -462,6 +462,147 @@ namespace Mindflow.Api.Migrations
                     b.ToTable("google_calendar_connections", (string)null);
                 });
 
+            modelBuilder.Entity("Mindflow.Api.Models.IntegrationToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<bool>("IsRevoked")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_revoked");
+
+                    b.Property<DateTimeOffset?>("LastUsedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_used_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("token_hash");
+
+                    b.Property<string>("TokenPrefix")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("token_prefix");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_integration_tokens");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique()
+                        .HasDatabaseName("ix_integration_tokens_token_hash");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_integration_tokens_user_id");
+
+                    b.ToTable("integration_tokens", (string)null);
+                });
+
+            modelBuilder.Entity("Mindflow.Api.Models.IntegrationTokenPermission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("IntegrationTokenId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("integration_token_id");
+
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("scope");
+
+                    b.HasKey("Id")
+                        .HasName("pk_integration_token_permissions");
+
+                    b.HasIndex("IntegrationTokenId", "Scope")
+                        .IsUnique()
+                        .HasDatabaseName("ix_integration_token_permissions_integration_token_id_scope");
+
+                    b.ToTable("integration_token_permissions", (string)null);
+                });
+
+            modelBuilder.Entity("Mindflow.Api.Models.NotificationSettings", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<int>("BlockReminderMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("block_reminder_minutes");
+
+                    b.Property<bool>("BlockRemindersEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("block_reminders_enabled");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
+                    b.Property<bool>("EveningSummaryEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("evening_summary_enabled");
+
+                    b.Property<TimeOnly>("EveningSummaryTime")
+                        .HasColumnType("time without time zone")
+                        .HasColumnName("evening_summary_time");
+
+                    b.Property<bool>("MiddayBriefEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("midday_brief_enabled");
+
+                    b.Property<TimeOnly>("MiddayBriefTime")
+                        .HasColumnType("time without time zone")
+                        .HasColumnName("midday_brief_time");
+
+                    b.Property<bool>("MorningBriefEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("morning_brief_enabled");
+
+                    b.Property<TimeOnly>("MorningBriefTime")
+                        .HasColumnType("time without time zone")
+                        .HasColumnName("morning_brief_time");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("UserId")
+                        .HasName("pk_notification_settings");
+
+                    b.ToTable("notification_settings", (string)null);
+                });
+
             modelBuilder.Entity("Mindflow.Api.Models.PomodoroSessionState", b =>
                 {
                     b.Property<Guid>("Id")
@@ -588,6 +729,90 @@ namespace Mindflow.Api.Migrations
                         .HasDatabaseName("ix_project_tags_project_id_name");
 
                     b.ToTable("project_tags", (string)null);
+                });
+
+            modelBuilder.Entity("Mindflow.Api.Models.PushNotificationDelivery", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("DeliveryKey")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("delivery_key");
+
+                    b.Property<DateTimeOffset>("SentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sent_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_push_notification_deliveries");
+
+                    b.HasIndex("SentAt")
+                        .HasDatabaseName("ix_push_notification_deliveries_sent_at");
+
+                    b.HasIndex("UserId", "DeliveryKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_push_notification_deliveries_user_id_delivery_key");
+
+                    b.ToTable("push_notification_deliveries", (string)null);
+                });
+
+            modelBuilder.Entity("Mindflow.Api.Models.PushNotificationSubscription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Auth")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("auth");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Endpoint")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
+                        .HasColumnName("endpoint");
+
+                    b.Property<string>("P256dh")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("p256dh");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_push_notification_subscriptions");
+
+                    b.HasIndex("Endpoint")
+                        .IsUnique()
+                        .HasDatabaseName("ix_push_notification_subscriptions_endpoint");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_push_notification_subscriptions_user_id");
+
+                    b.ToTable("push_notification_subscriptions", (string)null);
                 });
 
             modelBuilder.Entity("Mindflow.Api.Models.RefreshToken", b =>
@@ -781,6 +1006,10 @@ namespace Mindflow.Api.Migrations
                         .HasColumnType("text")
                         .HasColumnName("event_type");
 
+                    b.Property<Guid?>("IntegrationTokenId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("integration_token_id");
+
                     b.Property<string>("Metadata")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -825,6 +1054,9 @@ namespace Mindflow.Api.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_task_activity_events");
+
+                    b.HasIndex("IntegrationTokenId")
+                        .HasDatabaseName("ix_task_activity_events_integration_token_id");
 
                     b.HasIndex("ProjectId")
                         .HasDatabaseName("ix_task_activity_events_project_id");
@@ -1088,6 +1320,10 @@ namespace Mindflow.Api.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("first_name");
 
+                    b.Property<bool>("IntegrationsEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("integrations_enabled");
+
                     b.Property<string>("LastName")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -1193,6 +1429,40 @@ namespace Mindflow.Api.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Mindflow.Api.Models.IntegrationToken", b =>
+                {
+                    b.HasOne("Mindflow.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_integration_tokens_users_user_id");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Mindflow.Api.Models.IntegrationTokenPermission", b =>
+                {
+                    b.HasOne("Mindflow.Api.Models.IntegrationToken", "IntegrationToken")
+                        .WithMany("Permissions")
+                        .HasForeignKey("IntegrationTokenId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_integration_token_permissions_integration_tokens_integratio");
+
+                    b.Navigation("IntegrationToken");
+                });
+
+            modelBuilder.Entity("Mindflow.Api.Models.NotificationSettings", b =>
+                {
+                    b.HasOne("Mindflow.Api.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_notification_settings_users_user_id");
+                });
+
             modelBuilder.Entity("Mindflow.Api.Models.PomodoroSessionState", b =>
                 {
                     b.HasOne("Mindflow.Api.Models.User", "User")
@@ -1215,6 +1485,26 @@ namespace Mindflow.Api.Migrations
                         .HasConstraintName("fk_project_tags_projects_project_id");
                 });
 
+            modelBuilder.Entity("Mindflow.Api.Models.PushNotificationDelivery", b =>
+                {
+                    b.HasOne("Mindflow.Api.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_push_notification_deliveries_users_user_id");
+                });
+
+            modelBuilder.Entity("Mindflow.Api.Models.PushNotificationSubscription", b =>
+                {
+                    b.HasOne("Mindflow.Api.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_push_notification_subscriptions_users_user_id");
+                });
+
             modelBuilder.Entity("Mindflow.Api.Models.SuggestionAction", b =>
                 {
                     b.HasOne("Mindflow.Api.Models.AiSuggestion", null)
@@ -1230,6 +1520,15 @@ namespace Mindflow.Api.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_suggestion_actions_tasks_task_id");
+                });
+
+            modelBuilder.Entity("Mindflow.Api.Models.TaskActivityEvent", b =>
+                {
+                    b.HasOne("Mindflow.Api.Models.IntegrationToken", null)
+                        .WithMany()
+                        .HasForeignKey("IntegrationTokenId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_task_activity_events_integration_tokens_integration_token_id");
                 });
 
             modelBuilder.Entity("Mindflow.Api.Models.TaskSubtask", b =>
@@ -1273,6 +1572,11 @@ namespace Mindflow.Api.Migrations
                     b.Navigation("Edges");
 
                     b.Navigation("Nodes");
+                });
+
+            modelBuilder.Entity("Mindflow.Api.Models.IntegrationToken", b =>
+                {
+                    b.Navigation("Permissions");
                 });
 
             modelBuilder.Entity("Mindflow.Api.Models.TaskItem", b =>

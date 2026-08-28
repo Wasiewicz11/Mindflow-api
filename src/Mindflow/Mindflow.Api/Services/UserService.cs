@@ -60,7 +60,14 @@ public class UserService(
             avatarUrl = await storageService.GetPresignedUrlAsync(user.AvatarUrl);
         }
 
-        return new UserDto(user.Id, user.Email, user.FirstName, user.LastName, avatarUrl, user.TimeZone);
+        return new UserDto(
+            user.Id,
+            user.Email,
+            user.FirstName,
+            user.LastName,
+            avatarUrl,
+            user.TimeZone,
+            user.IntegrationsEnabled);
     }
 
     private static void ValidateAvatarFile(IFormFile? file)

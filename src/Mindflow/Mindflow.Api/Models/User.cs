@@ -14,5 +14,6 @@ public class User
     public string? AvatarUrl { get; set; }
     [MaxLength(50)]
     public required string TimeZone { get; set; }
+    public bool IntegrationsEnabled { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }

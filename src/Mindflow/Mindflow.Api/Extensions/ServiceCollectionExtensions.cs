@@ -1,12 +1,17 @@
+using System.Globalization;
 using System.Security.Claims;
 using System.Text;
+using System.Threading.RateLimiting;
 using Amazon.Runtime;
 using Amazon.S3;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
 using Microsoft.EntityFrameworkCore;
+using Mindflow.Api.Authentication;
 using Mindflow.Api.Data;
 using Mindflow.Api.Hubs;
 using Mindflow.Api.Models.Enums;
@@ -14,6 +19,7 @@ using Mindflow.Api.Repositories;
 using Mindflow.Api.Services;
 using Mindflow.Api.Services.Ai;
 using Mindflow.Api.Services.GoogleCalendar;
+using Mindflow.Api.Services.Integrations;
 
 namespace Mindflow.Api.Extensions;
 
@@ -39,6 +45,9 @@ public static class ServiceCollectionExtensions
 
         authBuilder.AddGoogleJwt(config, schemes);
         authBuilder.AddMindflowJwt(config, schemes);
+        authBuilder.AddScheme<AuthenticationSchemeOptions, IntegrationTokenAuthenticationHandler>(
+            IntegrationTokenAuthenticationDefaults.Scheme,
+            _ => { });
 
         services.AddAuthorization(options =>
         {
@@ -47,6 +56,66 @@ public static class ServiceCollectionExtensions
                 .RequireAuthenticatedUser()
                 .Build();
         });
+
+        return services;
+    }
+
+    public static IServiceCollection AddMindflowRateLimiting(this IServiceCollection services)
+    {
+        services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            options.AddPolicy(IntegrationRoutes.RateLimitPolicy, context =>
+            {
+                var permitsPerMinute = context.RequestServices
+                    .GetRequiredService<IOptions<IntegrationTokenOptions>>()
+                    .Value.RateLimitPermitsPerMinute;
+
+                // Per token, not per IP: behind a proxy every caller shares one address.
+                var tokenId = context.User.FindFirstValue(IntegrationTokenAuthenticationDefaults.TokenIdClaim);
+                var partitionKey = tokenId is null
+                    ? $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}"
+                    : $"token:{tokenId}";
+
+                return RateLimitPartition.GetSlidingWindowLimiter(partitionKey, _ => new SlidingWindowRateLimiterOptions
+                {
+                    PermitLimit = permitsPerMinute,
+                    Window = TimeSpan.FromMinutes(1),
+                    SegmentsPerWindow = 6,
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                    QueueLimit = 0
+                });
+            });
+
+            options.OnRejected = (context, _) =>
+            {
+                if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+                {
+                    context.HttpContext.Response.Headers.RetryAfter =
+                        ((int)retryAfter.TotalSeconds).ToString(NumberFormatInfo.InvariantInfo);
+                }
+
+                return ValueTask.CompletedTask;
+            };
+        });
+
+        return services;
+    }
+
+    public static IServiceCollection AddMindflowIntegrations(this IServiceCollection services, IConfiguration config)
+    {
+        services.AddOptions<IntegrationTokenOptions>()
+            .Bind(config.GetSection(IntegrationTokenOptions.SectionName))
+            .Validate(
+                options => !options.IsConfigured || Encoding.UTF8.GetByteCount(options.HashPepper!) >= 32,
+                $"{IntegrationTokenOptions.SectionName}:HashPepper must contain at least 32 bytes.")
+            .ValidateOnStart();
+
+        services.AddScoped<IIntegrationService, IntegrationService>();
+        services.AddScoped<IIntegrationProjectService, IntegrationProjectService>();
+        services.AddScoped<IIntegrationTaskQueryService, IntegrationTaskQueryService>();
+        services.AddScoped<IIntegrationDocsService, IntegrationDocsService>();
 
         return services;
     }
@@ -151,6 +220,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<IPomodoroSessionRepository, PomodoroSessionRepository>();
         services.AddScoped<IBrainGraphRepository, BrainGraphRepository>();
+        services.AddScoped<IIntegrationTokenRepository, IntegrationTokenRepository>();
         return services;
     }
 
@@ -173,6 +243,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICalendarBlockService, CalendarBlockService>();
         services.AddScoped<IPomodoroSessionService, PomodoroSessionService>();
         services.AddScoped<IBrainGraphService, BrainGraphService>();
+        services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<ITasksNotifier, TasksNotifier>();
         services.AddScoped<TokenService>();
         return services;

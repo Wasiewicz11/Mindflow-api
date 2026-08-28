@@ -14,6 +14,8 @@ public class TaskActivityEvent
     public TaskActivitySource Source { get; set; }
     public TaskActivityActorType ActorType { get; set; }
     public Guid? ActorId { get; set; }
+    /// <summary>Set when the event came through the integration API; identifies which key acted.</summary>
+    public Guid? IntegrationTokenId { get; set; }
     [MaxLength(255)]
     public string? SessionId { get; set; }
     [MaxLength(255)]

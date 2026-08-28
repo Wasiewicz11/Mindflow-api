@@ -56,6 +56,144 @@ public class TaskTimeEntryService(
         return new TaskTimeEntryMutationResponse(ToResponse(created), TaskResponseMapper.ToDetailResponse(task, loggedMinutes));
     }
 
+    public async Task<TaskTimeEntryResponse?> CreateStandaloneAsync(CreateStandaloneTimeEntryRequest request)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        var content = request.Content.Trim();
+        if (string.IsNullOrWhiteSpace(content))
+            throw new BadRequestException("Time entry content is required.");
+
+        if (request.ProjectId.HasValue && !await accessService.CanAccessProjectAsync(request.ProjectId.Value, userId))
+            return null;
+
+        var now = DateTimeOffset.UtcNow;
+        var normalized = NormalizeTimeInput(
+            new CreateTaskTimeEntryRequest(
+                request.WorkDate,
+                request.DurationMinutes,
+                request.StartAt,
+                request.EndAt,
+                null,
+                false),
+            requireTime: true);
+
+        var entry = new TaskTimeEntry
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            TaskId = null,
+            ProjectId = request.ProjectId,
+            TaskContent = content,
+            TaskPriority = TaskPriority.P4,
+            TaskStatus = Mindflow.Api.Models.Enums.TaskStatus.NotStarted,
+            Tags = new List<string>(),
+            WorkDate = normalized.WorkDate,
+            DurationMinutes = normalized.DurationMinutes,
+            StartAt = normalized.StartAt,
+            EndAt = normalized.EndAt,
+            EstimatedHours = null,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        var created = await timeEntryRepository.CreateAsync(entry);
+        return ToResponse(created);
+    }
+
+    public async Task<UpdateTaskTimeEntryResponse?> UpdateAsync(Guid id, UpdateTaskTimeEntryRequest request)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        var entry = await timeEntryRepository.GetByIdAsync(id);
+
+        if (entry is null || entry.UserId != userId)
+            return null;
+
+        TaskItem? task = null;
+        Guid? spaceId = null;
+        if (entry.TaskId is Guid taskId)
+        {
+            task = await taskRepository.GetByIdAsync(taskId);
+            if (task is not null)
+                spaceId = await taskRepository.GetSpaceIdForTaskAsync(task);
+        }
+
+        var previousWorkDate = entry.WorkDate;
+        var previousStartAt = entry.StartAt;
+        var previousEndAt = entry.EndAt;
+        var previousDurationMinutes = entry.DurationMinutes;
+        var previousEstimatedHours = entry.EstimatedHours;
+
+        var hasTimingInput = request.WorkDate.HasValue
+            || request.DurationMinutes.HasValue
+            || request.StartAt.HasValue
+            || request.EndAt.HasValue;
+
+        var normalized = hasTimingInput
+            ? NormalizeTimeInput(
+                new CreateTaskTimeEntryRequest(
+                    request.WorkDate ?? entry.WorkDate,
+                    request.DurationMinutes ?? (!request.StartAt.HasValue && !request.EndAt.HasValue ? entry.DurationMinutes : null),
+                    request.StartAt,
+                    request.EndAt,
+                    request.EstimatedHours,
+                    request.ClearEstimatedHours),
+                requireTime: true)
+            : new NormalizedTimeInput(entry.WorkDate, entry.DurationMinutes, entry.StartAt, entry.EndAt);
+
+        entry.WorkDate = normalized.WorkDate;
+        entry.DurationMinutes = normalized.DurationMinutes;
+        entry.StartAt = normalized.StartAt;
+        entry.EndAt = normalized.EndAt;
+
+        if (request.ClearEstimatedHours)
+        {
+            entry.EstimatedHours = null;
+            if (task is not null) task.EstimatedHours = null;
+        }
+        else if (request.EstimatedHours.HasValue)
+        {
+            entry.EstimatedHours = request.EstimatedHours;
+            if (task is not null) task.EstimatedHours = request.EstimatedHours;
+        }
+
+        entry.UpdatedAt = DateTimeOffset.UtcNow;
+
+        var updated = await timeEntryRepository.UpdateAsync(entry);
+
+        if (entry.TaskId is Guid eventTaskId)
+        {
+            await taskActivityService.RecordUserTaskEventAsync(
+                TaskActivityEventType.TaskTimeSet,
+                userId,
+                eventTaskId,
+                spaceId,
+                entry.ProjectId,
+                new
+                {
+                    time_entry_id = entry.Id,
+                    previous_work_date = previousWorkDate,
+                    work_date = entry.WorkDate,
+                    previous_start_at = previousStartAt,
+                    start_at = entry.StartAt,
+                    previous_end_at = previousEndAt,
+                    end_at = entry.EndAt,
+                    previous_duration_minutes = previousDurationMinutes,
+                    duration_minutes = entry.DurationMinutes,
+                    previous_estimated_hours = previousEstimatedHours,
+                    estimated_hours = entry.EstimatedHours
+                });
+        }
+
+        TaskDetailResponse? taskResponse = null;
+        if (task is not null)
+        {
+            var loggedMinutes = await timeEntryRepository.GetDurationMinutesForTaskAsync(userId, task.Id);
+            taskResponse = TaskResponseMapper.ToDetailResponse(task, loggedMinutes);
+        }
+
+        return new UpdateTaskTimeEntryResponse(ToResponse(updated), taskResponse);
+    }
+
     public async Task<bool> DeleteAsync(Guid id)
     {
         var userId = await currentUserService.GetCurrentUserIdAsync();

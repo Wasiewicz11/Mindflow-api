@@ -10,6 +10,7 @@ namespace Mindflow.Api.Controllers;
 [Route("internal/jobs")]
 public class InternalJobsController(
     ISuggestionService suggestionService,
+    INotificationService notificationService,
     IGoogleCalendarConnectionService googleCalendarConnectionService,
     MindflowDbContext db,
     IConfiguration configuration,
@@ -45,6 +46,15 @@ public class InternalJobsController(
 
         await googleCalendarConnectionService.RenewExpiringWatchesAsync(ct);
         return Ok();
+    }
+
+    [HttpPost("notifications")]
+    public async Task<IActionResult> SendDueNotifications([FromHeader(Name = "X-Job-Key")] string? jobKey, CancellationToken ct)
+    {
+        if (!IsAuthorized(jobKey)) return Unauthorized();
+
+        var result = await notificationService.ProcessDueNotificationsAsync(ct);
+        return Ok(result);
     }
 
     private bool IsAuthorized(string? jobKey)

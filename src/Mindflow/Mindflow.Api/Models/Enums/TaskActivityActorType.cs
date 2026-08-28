@@ -5,5 +5,6 @@ public enum TaskActivityActorType
     User,
     System,
     Automation,
-    Import
+    Import,
+    Integration
 }

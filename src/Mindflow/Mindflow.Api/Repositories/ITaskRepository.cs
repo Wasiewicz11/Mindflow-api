@@ -5,6 +5,10 @@ namespace Mindflow.Api.Repositories;
 public interface ITaskRepository
 {
     Task<IEnumerable<TaskItem>> GetAllForUserAsync(Guid userId);
+    Task<(IReadOnlyList<TaskItem> Items, int Total)> GetForUserFilteredAsync(
+        Guid userId,
+        TaskQueryFilter filter,
+        CancellationToken ct = default);
     Task<TaskItem?> GetByIdAsync(Guid id);
     Task<TaskItem?> GetByIdReadOnlyAsync(Guid id);
     Task<TaskItem?> CreateAsync(TaskItem task);
