@@ -1,11 +1,13 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
-WORKDIR /app
+WORKDIR /src
 
-COPY src/Mindflow/Mindflow.Api/Mindflow.Api.csproj ./
-RUN dotnet restore ./Mindflow.Api.csproj
+# Keep the project in its own directory: an SDK-style project compiles every .cs
+# below it, so flattening it here would pull in sibling projects such as the tests.
+COPY src/Mindflow/Mindflow.Api/Mindflow.Api.csproj src/Mindflow/Mindflow.Api/
+RUN dotnet restore src/Mindflow/Mindflow.Api/Mindflow.Api.csproj
 
-COPY src/ ./src/
-RUN dotnet publish ./Mindflow.Api.csproj -c Release -o /app/out
+COPY src/ src/
+RUN dotnet publish src/Mindflow/Mindflow.Api/Mindflow.Api.csproj -c Release -o /app/out
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
