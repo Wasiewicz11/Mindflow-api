@@ -105,6 +105,9 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
                 .HasForeignKey(s => s.TaskItemId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            entity.Property(s => s.EstimatedHours)
+                .HasColumnType("numeric(6,2)");
+
             entity.HasIndex(s => s.TaskItemId);
             entity.HasIndex(s => new { s.TaskItemId, s.SortOrder });
             entity.HasIndex(s => s.DueDate);
@@ -139,6 +142,12 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
                 .HasForeignKey(entry => entry.TaskId)
                 .OnDelete(DeleteBehavior.SetNull);
 
+            entity.HasOne<TaskSubtask>()
+                .WithMany()
+                .HasForeignKey(entry => entry.SubtaskId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasIndex(entry => entry.SubtaskId);
             entity.HasIndex(entry => entry.UserId);
             entity.HasIndex(entry => entry.TaskId);
             entity.HasIndex(entry => entry.ProjectId);

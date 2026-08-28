@@ -14,6 +14,7 @@ public class TaskSubtask
     public bool IsCompleted { get; set; }
     public TaskStatus Status { get; set; }
     public DateOnly? DueDate { get; set; }
+    public decimal? EstimatedHours { get; set; }
     public int SortOrder { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }

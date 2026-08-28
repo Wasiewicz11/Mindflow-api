@@ -27,7 +27,8 @@ public class TaskSubtaskService(
         {
             var userId = await currentUserService.GetCurrentUserIdAsync();
             var loggedMinutes = await timeEntryRepository.GetDurationMinutesForTaskAsync(userId, task.Id);
-            return TaskResponseMapper.ToDetailResponse(task, loggedMinutes);
+            var subtaskMinutes = await timeEntryRepository.GetDurationMinutesBySubtaskAsync(userId, task.Id);
+            return TaskResponseMapper.ToDetailResponse(task, loggedMinutes, subtaskMinutes);
         }
 
         var status = ResolveStatus(request);
@@ -42,6 +43,7 @@ public class TaskSubtaskService(
             IsCompleted = status == TaskStatus.Completed,
             Status = status,
             DueDate = request.DueDate,
+            EstimatedHours = request.ClearEstimatedHours ? null : request.EstimatedHours,
             SortOrder = nextOrder,
             CreatedAt = DateTimeOffset.UtcNow
         });
@@ -69,6 +71,8 @@ public class TaskSubtaskService(
         subtask.IsCompleted = status == TaskStatus.Completed;
         subtask.Status = status;
         subtask.DueDate = request.DueDate;
+        if (request.ClearEstimatedHours) subtask.EstimatedHours = null;
+        else if (request.EstimatedHours.HasValue) subtask.EstimatedHours = request.EstimatedHours;
         if (request.SortOrder.HasValue) subtask.SortOrder = request.SortOrder.Value;
 
         var updated = await subtaskRepository.UpdateAsync(subtask);
@@ -141,7 +145,8 @@ public class TaskSubtaskService(
             updated.Id);
 
         var loggedMinutes = await timeEntryRepository.GetDurationMinutesForTaskAsync(userId, updated.Id);
-        return TaskResponseMapper.ToDetailResponse(updated, loggedMinutes);
+        var subtaskMinutes = await timeEntryRepository.GetDurationMinutesBySubtaskAsync(userId, updated.Id);
+        return TaskResponseMapper.ToDetailResponse(updated, loggedMinutes, subtaskMinutes);
     }
 
     private async Task NotifySafelyAsync(Func<Task> publish, string eventName, Guid taskId)

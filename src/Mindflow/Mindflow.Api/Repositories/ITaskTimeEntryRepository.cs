@@ -14,6 +14,7 @@ public interface ITaskTimeEntryRepository
         CancellationToken ct = default);
     Task<IReadOnlyDictionary<Guid, int>> GetDurationMinutesByTaskIdsAsync(Guid userId, IReadOnlyCollection<Guid> taskIds);
     Task<int> GetDurationMinutesForTaskAsync(Guid userId, Guid taskId);
+    Task<IReadOnlyDictionary<Guid, int>> GetDurationMinutesBySubtaskAsync(Guid userId, Guid taskId);
     Task<TaskTimeEntry?> GetByIdAsync(Guid id);
     Task<TaskTimeEntry> CreateAsync(TaskTimeEntry entry);
     Task<TaskTimeEntry> UpdateAsync(TaskTimeEntry entry);

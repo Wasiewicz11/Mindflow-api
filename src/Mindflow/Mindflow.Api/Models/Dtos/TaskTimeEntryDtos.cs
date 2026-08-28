@@ -5,6 +5,7 @@ using TaskStatus = Mindflow.Api.Models.Enums.TaskStatus;
 namespace Mindflow.Api.Models.Dtos;
 
 public record CreateTaskTimeEntryRequest(
+    Guid? SubtaskId,
     DateOnly? WorkDate,
     [Range(1, 1440)] int? DurationMinutes,
     DateTimeOffset? StartAt,
@@ -44,6 +45,7 @@ public record TaskTimeEntryResponse(
     Guid Id,
     Guid UserId,
     Guid? TaskId,
+    Guid? SubtaskId,
     Guid? ProjectId,
     string TaskContent,
     TaskPriority TaskPriority,

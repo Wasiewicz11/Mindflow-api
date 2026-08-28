@@ -35,6 +35,8 @@ public record TaskSubtaskRequest(
     [MaxLength(1000)] string Content,
     bool IsCompleted,
     TaskStatus? Status,
+    [Range(0.01, 1000)] decimal? EstimatedHours,
+    bool ClearEstimatedHours,
     [MaxLength(10000)] string? Description,
     DateOnly? DueDate,
     int? SortOrder);
@@ -48,6 +50,8 @@ public record TaskSubtaskResponse(
     TaskStatus Status,
     string? Description,
     DateOnly? DueDate,
+    decimal? EstimatedHours,
+    int LoggedMinutes,
     int SortOrder,
     DateTimeOffset CreatedAt);
 
@@ -63,6 +67,8 @@ public record TaskListResponse(
     int LoggedMinutes,
     Guid? ProjectId,
     IReadOnlyCollection<string> Tags,
+    decimal? SubtasksEstimatedHours,
+    int SubtasksLoggedMinutes,
     int SubtaskCompletedCount,
     int SubtaskTotalCount,
     int SubtaskDueCount,
@@ -83,6 +89,8 @@ public record TaskDetailResponse(
     int LoggedMinutes,
     Guid? ProjectId,
     IReadOnlyCollection<string> Tags,
+    decimal? SubtasksEstimatedHours,
+    int SubtasksLoggedMinutes,
     int SubtaskCompletedCount,
     int SubtaskTotalCount,
     int SubtaskDueCount,

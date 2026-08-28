@@ -9,6 +9,8 @@ public class TaskTimeEntry
     public Guid Id { get; set; }
     public Guid UserId { get; set; }
     public Guid? TaskId { get; set; }
+    /// <summary>Set when the work was logged against one subtask rather than the task as a whole.</summary>
+    public Guid? SubtaskId { get; set; }
     public Guid? ProjectId { get; set; }
     [MaxLength(1000)]
     public required string TaskContent { get; set; }

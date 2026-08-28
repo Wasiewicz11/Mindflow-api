@@ -63,6 +63,16 @@ public class TaskTimeEntryRepository(MindflowDbContext db) : ITaskTimeEntryRepos
             .ToDictionaryAsync(item => item.TaskId, item => item.DurationMinutes);
     }
 
+    public async Task<IReadOnlyDictionary<Guid, int>> GetDurationMinutesBySubtaskAsync(Guid userId, Guid taskId)
+    {
+        return await db.TaskTimeEntries
+            .AsNoTracking()
+            .Where(entry => entry.UserId == userId && entry.TaskId == taskId && entry.SubtaskId.HasValue)
+            .GroupBy(entry => entry.SubtaskId!.Value)
+            .Select(group => new { SubtaskId = group.Key, DurationMinutes = group.Sum(entry => entry.DurationMinutes) })
+            .ToDictionaryAsync(item => item.SubtaskId, item => item.DurationMinutes);
+    }
+
     public async Task<int> GetDurationMinutesForTaskAsync(Guid userId, Guid taskId)
     {
         return await db.TaskTimeEntries

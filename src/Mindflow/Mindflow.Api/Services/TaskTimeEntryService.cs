@@ -53,7 +53,8 @@ public class TaskTimeEntryService(
         var created = await timeEntryRepository.CreateAsync(entry);
         await RecordTimeSetActivityAsync(userId, task, created);
         var loggedMinutes = await timeEntryRepository.GetDurationMinutesForTaskAsync(userId, task.Id);
-        return new TaskTimeEntryMutationResponse(ToResponse(created), TaskResponseMapper.ToDetailResponse(task, loggedMinutes));
+        var subtaskMinutes = await timeEntryRepository.GetDurationMinutesBySubtaskAsync(userId, task.Id);
+        return new TaskTimeEntryMutationResponse(ToResponse(created), TaskResponseMapper.ToDetailResponse(task, loggedMinutes, subtaskMinutes));
     }
 
     public async Task<TaskTimeEntryResponse?> CreateStandaloneAsync(CreateStandaloneTimeEntryRequest request)
@@ -69,6 +70,7 @@ public class TaskTimeEntryService(
         var now = DateTimeOffset.UtcNow;
         var normalized = NormalizeTimeInput(
             new CreateTaskTimeEntryRequest(
+                null,
                 request.WorkDate,
                 request.DurationMinutes,
                 request.StartAt,
@@ -134,6 +136,7 @@ public class TaskTimeEntryService(
         var normalized = hasTimingInput
             ? NormalizeTimeInput(
                 new CreateTaskTimeEntryRequest(
+                    null,
                     request.WorkDate ?? entry.WorkDate,
                     request.DurationMinutes ?? (!request.StartAt.HasValue && !request.EndAt.HasValue ? entry.DurationMinutes : null),
                     request.StartAt,
@@ -197,7 +200,8 @@ public class TaskTimeEntryService(
         if (task is not null)
         {
             var loggedMinutes = await timeEntryRepository.GetDurationMinutesForTaskAsync(userId, task.Id);
-            taskResponse = TaskResponseMapper.ToDetailResponse(task, loggedMinutes);
+            var subtaskMinutes = await timeEntryRepository.GetDurationMinutesBySubtaskAsync(userId, task.Id);
+            taskResponse = TaskResponseMapper.ToDetailResponse(task, loggedMinutes, subtaskMinutes);
         }
 
         return new UpdateTaskTimeEntryResponse(ToResponse(updated), taskResponse);
@@ -239,11 +243,18 @@ public class TaskTimeEntryService(
     {
         var normalized = NormalizeTimeInput(request, requireTime);
 
+        // Guards against logging time onto a subtask of a different task.
+        if (request.SubtaskId is Guid subtaskId && task.Subtasks.All(subtask => subtask.Id != subtaskId))
+        {
+            throw new BadRequestException("Subtask does not belong to this task.");
+        }
+
         return new TaskTimeEntry
         {
             Id = Guid.NewGuid(),
             UserId = userId,
             TaskId = task.Id,
+            SubtaskId = request.SubtaskId,
             ProjectId = task.ProjectId,
             TaskContent = task.Content,
             TaskPriority = task.Priority,
@@ -265,6 +276,7 @@ public class TaskTimeEntryService(
             entry.Id,
             entry.UserId,
             entry.TaskId,
+            entry.SubtaskId,
             entry.ProjectId,
             entry.TaskContent,
             entry.TaskPriority,

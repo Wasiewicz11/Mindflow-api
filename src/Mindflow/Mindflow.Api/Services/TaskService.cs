@@ -54,7 +54,8 @@ public class TaskService(
         if (task is null) return null;
 
         var loggedMinutes = await timeEntryRepository.GetDurationMinutesForTaskAsync(userId, task.Id);
-        return TaskResponseMapper.ToDetailResponse(task, loggedMinutes);
+        var subtaskMinutes = await timeEntryRepository.GetDurationMinutesBySubtaskAsync(userId, task.Id);
+        return TaskResponseMapper.ToDetailResponse(task, loggedMinutes, subtaskMinutes);
     }
 
     public async Task<TaskDetailResponse?> CreateAsync(CreateTaskRequest request)
@@ -208,7 +209,8 @@ public class TaskService(
             updated.Id);
 
         var loggedMinutes = await timeEntryRepository.GetDurationMinutesForTaskAsync(userId, updated.Id);
-        return TaskResponseMapper.ToDetailResponse(updated, loggedMinutes);
+        var updatedSubtaskMinutes = await timeEntryRepository.GetDurationMinutesBySubtaskAsync(userId, updated.Id);
+        return TaskResponseMapper.ToDetailResponse(updated, loggedMinutes, updatedSubtaskMinutes);
     }
 
     public async Task<CompleteTaskResponse?> CompleteAsync(Guid id, CompleteTaskRequest request)
@@ -241,6 +243,7 @@ public class TaskService(
         if (HasTimeEntryInput(request))
         {
             var entryRequest = new CreateTaskTimeEntryRequest(
+                null,
                 request.WorkDate,
                 request.DurationMinutes,
                 request.StartAt,
@@ -392,6 +395,7 @@ public class TaskService(
                 IsCompleted = status == TaskStatus.Completed,
                 Status = status,
                 DueDate = raw.DueDate,
+                EstimatedHours = raw.ClearEstimatedHours ? null : raw.EstimatedHours,
                 SortOrder = raw.SortOrder ?? index,
                 CreatedAt = DateTimeOffset.UtcNow
             });
