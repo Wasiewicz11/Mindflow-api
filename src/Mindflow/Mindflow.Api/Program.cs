@@ -15,12 +15,14 @@ builder.Services.AddMindflowRepositories();
 builder.Services.AddMindflowServices();
 builder.Services.AddMindflowGoogleCalendar(config);
 builder.Services.AddMindflowAi(config);
+builder.Services.AddMindflowIntegrations(config);
 builder.Services.AddSignalR();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi();
+builder.Services.AddMindflowRateLimiting();
 
 var frontendUrl = string.IsNullOrWhiteSpace(config["Cors:FrontendUrl"])
     ? "http://localhost:5173"
@@ -45,8 +47,11 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseMiddleware<ApiExceptionHandlingMiddleware>();
+app.UseRouting();
 app.UseCors("Frontend");
 app.UseAuthentication();
+// After authentication so the limiter can partition by token.
+app.UseRateLimiter();
 app.UseAuthorization();
 app.MapControllers();
 app.MapGet("/health", () => Results.Ok());

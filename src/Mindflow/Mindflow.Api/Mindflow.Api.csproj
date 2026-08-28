@@ -11,7 +11,9 @@
         <PackageReference Include="EntityFrameworkCore.NamingConventions" Version="8.0.0" />
         <PackageReference Include="Google.Apis.Calendar.v3" Version="1.74.0.4154" />
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.6" />
-        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.1" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.6" />
+        <!-- Pinned: the version pulled in transitively has a known high-severity advisory (NU1903). -->
+        <PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />
         <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.6" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.6">
           <PrivateAssets>all</PrivateAssets>

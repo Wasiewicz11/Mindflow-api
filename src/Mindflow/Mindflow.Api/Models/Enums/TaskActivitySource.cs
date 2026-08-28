@@ -5,5 +5,6 @@ public enum TaskActivitySource
     User,
     System,
     Automation,
-    Import
+    Import,
+    Integration
 }

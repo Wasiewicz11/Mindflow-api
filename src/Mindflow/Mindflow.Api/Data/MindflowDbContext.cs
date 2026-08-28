@@ -23,6 +23,8 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
     public DbSet<PushNotificationDelivery> PushNotificationDeliveries { get; set; }
     public DbSet<NotificationInboxItem> NotificationInboxItems { get; set; }
     public DbSet<GoogleCalendarConnection> GoogleCalendarConnections { get; set; }
+    public DbSet<IntegrationToken> IntegrationTokens { get; set; }
+    public DbSet<IntegrationTokenPermission> IntegrationTokenPermissions { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<AiSuggestion> AiSuggestions { get; set; }
     public DbSet<SuggestionAction> SuggestionActions { get; set; }
@@ -218,9 +220,54 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
             entity.HasIndex(item => new { item.UserId, item.ReadAt });
         });
 
+        modelBuilder.Entity<IntegrationToken>(entity =>
+        {
+            entity.ToTable("integration_tokens");
+
+            entity.Property(token => token.Name)
+                .HasMaxLength(100);
+
+            entity.Property(token => token.TokenHash)
+                .HasMaxLength(64);
+
+            entity.Property(token => token.TokenPrefix)
+                .HasMaxLength(20);
+
+            entity.HasOne(token => token.User)
+                .WithMany()
+                .HasForeignKey(token => token.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(token => token.UserId);
+            entity.HasIndex(token => token.TokenHash)
+                .IsUnique();
+        });
+
+        modelBuilder.Entity<IntegrationTokenPermission>(entity =>
+        {
+            entity.ToTable("integration_token_permissions");
+
+            entity.Property(permission => permission.Scope)
+                .HasConversion<string>()
+                .HasMaxLength(64);
+
+            entity.HasOne(permission => permission.IntegrationToken)
+                .WithMany(token => token.Permissions)
+                .HasForeignKey(permission => permission.IntegrationTokenId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(permission => new { permission.IntegrationTokenId, permission.Scope })
+                .IsUnique();
+        });
+
         modelBuilder.Entity<TaskActivityEvent>(entity =>
         {
             entity.ToTable("task_activity_events");
+
+            entity.HasOne<IntegrationToken>()
+                .WithMany()
+                .HasForeignKey(e => e.IntegrationTokenId)
+                .OnDelete(DeleteBehavior.SetNull);
 
             entity.Property(e => e.EventType)
                 .HasConversion<string>();

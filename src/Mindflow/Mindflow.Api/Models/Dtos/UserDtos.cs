@@ -6,5 +6,6 @@ public record UserDto(
     string FirstName,
     string LastName,
     string? AvatarUrl,
-    string TimeZone
+    string TimeZone,
+    bool IntegrationsEnabled
 );

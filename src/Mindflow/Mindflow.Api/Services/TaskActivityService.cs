@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Security.Claims;
+using Mindflow.Api.Authentication;
 using Mindflow.Api.Data;
 using Mindflow.Api.Models;
 using Mindflow.Api.Models.Enums;
@@ -25,6 +27,8 @@ public class TaskActivityService(
         {
             var now = DateTimeOffset.UtcNow;
             var httpContext = httpContextAccessor.HttpContext;
+            var integrationTokenId = GetIntegrationTokenId(httpContext);
+            var isIntegration = integrationTokenId.HasValue;
 
             db.TaskActivityEvents.Add(new TaskActivityEvent
             {
@@ -34,9 +38,10 @@ public class TaskActivityService(
                 SpaceId = spaceId,
                 ProjectId = projectId,
                 EventType = eventType,
-                Source = TaskActivitySource.User,
-                ActorType = TaskActivityActorType.User,
+                Source = isIntegration ? TaskActivitySource.Integration : TaskActivitySource.User,
+                ActorType = isIntegration ? TaskActivityActorType.Integration : TaskActivityActorType.User,
                 ActorId = userId,
+                IntegrationTokenId = integrationTokenId,
                 SessionId = GetHeaderValue(httpContext, "X-Session-Id"),
                 RequestId = httpContext?.TraceIdentifier,
                 Metadata = JsonSerializer.Serialize(metadata ?? new { }, JsonOptions),
@@ -62,6 +67,22 @@ public class TaskActivityService(
         if (httpContext is null) return null;
         return httpContext.Request.Headers.TryGetValue(headerName, out var value)
             ? value.ToString()
+            : null;
+    }
+
+    private static Guid? GetIntegrationTokenId(HttpContext? httpContext)
+    {
+        var principal = httpContext?.User;
+        if (principal?.FindFirstValue(IntegrationTokenAuthenticationDefaults.AuthProviderClaim)
+            != IntegrationTokenAuthenticationDefaults.Scheme)
+        {
+            return null;
+        }
+
+        return Guid.TryParse(
+            principal.FindFirstValue(IntegrationTokenAuthenticationDefaults.TokenIdClaim),
+            out var tokenId)
+            ? tokenId
             : null;
     }
 }

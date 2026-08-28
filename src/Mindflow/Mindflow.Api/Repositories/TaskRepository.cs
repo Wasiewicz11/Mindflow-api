@@ -18,6 +18,44 @@ public class TaskRepository(MindflowDbContext db) : ITaskRepository
             .ToListAsync();
     }
 
+    public async Task<(IReadOnlyList<TaskItem> Items, int Total)> GetForUserFilteredAsync(
+        Guid userId,
+        TaskQueryFilter filter,
+        CancellationToken ct = default)
+    {
+        var accessibleProjectIds = await GetAccessibleProjectIdsAsync(userId);
+
+        var query = db.Tasks
+            .AsNoTracking()
+            .Include(t => t.Subtasks)
+            .Where(t => t.UserId == userId
+                        || (t.ProjectId != null && accessibleProjectIds.Contains(t.ProjectId.Value)));
+
+        if (filter.ProjectId is Guid projectId)
+            query = query.Where(t => t.ProjectId == projectId);
+
+        if (filter.Status is { } status)
+            query = query.Where(t => t.Status == status);
+
+        if (filter.IsCompleted is bool isCompleted)
+            query = query.Where(t => t.IsCompleted == isCompleted);
+
+        if (filter.DueBefore is DateOnly dueBefore)
+            query = query.Where(t => t.DueDate != null && t.DueDate <= dueBefore);
+
+        if (filter.CreatedAfter is DateTimeOffset createdAfter)
+            query = query.Where(t => t.CreatedAt > createdAfter);
+
+        var total = await query.CountAsync(ct);
+        var items = await query
+            .OrderByDescending(t => t.CreatedAt)
+            .Skip(filter.Offset)
+            .Take(filter.Limit)
+            .ToListAsync(ct);
+
+        return (items, total);
+    }
+
     public async Task<TaskItem?> GetByIdAsync(Guid id)
     {
         return await db.Tasks

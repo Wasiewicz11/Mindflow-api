@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Mindflow.Api.Data;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Mindflow.Api.Migrations
 {
     [DbContext(typeof(MindflowDbContext))]
-    partial class MindflowDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260828103804_AddIntegrationTokenExpiry")]
+    partial class AddIntegrationTokenExpiry
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -369,75 +372,6 @@ namespace Mindflow.Api.Migrations
                     b.ToTable("calendar_blocks", (string)null);
                 });
 
-            modelBuilder.Entity("Mindflow.Api.Models.GoalDay", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<DateOnly>("Date")
-                        .HasColumnType("date")
-                        .HasColumnName("date");
-
-                    b.Property<string>("DateLabel")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("date_label");
-
-                    b.Property<string>("DayShort")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("day_short");
-
-                    b.Property<string>("LinkedTaskIdsJson")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("jsonb")
-                        .HasColumnName("linked_task_ids")
-                        .HasDefaultValueSql("'[]'::jsonb");
-
-                    b.Property<int>("MarkerLevel")
-                        .HasColumnType("integer")
-                        .HasColumnName("marker_level");
-
-                    b.Property<string>("SectionsJson")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("jsonb")
-                        .HasColumnName("sections")
-                        .HasDefaultValueSql("'[]'::jsonb");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("title");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_goal_days");
-
-                    b.HasIndex("UserId", "Date")
-                        .IsUnique()
-                        .HasDatabaseName("ix_goal_days_user_id_date");
-
-                    b.ToTable("goal_days", (string)null);
-                });
-
             modelBuilder.Entity("Mindflow.Api.Models.GoogleCalendarConnection", b =>
                 {
                     b.Property<Guid>("Id")
@@ -538,6 +472,10 @@ namespace Mindflow.Api.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<int>("Access")
+                        .HasColumnType("integer")
+                        .HasColumnName("access");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -591,82 +529,6 @@ namespace Mindflow.Api.Migrations
                         .HasDatabaseName("ix_integration_tokens_user_id");
 
                     b.ToTable("integration_tokens", (string)null);
-                });
-
-            modelBuilder.Entity("Mindflow.Api.Models.IntegrationTokenPermission", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("IntegrationTokenId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("integration_token_id");
-
-                    b.Property<string>("Scope")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("scope");
-
-                    b.HasKey("Id")
-                        .HasName("pk_integration_token_permissions");
-
-                    b.HasIndex("IntegrationTokenId", "Scope")
-                        .IsUnique()
-                        .HasDatabaseName("ix_integration_token_permissions_integration_token_id_scope");
-
-                    b.ToTable("integration_token_permissions", (string)null);
-                });
-
-            modelBuilder.Entity("Mindflow.Api.Models.NotificationInboxItem", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<string>("Body")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("body");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasColumnName("kind");
-
-                    b.Property<DateTimeOffset?>("ReadAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("read_at");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)")
-                        .HasColumnName("title");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_notification_inbox_items");
-
-                    b.HasIndex("UserId", "CreatedAt")
-                        .HasDatabaseName("ix_notification_inbox_items_user_id_created_at");
-
-                    b.HasIndex("UserId", "ReadAt")
-                        .HasDatabaseName("ix_notification_inbox_items_user_id_read_at");
-
-                    b.ToTable("notification_inbox_items", (string)null);
                 });
 
             modelBuilder.Entity("Mindflow.Api.Models.NotificationSettings", b =>
@@ -900,11 +762,6 @@ namespace Mindflow.Api.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
-                    b.Property<string>("DeviceName")
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)")
-                        .HasColumnName("device_name");
-
                     b.Property<string>("Endpoint")
                         .IsRequired()
                         .HasMaxLength(2048)
@@ -1129,10 +986,6 @@ namespace Mindflow.Api.Migrations
                         .HasColumnType("text")
                         .HasColumnName("event_type");
 
-                    b.Property<Guid?>("IntegrationTokenId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("integration_token_id");
-
                     b.Property<string>("Metadata")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -1178,9 +1031,6 @@ namespace Mindflow.Api.Migrations
                     b.HasKey("Id")
                         .HasName("pk_task_activity_events");
 
-                    b.HasIndex("IntegrationTokenId")
-                        .HasDatabaseName("ix_task_activity_events_integration_token_id");
-
                     b.HasIndex("ProjectId")
                         .HasDatabaseName("ix_task_activity_events_project_id");
 
@@ -1224,10 +1074,6 @@ namespace Mindflow.Api.Migrations
                     b.Property<DateOnly?>("DueDate")
                         .HasColumnType("date")
                         .HasColumnName("due_date");
-
-                    b.Property<TimeOnly?>("DueTime")
-                        .HasColumnType("time without time zone")
-                        .HasColumnName("due_time");
 
                     b.Property<decimal?>("EstimatedHours")
                         .HasColumnType("numeric(6,2)")
@@ -1307,13 +1153,6 @@ namespace Mindflow.Api.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("sort_order");
 
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("text")
-                        .HasDefaultValue("NotStarted")
-                        .HasColumnName("status");
-
                     b.Property<Guid>("TaskItemId")
                         .HasColumnType("uuid")
                         .HasColumnName("task_item_id");
@@ -1355,11 +1194,6 @@ namespace Mindflow.Api.Migrations
                     b.Property<decimal?>("EstimatedHours")
                         .HasColumnType("numeric(6,2)")
                         .HasColumnName("estimated_hours");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("notes");
 
                     b.Property<Guid?>("ProjectId")
                         .HasColumnType("uuid")
@@ -1556,18 +1390,6 @@ namespace Mindflow.Api.Migrations
                     b.Navigation("BrainMap");
                 });
 
-            modelBuilder.Entity("Mindflow.Api.Models.GoalDay", b =>
-                {
-                    b.HasOne("Mindflow.Api.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_goal_days_users_user_id");
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("Mindflow.Api.Models.GoogleCalendarConnection", b =>
                 {
                     b.HasOne("Mindflow.Api.Models.User", "User")
@@ -1590,28 +1412,6 @@ namespace Mindflow.Api.Migrations
                         .HasConstraintName("fk_integration_tokens_users_user_id");
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Mindflow.Api.Models.IntegrationTokenPermission", b =>
-                {
-                    b.HasOne("Mindflow.Api.Models.IntegrationToken", "IntegrationToken")
-                        .WithMany("Permissions")
-                        .HasForeignKey("IntegrationTokenId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_integration_token_permissions_integration_tokens_integratio");
-
-                    b.Navigation("IntegrationToken");
-                });
-
-            modelBuilder.Entity("Mindflow.Api.Models.NotificationInboxItem", b =>
-                {
-                    b.HasOne("Mindflow.Api.Models.User", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_notification_inbox_items_users_user_id");
                 });
 
             modelBuilder.Entity("Mindflow.Api.Models.NotificationSettings", b =>
@@ -1683,15 +1483,6 @@ namespace Mindflow.Api.Migrations
                         .HasConstraintName("fk_suggestion_actions_tasks_task_id");
                 });
 
-            modelBuilder.Entity("Mindflow.Api.Models.TaskActivityEvent", b =>
-                {
-                    b.HasOne("Mindflow.Api.Models.IntegrationToken", null)
-                        .WithMany()
-                        .HasForeignKey("IntegrationTokenId")
-                        .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_task_activity_events_integration_tokens_integration_token_id");
-                });
-
             modelBuilder.Entity("Mindflow.Api.Models.TaskSubtask", b =>
                 {
                     b.HasOne("Mindflow.Api.Models.TaskItem", null)
@@ -1733,11 +1524,6 @@ namespace Mindflow.Api.Migrations
                     b.Navigation("Edges");
 
                     b.Navigation("Nodes");
-                });
-
-            modelBuilder.Entity("Mindflow.Api.Models.IntegrationToken", b =>
-                {
-                    b.Navigation("Permissions");
                 });
 
             modelBuilder.Entity("Mindflow.Api.Models.TaskItem", b =>

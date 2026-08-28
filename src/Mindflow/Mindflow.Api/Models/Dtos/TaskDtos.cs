@@ -5,7 +5,7 @@ using TaskStatus = Mindflow.Api.Models.Enums.TaskStatus;
 namespace Mindflow.Api.Models.Dtos;
 
 public record CreateTaskRequest(
-    string Content,
+    [Required, MaxLength(1000)] string Content,
     [MaxLength(10000)] string? Description,
     TaskPriority? Priority,
     TaskStatus? Status,
@@ -17,7 +17,7 @@ public record CreateTaskRequest(
     IReadOnlyCollection<TaskSubtaskRequest>? Subtasks);
 
 public record UpdateTaskRequest(
-    string? Content,
+    [MaxLength(1000)] string? Content,
     [MaxLength(10000)] string? Description,
     TaskPriority? Priority,
     TaskStatus? Status,
@@ -32,7 +32,7 @@ public record UpdateTaskRequest(
 
 public record TaskSubtaskRequest(
     string? Id,
-    string Content,
+    [MaxLength(1000)] string Content,
     bool IsCompleted,
     TaskStatus? Status,
     [MaxLength(10000)] string? Description,

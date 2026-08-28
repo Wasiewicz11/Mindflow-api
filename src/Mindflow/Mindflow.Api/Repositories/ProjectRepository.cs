@@ -20,6 +20,40 @@ public class ProjectRepository(MindflowDbContext db) : IProjectRepository
             .ToListAsync();
     }
 
+    public async Task<IReadOnlyList<Project>> GetAccessibleForUserAsync(Guid userId, CancellationToken ct = default)
+    {
+        return await AccessibleForUser(userId)
+            .OrderBy(project => project.CreatedAt)
+            .ToListAsync(ct);
+    }
+
+    public async Task<(IReadOnlyList<Project> Items, int Total)> GetAccessibleForUserPagedAsync(
+        Guid userId,
+        int limit,
+        int offset,
+        CancellationToken ct = default)
+    {
+        var query = AccessibleForUser(userId);
+
+        var total = await query.CountAsync(ct);
+        var items = await query
+            .OrderBy(project => project.CreatedAt)
+            .Skip(offset)
+            .Take(limit)
+            .ToListAsync(ct);
+
+        return (items, total);
+    }
+
+    private IQueryable<Project> AccessibleForUser(Guid userId)
+    {
+        return db.Projects
+            .AsNoTracking()
+            .Where(project => project.UserId == userId
+                || (project.SpaceId.HasValue && db.SpaceMembers.Any(member =>
+                    member.SpaceId == project.SpaceId.Value && member.UserId == userId)));
+    }
+
     public async Task<Project> CreateInSpaceAsync(Project project)
     {
         db.Projects.Add(project);
