@@ -425,7 +425,8 @@ FodyWeavers.xsd
 .idea
 
 # Tools
-.claude
+.claude/*
+!.claude/skills/
 
 # Build files
 /src/Mindflow/Mindflow.Api/bin
