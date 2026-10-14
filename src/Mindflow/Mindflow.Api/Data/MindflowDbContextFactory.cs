@@ -8,9 +8,11 @@ public class MindflowDbContextFactory : IDesignTimeDbContextFactory<MindflowDbCo
 {
     public MindflowDbContext CreateDbContext(string[] args)
     {
+        var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Database")
+            ?? "Host=localhost;Database=mindflow_design;Username=postgres;Password=postgres";
+
         var options = new DbContextOptionsBuilder<MindflowDbContext>()
-            // EF only needs a provider to construct the model; no connection is opened here.
-            .UseNpgsql("Host=localhost;Database=mindflow_design;Username=postgres;Password=postgres")
+            .UseNpgsql(connectionString)
             .UseSnakeCaseNamingConvention()
             .Options;
         return new MindflowDbContext(options);
