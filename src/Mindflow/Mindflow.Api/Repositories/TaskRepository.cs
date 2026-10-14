@@ -12,6 +12,7 @@ public class TaskRepository(MindflowDbContext db) : ITaskRepository
 
         return await db.Tasks
             .Include(t => t.Subtasks)
+            .Include(t => t.Recurrence)
             .Where(t => t.UserId == userId
                         || (t.ProjectId != null && accessibleProjectIds.Contains(t.ProjectId.Value)))
             .OrderByDescending(t => t.CreatedAt)
@@ -28,6 +29,7 @@ public class TaskRepository(MindflowDbContext db) : ITaskRepository
         var query = db.Tasks
             .AsNoTracking()
             .Include(t => t.Subtasks)
+            .Include(t => t.Recurrence)
             .Where(t => t.UserId == userId
                         || (t.ProjectId != null && accessibleProjectIds.Contains(t.ProjectId.Value)));
 
@@ -60,6 +62,7 @@ public class TaskRepository(MindflowDbContext db) : ITaskRepository
     {
         return await db.Tasks
             .Include(t => t.Subtasks)
+            .Include(t => t.Recurrence)
             .FirstOrDefaultAsync(t => t.Id == id);
     }
 
@@ -68,6 +71,7 @@ public class TaskRepository(MindflowDbContext db) : ITaskRepository
         return await db.Tasks
             .AsNoTracking()
             .Include(t => t.Subtasks)
+            .Include(t => t.Recurrence)
             .FirstOrDefaultAsync(t => t.Id == id);
     }
 
@@ -103,6 +107,12 @@ public class TaskRepository(MindflowDbContext db) : ITaskRepository
         var task = await db.Tasks.FirstOrDefaultAsync(t => t.Id == id);
         if (task is null) return false;
 
+        // Deleting a template is intentionally a series deletion. The UI offers "Wyłącz"
+        // separately for users who want to keep already generated work.
+        var generatedInstances = await db.Tasks
+            .Where(item => item.RecurringTaskId == id)
+            .ToListAsync();
+        if (generatedInstances.Count > 0) db.Tasks.RemoveRange(generatedInstances);
         db.Tasks.Remove(task);
         await db.SaveChangesAsync();
         return true;
@@ -112,6 +122,7 @@ public class TaskRepository(MindflowDbContext db) : ITaskRepository
     {
         return await db.Tasks
             .Include(t => t.Subtasks)
+            .Include(t => t.Recurrence)
             .Where(t => t.ProjectId == projectId)
             .OrderByDescending(t => t.CreatedAt)
             .ToListAsync();

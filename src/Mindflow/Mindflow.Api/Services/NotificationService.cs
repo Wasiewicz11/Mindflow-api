@@ -240,6 +240,11 @@ public class NotificationService(
                 GetTimeZoneOrUtc(user.TimeZone),
                 settings,
                 ct);
+            taskRemindersSent += await SendDueRecurringTaskRemindersAsync(
+                user.Id,
+                now,
+                GetTimeZoneOrUtc(user.TimeZone),
+                ct);
         }
 
         var blockRemindersSent = await SendDueBlockRemindersAsync(now, userIds, settingsByUser, ct);
@@ -261,6 +266,8 @@ public class NotificationService(
             .Where(task => task.UserId == userId
                            && !task.IsCompleted
                            && task.Status != TaskStatus.Completed
+                           && task.RecurringTaskId == null
+                           && task.Recurrence == null
                            && task.DueDate.HasValue
                            && task.DueTime.HasValue
                            && task.DueDate.Value >= localDate.AddDays(-1)
@@ -284,6 +291,60 @@ public class NotificationService(
                     deliveryKey,
                     "Termin zadania",
                     $"Za {exactMinutes} min termin zadania „{Truncate(task.Content, 120)}”",
+                    deliveryKey,
+                    null,
+                    ct))
+                sent++;
+        }
+
+        return sent;
+    }
+
+    private async Task<int> SendDueRecurringTaskRemindersAsync(
+        Guid userId,
+        DateTimeOffset now,
+        TimeZoneInfo timeZone,
+        CancellationToken ct)
+    {
+        var localNow = TimeZoneInfo.ConvertTime(now, timeZone);
+        var localDate = DateOnly.FromDateTime(localNow.DateTime);
+        var localTime = TimeOnly.FromDateTime(localNow.DateTime);
+        var tasks = await db.Tasks
+            .AsNoTracking()
+            .Include(task => task.RecurringTask!)
+                .ThenInclude(template => template.Recurrence)
+            .Where(task => task.UserId == userId
+                           && task.RecurringTaskId.HasValue
+                           && !task.IsCompleted
+                           && task.Status != TaskStatus.Completed
+                           && task.DueDate.HasValue
+                           && task.DueTime.HasValue
+                           && task.DueDate.Value >= localDate.AddDays(-1)
+                           && task.DueDate.Value <= localDate.AddDays(1))
+            .ToListAsync(ct);
+
+        var sent = 0;
+        foreach (var task in tasks)
+        {
+            var recurrence = task.RecurringTask?.Recurrence;
+            if (recurrence is null || !recurrence.IsEnabled || !recurrence.NotificationsEnabled)
+                continue;
+            if (!IsWithinNotificationWindow(localTime, recurrence.NotificationWindowStart, recurrence.NotificationWindowEnd))
+                continue;
+
+            var dueAt = ToUtc(task.DueDate!.Value, task.DueTime!.Value, timeZone);
+            if (!dueAt.HasValue || dueAt.Value <= now) continue;
+            var minutesUntilDue = (int)Math.Round((dueAt.Value - now).TotalMinutes);
+            if (Math.Abs(minutesUntilDue - recurrence.ReminderMinutesBefore) > BlockReminderToleranceMinutes)
+                continue;
+
+            var exactMinutes = Math.Max(1, minutesUntilDue);
+            var deliveryKey = $"recurrence:{task.RecurringTaskId:N}:{task.RecurrenceOccurrenceDate:yyyy-MM-dd}:reminder";
+            if (await SendOnceAsync(
+                    userId,
+                    deliveryKey,
+                    "Cykliczne zadanie",
+                    $"Za {exactMinutes} min: „{Truncate(task.Content, 120)}”",
                     deliveryKey,
                     null,
                     ct))
@@ -705,6 +766,14 @@ public class NotificationService(
     {
         var elapsed = currentTime.ToTimeSpan() - scheduledTime.ToTimeSpan();
         return elapsed >= TimeSpan.Zero && elapsed < ScheduleGrace;
+    }
+
+    private static bool IsWithinNotificationWindow(TimeOnly currentTime, TimeOnly? start, TimeOnly? end)
+    {
+        if (!start.HasValue || !end.HasValue) return true;
+        if (start <= end) return currentTime >= start && currentTime <= end;
+        // A window may legitimately cross midnight, e.g. 22:00–06:00.
+        return currentTime >= start || currentTime <= end;
     }
 
     private static DateTimeOffset ToUtc(DateOnly date, TimeZoneInfo timeZone)

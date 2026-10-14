@@ -21,5 +21,13 @@ public class TaskItem
     public decimal? EstimatedHours { get; set; }
     public List<string> Tags { get; set; } = new();
     public List<TaskSubtask> Subtasks { get; set; } = new();
+    /// <summary>Present only on the source task shown in the "Cykliczne" section.</summary>
+    public TaskRecurrence? Recurrence { get; set; }
+    /// <summary>Points from a generated occurrence to its recurring source task.</summary>
+    public Guid? RecurringTaskId { get; set; }
+    public TaskItem? RecurringTask { get; set; }
+    public List<TaskItem> RecurringInstances { get; set; } = new();
+    /// <summary>The local calendar date represented by a generated occurrence.</summary>
+    public DateOnly? RecurrenceOccurrenceDate { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }

@@ -17,6 +17,7 @@ public class TaskService(
     ITaskActivityService taskActivityService,
     ITaskTimeEntryRepository timeEntryRepository,
     ITaskTimeEntryService timeEntryService,
+    ITaskRecurrenceService taskRecurrenceService,
     ITasksNotifier notifier,
     ILogger<TaskService> logger
     ) : ITaskService
@@ -24,6 +25,7 @@ public class TaskService(
     public async Task<IEnumerable<TaskListResponse>> GetAllAsync()
     {
         var userId = await currentUserService.GetCurrentUserIdAsync();
+        await taskRecurrenceService.MaterializePastDueForUserAsync(userId);
         var tasks = await taskRepository.GetAllForUserAsync(userId);
         var taskList = tasks.ToList();
         var loggedMinutes = await timeEntryRepository.GetDurationMinutesByTaskIdsAsync(userId, taskList.Select(task => task.Id).ToArray());
@@ -33,6 +35,7 @@ public class TaskService(
     public async Task<IEnumerable<TaskListResponse>> GetAllForProjectAsync(Guid projectId)
     {
         var userId = await currentUserService.GetCurrentUserIdAsync();
+        await taskRecurrenceService.MaterializePastDueForUserAsync(userId);
 
         if (!await accessService.CanAccessProjectAsync(projectId, userId))
             throw new UnauthorizedAccessException();

@@ -179,6 +179,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IProjectService, ProjectService>();
         services.AddScoped<IProjectTagService, ProjectTagService>();
         services.AddScoped<ITaskService, TaskService>();
+        services.AddScoped<ITaskRecurrenceService, TaskRecurrenceService>();
         services.AddScoped<ITaskSubtaskService, TaskSubtaskService>();
         services.AddScoped<ITaskTimeEntryService, TaskTimeEntryService>();
         services.AddScoped<ITaskActivityService, TaskActivityService>();
@@ -189,6 +190,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<ITasksNotifier, TasksNotifier>();
         services.AddScoped<TokenService>();
+        if (!string.Equals(Environment.GetEnvironmentVariable("EF_DESIGN_TIME"), "true", StringComparison.Ordinal))
+            services.AddHostedService<TaskRecurrenceMaterializerHostedService>();
         return services;
     }
 

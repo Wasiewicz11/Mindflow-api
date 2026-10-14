@@ -28,6 +28,10 @@ internal static class TaskResponseMapper
             GetDueSubtasks(task, subtaskLoggedMinutes).Length,
             GetDueSubtasks(task, subtaskLoggedMinutes),
             GetOrderedSubtasks(task, subtaskLoggedMinutes),
+            task.Recurrence?.IsEnabled == true,
+            task.RecurringTaskId,
+            task.RecurrenceOccurrenceDate,
+            ToRecurrenceResponse(task.Recurrence),
             task.CreatedAt);
 
     public static TaskDetailResponse ToDetailResponse(
@@ -54,7 +58,28 @@ internal static class TaskResponseMapper
             GetDueSubtasks(task, subtaskLoggedMinutes).Length,
             GetDueSubtasks(task, subtaskLoggedMinutes),
             GetOrderedSubtasks(task, subtaskLoggedMinutes),
+            task.Recurrence?.IsEnabled == true,
+            task.RecurringTaskId,
+            task.RecurrenceOccurrenceDate,
+            ToRecurrenceResponse(task.Recurrence),
             task.CreatedAt);
+
+    public static TaskRecurrenceResponse? ToRecurrenceResponse(TaskRecurrence? recurrence) => recurrence is null
+        ? null
+        : new TaskRecurrenceResponse(
+            recurrence.IsEnabled,
+            recurrence.Frequency,
+            recurrence.Interval,
+            recurrence.StartDate,
+            recurrence.EndDate,
+            recurrence.DaysOfWeek.ToArray(),
+            recurrence.DayOfMonth,
+            recurrence.MonthOfYear,
+            recurrence.DueTime,
+            recurrence.NotificationsEnabled,
+            recurrence.ReminderMinutesBefore,
+            recurrence.NotificationWindowStart,
+            recurrence.NotificationWindowEnd);
 
     private static TaskSubtaskResponse ToSubtaskResponse(
         TaskSubtask subtask,

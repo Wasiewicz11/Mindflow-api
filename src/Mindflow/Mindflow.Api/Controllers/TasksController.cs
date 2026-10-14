@@ -10,6 +10,8 @@ namespace Mindflow.Api.Controllers;
 [Authorize]
 public class TasksController(
     ITaskService taskService,
+    ITaskRecurrenceService recurrenceService,
+    ICurrentUserService currentUserService,
     ITaskSubtaskService subtaskService,
     ITaskTimeEntryService timeEntryService) : ControllerBase
 {
@@ -18,6 +20,17 @@ public class TasksController(
     {
         var tasks = await taskService.GetAllAsync();
         return Ok(tasks);
+    }
+
+    [HttpGet("recurrence-occurrences")]
+    public async Task<IActionResult> GetRecurrenceOccurrences(
+        [FromQuery] DateOnly from,
+        [FromQuery] DateOnly to,
+        CancellationToken ct)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        var occurrences = await recurrenceService.GetUpcomingAsync(userId, from, to, ct);
+        return Ok(occurrences);
     }
 
     [HttpGet("{id:guid}")]
@@ -40,6 +53,27 @@ public class TasksController(
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateTaskRequest request)
     {
         var updated = await taskService.UpdateAsync(id, request);
+        if (updated is null) return NotFound();
+        return Ok(updated);
+    }
+
+    [HttpPut("{id:guid}/recurrence")]
+    public async Task<IActionResult> UpdateRecurrence(
+        Guid id,
+        [FromBody] UpdateTaskRecurrenceRequest request,
+        CancellationToken ct)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        var updated = await recurrenceService.UpdateAsync(userId, id, request, ct);
+        if (updated is null) return NotFound();
+        return Ok(updated);
+    }
+
+    [HttpDelete("{id:guid}/recurrence")]
+    public async Task<IActionResult> DisableRecurrence(Guid id, CancellationToken ct)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        var updated = await recurrenceService.DisableAsync(userId, id, ct);
         if (updated is null) return NotFound();
         return Ok(updated);
     }

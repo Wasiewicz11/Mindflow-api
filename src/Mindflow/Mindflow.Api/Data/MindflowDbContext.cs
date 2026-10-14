@@ -14,6 +14,7 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
     public DbSet<Project> Projects { get; set; }
     public DbSet<ProjectTag> ProjectTags { get; set; }
     public DbSet<TaskItem> Tasks { get; set; }
+    public DbSet<TaskRecurrence> TaskRecurrences { get; set; }
     public DbSet<TaskSubtask> TaskSubtasks { get; set; }
     public DbSet<TaskTimeEntry> TaskTimeEntries { get; set; }
     public DbSet<TaskActivityEvent> TaskActivityEvents { get; set; }
@@ -90,6 +91,33 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
 
             entity.HasIndex(t => t.UserId);
             entity.HasIndex(t => t.ProjectId);
+            entity.HasIndex(t => new { t.RecurringTaskId, t.RecurrenceOccurrenceDate })
+                .IsUnique()
+                .HasFilter("recurring_task_id IS NOT NULL AND recurrence_occurrence_date IS NOT NULL");
+
+            entity.HasOne(t => t.RecurringTask)
+                .WithMany(t => t.RecurringInstances)
+                .HasForeignKey(t => t.RecurringTaskId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<TaskRecurrence>(entity =>
+        {
+            entity.ToTable("task_recurrences");
+            entity.HasKey(recurrence => recurrence.TaskId);
+            entity.Property(recurrence => recurrence.Frequency).HasConversion<string>();
+            entity.Property(recurrence => recurrence.DueTime).HasColumnType("time without time zone");
+            entity.Property(recurrence => recurrence.NotificationWindowStart).HasColumnType("time without time zone");
+            entity.Property(recurrence => recurrence.NotificationWindowEnd).HasColumnType("time without time zone");
+            entity.Property(recurrence => recurrence.DaysOfWeek)
+                .HasColumnType("integer[]")
+                .HasDefaultValueSql("'{}'::integer[]")
+                .IsRequired();
+            entity.HasOne(recurrence => recurrence.Task)
+                .WithOne(task => task.Recurrence)
+                .HasForeignKey<TaskRecurrence>(recurrence => recurrence.TaskId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(recurrence => new { recurrence.IsEnabled, recurrence.StartDate });
         });
 
         modelBuilder.Entity<TaskSubtask>(entity =>

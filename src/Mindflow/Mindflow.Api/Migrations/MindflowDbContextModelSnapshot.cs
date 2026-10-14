@@ -1246,6 +1246,14 @@ namespace Mindflow.Api.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("project_id");
 
+                    b.Property<DateOnly?>("RecurrenceOccurrenceDate")
+                        .HasColumnType("date")
+                        .HasColumnName("recurrence_occurrence_date");
+
+                    b.Property<Guid?>("RecurringTaskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recurring_task_id");
+
                     b.Property<int>("Status")
                         .HasColumnType("integer")
                         .HasColumnName("status");
@@ -1270,7 +1278,91 @@ namespace Mindflow.Api.Migrations
                     b.HasIndex("UserId")
                         .HasDatabaseName("ix_tasks_user_id");
 
+                    b.HasIndex("RecurringTaskId", "RecurrenceOccurrenceDate")
+                        .IsUnique()
+                        .HasDatabaseName("ix_tasks_recurring_task_id_recurrence_occurrence_date")
+                        .HasFilter("recurring_task_id IS NOT NULL AND recurrence_occurrence_date IS NOT NULL");
+
                     b.ToTable("tasks", (string)null);
+                });
+
+            modelBuilder.Entity("Mindflow.Api.Models.TaskRecurrence", b =>
+                {
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("task_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int?>("DayOfMonth")
+                        .HasColumnType("integer")
+                        .HasColumnName("day_of_month");
+
+                    b.PrimitiveCollection<List<int>>("DaysOfWeek")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer[]")
+                        .HasColumnName("days_of_week")
+                        .HasDefaultValueSql("'{}'::integer[]");
+
+                    b.Property<TimeOnly?>("DueTime")
+                        .HasColumnType("time without time zone")
+                        .HasColumnName("due_time");
+
+                    b.Property<DateOnly?>("EndDate")
+                        .HasColumnType("date")
+                        .HasColumnName("end_date");
+
+                    b.Property<string>("Frequency")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("frequency");
+
+                    b.Property<int>("Interval")
+                        .HasColumnType("integer")
+                        .HasColumnName("interval");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_enabled");
+
+                    b.Property<int?>("MonthOfYear")
+                        .HasColumnType("integer")
+                        .HasColumnName("month_of_year");
+
+                    b.Property<TimeOnly?>("NotificationWindowEnd")
+                        .HasColumnType("time without time zone")
+                        .HasColumnName("notification_window_end");
+
+                    b.Property<TimeOnly?>("NotificationWindowStart")
+                        .HasColumnType("time without time zone")
+                        .HasColumnName("notification_window_start");
+
+                    b.Property<bool>("NotificationsEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("notifications_enabled");
+
+                    b.Property<int>("ReminderMinutesBefore")
+                        .HasColumnType("integer")
+                        .HasColumnName("reminder_minutes_before");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date")
+                        .HasColumnName("start_date");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("TaskId")
+                        .HasName("pk_task_recurrences");
+
+                    b.HasIndex("IsEnabled", "StartDate")
+                        .HasDatabaseName("ix_task_recurrences_is_enabled_start_date");
+
+                    b.ToTable("task_recurrences", (string)null);
                 });
 
             modelBuilder.Entity("Mindflow.Api.Models.TaskSubtask", b =>
@@ -1703,6 +1795,29 @@ namespace Mindflow.Api.Migrations
                         .HasConstraintName("fk_task_activity_events_integration_tokens_integration_token_id");
                 });
 
+            modelBuilder.Entity("Mindflow.Api.Models.TaskItem", b =>
+                {
+                    b.HasOne("Mindflow.Api.Models.TaskItem", "RecurringTask")
+                        .WithMany("RecurringInstances")
+                        .HasForeignKey("RecurringTaskId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_tasks_tasks_recurring_task_id");
+
+                    b.Navigation("RecurringTask");
+                });
+
+            modelBuilder.Entity("Mindflow.Api.Models.TaskRecurrence", b =>
+                {
+                    b.HasOne("Mindflow.Api.Models.TaskItem", "Task")
+                        .WithOne("Recurrence")
+                        .HasForeignKey("Mindflow.Api.Models.TaskRecurrence", "TaskId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_task_recurrences_tasks_task_id");
+
+                    b.Navigation("Task");
+                });
+
             modelBuilder.Entity("Mindflow.Api.Models.TaskSubtask", b =>
                 {
                     b.HasOne("Mindflow.Api.Models.TaskItem", null)
@@ -1759,6 +1874,10 @@ namespace Mindflow.Api.Migrations
 
             modelBuilder.Entity("Mindflow.Api.Models.TaskItem", b =>
                 {
+                    b.Navigation("Recurrence");
+
+                    b.Navigation("RecurringInstances");
+
                     b.Navigation("Subtasks");
                 });
 #pragma warning restore 612, 618

@@ -41,6 +41,44 @@ public record TaskSubtaskRequest(
     DateOnly? DueDate,
     int? SortOrder);
 
+public record UpdateTaskRecurrenceRequest(
+    bool IsEnabled,
+    TaskRecurrenceFrequency Frequency,
+    [Range(1, 365)] int Interval,
+    DateOnly StartDate,
+    DateOnly? EndDate,
+    IReadOnlyCollection<int>? DaysOfWeek,
+    [Range(1, 31)] int? DayOfMonth,
+    [Range(1, 12)] int? MonthOfYear,
+    TimeOnly? DueTime,
+    bool NotificationsEnabled,
+    [Range(1, 10080)] int ReminderMinutesBefore,
+    TimeOnly? NotificationWindowStart,
+    TimeOnly? NotificationWindowEnd);
+
+public record TaskRecurrenceResponse(
+    bool IsEnabled,
+    TaskRecurrenceFrequency Frequency,
+    int Interval,
+    DateOnly StartDate,
+    DateOnly? EndDate,
+    IReadOnlyCollection<int> DaysOfWeek,
+    int? DayOfMonth,
+    int? MonthOfYear,
+    TimeOnly? DueTime,
+    bool NotificationsEnabled,
+    int ReminderMinutesBefore,
+    TimeOnly? NotificationWindowStart,
+    TimeOnly? NotificationWindowEnd);
+
+public record RecurringTaskPreviewResponse(
+    Guid RecurringTaskId,
+    DateOnly OccurrenceDate,
+    string Content,
+    TaskPriority Priority,
+    Guid? ProjectId,
+    TimeOnly? DueTime);
+
 public record ReorderTaskSubtasksRequest(IReadOnlyCollection<Guid> SubtaskIds);
 
 public record TaskSubtaskResponse(
@@ -74,6 +112,10 @@ public record TaskListResponse(
     int SubtaskDueCount,
     IReadOnlyCollection<TaskSubtaskResponse> DueSubtasks,
     IReadOnlyCollection<TaskSubtaskResponse> Subtasks,
+    bool IsRecurringTemplate,
+    Guid? RecurringTaskId,
+    DateOnly? RecurrenceOccurrenceDate,
+    TaskRecurrenceResponse? Recurrence,
     DateTimeOffset CreatedAt);
 
 public record TaskDetailResponse(
@@ -96,4 +138,8 @@ public record TaskDetailResponse(
     int SubtaskDueCount,
     IReadOnlyCollection<TaskSubtaskResponse> DueSubtasks,
     IReadOnlyCollection<TaskSubtaskResponse> Subtasks,
+    bool IsRecurringTemplate,
+    Guid? RecurringTaskId,
+    DateOnly? RecurrenceOccurrenceDate,
+    TaskRecurrenceResponse? Recurrence,
     DateTimeOffset CreatedAt);
