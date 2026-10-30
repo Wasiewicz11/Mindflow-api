@@ -116,6 +116,9 @@ public record TaskListResponse(
     Guid? RecurringTaskId,
     DateOnly? RecurrenceOccurrenceDate,
     TaskRecurrenceResponse? Recurrence,
+    string? ExternalSource,
+    string? ExternalId,
+    string? ExternalUrl,
     DateTimeOffset CreatedAt);
 
 public record TaskDetailResponse(
@@ -142,4 +145,7 @@ public record TaskDetailResponse(
     Guid? RecurringTaskId,
     DateOnly? RecurrenceOccurrenceDate,
     TaskRecurrenceResponse? Recurrence,
+    string? ExternalSource,
+    string? ExternalId,
+    string? ExternalUrl,
     DateTimeOffset CreatedAt);

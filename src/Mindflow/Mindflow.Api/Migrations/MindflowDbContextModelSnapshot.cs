@@ -1233,6 +1233,21 @@ namespace Mindflow.Api.Migrations
                         .HasColumnType("numeric(6,2)")
                         .HasColumnName("estimated_hours");
 
+                    b.Property<string>("ExternalId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("external_id");
+
+                    b.Property<string>("ExternalSource")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("external_source");
+
+                    b.Property<string>("ExternalUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
+                        .HasColumnName("external_url");
+
                     b.Property<bool>("IsCompleted")
                         .HasColumnType("boolean")
                         .HasColumnName("is_completed");
@@ -1282,6 +1297,11 @@ namespace Mindflow.Api.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_tasks_recurring_task_id_recurrence_occurrence_date")
                         .HasFilter("recurring_task_id IS NOT NULL AND recurrence_occurrence_date IS NOT NULL");
+
+                    b.HasIndex("UserId", "ExternalSource", "ExternalId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_tasks_user_id_external_source_external_id")
+                        .HasFilter("external_source IS NOT NULL");
 
                     b.ToTable("tasks", (string)null);
                 });

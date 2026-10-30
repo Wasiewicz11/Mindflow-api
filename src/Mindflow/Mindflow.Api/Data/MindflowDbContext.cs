@@ -94,6 +94,9 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
             entity.HasIndex(t => new { t.RecurringTaskId, t.RecurrenceOccurrenceDate })
                 .IsUnique()
                 .HasFilter("recurring_task_id IS NOT NULL AND recurrence_occurrence_date IS NOT NULL");
+            entity.HasIndex(t => new { t.UserId, t.ExternalSource, t.ExternalId })
+                .IsUnique()
+                .HasFilter("external_source IS NOT NULL");
 
             entity.HasOne(t => t.RecurringTask)
                 .WithMany(t => t.RecurringInstances)

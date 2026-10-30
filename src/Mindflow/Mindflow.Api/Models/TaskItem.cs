@@ -29,5 +29,11 @@ public class TaskItem
     public List<TaskItem> RecurringInstances { get; set; } = new();
     /// <summary>The local calendar date represented by a generated occurrence.</summary>
     public DateOnly? RecurrenceOccurrenceDate { get; set; }
+    [MaxLength(40)]
+    public string? ExternalSource { get; set; }
+    [MaxLength(200)]
+    public string? ExternalId { get; set; }
+    [MaxLength(2048)]
+    public string? ExternalUrl { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }
