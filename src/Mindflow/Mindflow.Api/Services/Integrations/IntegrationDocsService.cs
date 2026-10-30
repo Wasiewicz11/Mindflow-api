@@ -15,6 +15,7 @@ public class IntegrationDocsService(EndpointDataSource endpointDataSource) : IIn
             .OfType<RouteEndpoint>()
             .Where(endpoint => endpoint.RoutePattern.RawText?.StartsWith(RoutePrefix, StringComparison.OrdinalIgnoreCase) == true)
             .Select(ToEndpointDoc)
+            .DistinctBy(endpoint => (endpoint.Method, endpoint.Path))
             .OrderBy(endpoint => endpoint.Path, StringComparer.Ordinal)
             .ThenBy(endpoint => endpoint.Method, StringComparer.Ordinal)
             .ToList();
