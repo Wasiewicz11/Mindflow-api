@@ -38,6 +38,7 @@ public class ExternalTaskApiTests(MindflowApiFactory factory) : IClassFixture<Mi
         Assert.Equal(createdTask.Id, updatedTask.Id);
         Assert.Equal("Zlecenie · Montaż v2", updatedTask.Content);
         Assert.Equal(TaskStatus.Completed, updatedTask.Status);
+        Assert.True(updatedTask.IsCompleted);
         Assert.Equal("https://jira.example.com/1", updatedTask.ExternalUrl);
         Assert.Equal(1, await CountExternalTasksAsync(userId, "jira", externalId));
     }

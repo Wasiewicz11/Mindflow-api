@@ -86,7 +86,7 @@ public class TaskService(
             ProjectId = request.ProjectId,
             Content = request.Content,
             Description = request.Description,
-            IsCompleted = false,
+            IsCompleted = request.Status == TaskStatus.Completed,
             Priority = request.Priority ?? TaskPriority.P3,
             Status = request.Status ?? TaskStatus.NotStarted,
             DueDate = request.DueDate,
@@ -170,7 +170,11 @@ public class TaskService(
         if (request.ClearEstimatedHours) task.EstimatedHours = null;
         else if (request.EstimatedHours.HasValue) task.EstimatedHours = request.EstimatedHours;
         if (request.ProjectId.HasValue) task.ProjectId = request.ProjectId;
-        if (request.Status.HasValue) task.Status = request.Status.Value;
+        if (request.Status.HasValue)
+        {
+            task.Status = request.Status.Value;
+            task.IsCompleted = task.Status == TaskStatus.Completed;
+        }
         if (request.Tags is not null) task.Tags = NormalizeTags(request.Tags);
         if (externalReference?.Url is not null) task.ExternalUrl = externalReference.Url;
         NormalizeSubtaskDueDates(task);
