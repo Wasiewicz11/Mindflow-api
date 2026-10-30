@@ -280,6 +280,7 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasIndex(token => token.UserId);
+            entity.HasIndex(token => new { token.UserId, token.ClientId });
             entity.HasIndex(token => token.TokenHash)
                 .IsUnique();
         });

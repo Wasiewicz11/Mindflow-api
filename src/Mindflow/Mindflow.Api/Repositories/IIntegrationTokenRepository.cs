@@ -8,6 +8,7 @@ public interface IIntegrationTokenRepository
     Task<int> CountActiveForUserAsync(Guid userId, DateTimeOffset now, CancellationToken ct = default);
     Task<IntegrationToken?> GetActiveByHashAsync(string tokenHash, CancellationToken ct = default);
     Task<IntegrationToken?> GetByIdForUserAsync(Guid id, Guid userId, CancellationToken ct = default);
+    Task<IReadOnlyList<IntegrationToken>> GetActiveForClientAsync(Guid userId, string clientId, CancellationToken ct = default);
     Task AddAsync(IntegrationToken token, CancellationToken ct = default);
     Task TouchLastUsedAsync(Guid id, DateTimeOffset now, CancellationToken ct = default);
     Task SaveChangesAsync(CancellationToken ct = default);

@@ -610,9 +610,18 @@ namespace Mindflow.Api.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("ClientId")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("client_id");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<Guid?>("DefaultProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("default_project_id");
 
                     b.Property<DateTimeOffset>("ExpiresAt")
                         .HasColumnType("timestamp with time zone")
@@ -661,6 +670,9 @@ namespace Mindflow.Api.Migrations
 
                     b.HasIndex("UserId")
                         .HasDatabaseName("ix_integration_tokens_user_id");
+
+                    b.HasIndex("UserId", "ClientId")
+                        .HasDatabaseName("ix_integration_tokens_user_id_client_id");
 
                     b.ToTable("integration_tokens", (string)null);
                 });

@@ -16,4 +16,9 @@ public static class IntegrationPrincipalExtensions
 
     public static string? GetIntegrationClientId(this ClaimsPrincipal user) =>
         user.FindFirstValue(IntegrationTokenAuthenticationDefaults.ClientIdClaim);
+
+    public static Guid? GetIntegrationDefaultProjectId(this ClaimsPrincipal user) =>
+        Guid.TryParse(user.FindFirstValue(IntegrationTokenAuthenticationDefaults.DefaultProjectIdClaim), out var projectId)
+            ? projectId
+            : null;
 }

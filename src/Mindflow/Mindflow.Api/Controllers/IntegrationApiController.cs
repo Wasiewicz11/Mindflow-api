@@ -156,7 +156,12 @@ public class IntegrationApiController(
         }
 
         var reference = new TaskExternalReference(source, externalId, request.ExternalUrl);
-        var result = await externalTaskService.UpsertAsync(reference, request, permissions, ct);
+        var result = await externalTaskService.UpsertAsync(
+            reference,
+            request,
+            permissions,
+            User.GetIntegrationDefaultProjectId(),
+            ct);
 
         return result.Outcome switch
         {

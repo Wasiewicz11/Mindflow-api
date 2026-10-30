@@ -24,7 +24,10 @@ public record IntegrationTokenResponse(
     DateTimeOffset ExpiresAt,
     DateTimeOffset? LastUsedAt,
     bool IsRevoked,
-    DateTimeOffset? RevokedAt);
+    DateTimeOffset? RevokedAt,
+    string? ClientId,
+    string? ClientName,
+    Guid? DefaultProjectId);
 
 public record CreateIntegrationTokenResponse(
     Guid Id,

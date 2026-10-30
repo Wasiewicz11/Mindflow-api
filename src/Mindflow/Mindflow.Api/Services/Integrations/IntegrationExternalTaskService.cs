@@ -9,6 +9,7 @@ namespace Mindflow.Api.Services.Integrations;
 public class IntegrationExternalTaskService(
     MindflowDbContext db,
     ICurrentUserService currentUserService,
+    IAccessService accessService,
     ITaskRepository taskRepository,
     ITaskService taskService) : IIntegrationExternalTaskService
 {
@@ -18,6 +19,7 @@ public class IntegrationExternalTaskService(
         TaskExternalReference reference,
         UpsertExternalTaskRequest request,
         ExternalTaskPermissions permissions,
+        Guid? defaultProjectId,
         CancellationToken ct = default)
     {
         var userId = await currentUserService.GetCurrentUserIdAsync();
@@ -30,7 +32,8 @@ public class IntegrationExternalTaskService(
 
             try
             {
-                var created = await taskService.CreateAsync(ToCreateRequest(request), reference);
+                var projectId = request.ProjectId ?? await ResolveDefaultProjectAsync(defaultProjectId, userId);
+                var created = await taskService.CreateAsync(ToCreateRequest(request, projectId), reference);
                 return created is null
                     ? new ExternalTaskUpsertResult(ExternalTaskUpsertOutcome.ProjectNotFound)
                     : new ExternalTaskUpsertResult(ExternalTaskUpsertOutcome.Created, created);
@@ -71,7 +74,13 @@ public class IntegrationExternalTaskService(
         if (id is not null) await taskService.DeleteAsync(id.Value);
     }
 
-    private static CreateTaskRequest ToCreateRequest(UpsertExternalTaskRequest request) =>
+    private async Task<Guid?> ResolveDefaultProjectAsync(Guid? defaultProjectId, Guid userId)
+    {
+        if (defaultProjectId is not Guid projectId) return null;
+        return await accessService.CanAccessProjectAsync(projectId, userId) ? projectId : null;
+    }
+
+    private static CreateTaskRequest ToCreateRequest(UpsertExternalTaskRequest request, Guid? projectId) =>
         new(
             request.Content!,
             request.Description,
@@ -80,7 +89,7 @@ public class IntegrationExternalTaskService(
             request.DueDate,
             request.DueTime,
             request.EstimatedHours,
-            request.ProjectId,
+            projectId,
             request.Tags,
             null);
 

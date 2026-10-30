@@ -8,6 +8,7 @@ public interface IIntegrationExternalTaskService
         TaskExternalReference reference,
         UpsertExternalTaskRequest request,
         ExternalTaskPermissions permissions,
+        Guid? defaultProjectId,
         CancellationToken ct = default);
 
     Task<TaskDetailResponse?> GetAsync(string source, string externalId, CancellationToken ct = default);

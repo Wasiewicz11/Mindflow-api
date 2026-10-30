@@ -15,6 +15,10 @@ public class IntegrationToken
     [MaxLength(20)]
     public required string TokenPrefix { get; set; }
     public ICollection<IntegrationTokenPermission> Permissions { get; set; } = [];
+    /// <summary>Set for tokens issued to a registered app through the authorization code flow.</summary>
+    [MaxLength(40)]
+    public string? ClientId { get; set; }
+    public Guid? DefaultProjectId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset ExpiresAt { get; set; }
     public DateTimeOffset? LastUsedAt { get; set; }

@@ -14,6 +14,7 @@ using Microsoft.EntityFrameworkCore;
 using Mindflow.Api.Authentication;
 using Mindflow.Api.Data;
 using Mindflow.Api.Hubs;
+using Mindflow.Api.Middleware;
 using Mindflow.Api.Models.Enums;
 using Mindflow.Api.Repositories;
 using Mindflow.Api.Services;
@@ -220,6 +221,25 @@ public static class ServiceCollectionExtensions
                     Window = TimeSpan.FromMinutes(1),
                     SegmentsPerWindow = 6,
                     QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                    QueueLimit = 0
+                });
+            });
+
+            options.AddPolicy(IntegrationRoutes.OAuthRateLimitPolicy, context =>
+            {
+                var services = context.RequestServices;
+                var permitsPerMinute = services
+                    .GetRequiredService<IOptions<IntegrationTokenOptions>>()
+                    .Value.OAuthRateLimitPermitsPerMinute;
+
+                var clientId = context.Items[OAuthClientIdCaptureMiddleware.ItemKey] as string;
+                var knownClientId = services.GetRequiredService<IIntegrationClientRegistry>().Find(clientId)?.Id ?? "unknown";
+                var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+                return RateLimitPartition.GetFixedWindowLimiter($"oauth:{knownClientId}:{ip}", _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = permitsPerMinute,
+                    Window = TimeSpan.FromMinutes(1),
                     QueueLimit = 0
                 });
             });

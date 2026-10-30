@@ -6,4 +6,10 @@ public static class IntegrationRoutes
     public const string Base = "api/integration/v1";
 
     public const string RateLimitPolicy = "integration-api";
+
+    public const string OAuth = Base + "/oauth";
+
+    public const string OAuthTokenPath = "/" + OAuth + "/token";
+
+    public const string OAuthRateLimitPolicy = "integration-oauth";
 }

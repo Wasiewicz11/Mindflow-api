@@ -40,6 +40,16 @@ public class IntegrationTokenAuthenticationHandler(
             new(IntegrationTokenAuthenticationDefaults.TokenIdClaim, validation.TokenId.ToString())
         };
 
+        if (validation.ClientId is not null)
+        {
+            claims.Add(new Claim(IntegrationTokenAuthenticationDefaults.ClientIdClaim, validation.ClientId));
+        }
+
+        if (validation.DefaultProjectId is Guid defaultProjectId)
+        {
+            claims.Add(new Claim(IntegrationTokenAuthenticationDefaults.DefaultProjectIdClaim, defaultProjectId.ToString()));
+        }
+
         claims.AddRange(validation.Scopes.Select(scope =>
             new Claim(IntegrationTokenAuthenticationDefaults.ScopeClaim, IntegrationScopeCatalog.ToName(scope))));
 

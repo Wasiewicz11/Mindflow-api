@@ -17,13 +17,18 @@ public partial class IntegrationAuthorizationService(
     ICurrentUserService currentUserService,
     IAccessService accessService,
     IIntegrationClientRegistry clientRegistry,
-    IIntegrationAuthorizationCodeRepository codeRepository) : IIntegrationAuthorizationService
+    IIntegrationAuthorizationCodeRepository codeRepository,
+    IIntegrationService integrationService) : IIntegrationAuthorizationService
 {
     public const string CodeChallengeMethod = "S256";
+    public const string AuthorizationCodeGrant = "authorization_code";
     public static readonly TimeSpan CodeLifetime = TimeSpan.FromMinutes(5);
 
     [GeneratedRegex(@"^[A-Za-z0-9_-]{43}\z")]
     private static partial Regex CodeChallengePattern();
+
+    [GeneratedRegex(@"^[A-Za-z0-9\-._~]{43,128}\z")]
+    private static partial Regex CodeVerifierPattern();
 
     public IntegrationAuthorizationPreviewResponse Preview(string? clientId, string? redirectUri, string? scope)
     {
@@ -87,6 +92,55 @@ public partial class IntegrationAuthorizationService(
         return new IntegrationAuthorizationResponse(QueryHelpers.AddQueryString(request.RedirectUri, query));
     }
 
+    public async Task<OAuthTokenResponse> ExchangeCodeAsync(OAuthTokenRequest request, CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(request.GrantType)) throw new OAuthException(OAuthException.InvalidRequest);
+        if (request.GrantType != AuthorizationCodeGrant) throw new OAuthException(OAuthException.UnsupportedGrantType);
+
+        if (string.IsNullOrEmpty(request.Code)
+            || string.IsNullOrEmpty(request.RedirectUri)
+            || string.IsNullOrEmpty(request.ClientId)
+            || string.IsNullOrEmpty(request.ClientSecret)
+            || request.CodeVerifier is null
+            || !CodeVerifierPattern().IsMatch(request.CodeVerifier))
+        {
+            throw new OAuthException(OAuthException.InvalidRequest);
+        }
+
+        var client = clientRegistry.Find(request.ClientId);
+        if (client is null || !clientRegistry.VerifySecret(client, request.ClientSecret))
+        {
+            throw new OAuthException(OAuthException.InvalidClient);
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var code = await codeRepository.ConsumeAsync(HashCode(request.Code), now, ct);
+        if (code?.User is null
+            || !string.Equals(code.ClientId, client.Id, StringComparison.Ordinal)
+            || !string.Equals(code.RedirectUri, request.RedirectUri, StringComparison.Ordinal)
+            || !MatchesChallenge(request.CodeVerifier, code.CodeChallenge))
+        {
+            throw new OAuthException(OAuthException.InvalidGrant);
+        }
+
+        var scopes = code.Scopes
+            .Select(name => IntegrationScopeCatalog.TryParse(name, out var scope) ? scope : (IntegrationTokenScope?)null)
+            .OfType<IntegrationTokenScope>()
+            .Where(client.AllowedScopes.Contains)
+            .ToList();
+        if (scopes.Count == 0) throw new OAuthException(OAuthException.InvalidGrant);
+
+        var issued = await integrationService.IssueClientTokenAsync(client, code.UserId, scopes, code.DefaultProjectId, ct);
+
+        return new OAuthTokenResponse(
+            issued.Token,
+            "Bearer",
+            (long)(issued.ExpiresAt - now).TotalSeconds,
+            string.Join(' ', scopes),
+            new OAuthAccountResponse(code.User.Email, code.User.FirstName, code.User.LastName),
+            code.DefaultProjectId);
+    }
+
     public static string HashCode(string code) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(code))).ToLowerInvariant();
 
@@ -109,6 +163,14 @@ public partial class IntegrationAuthorizationService(
         {
             throw new BadRequestException("Requested scope is not allowed for this client.");
         }
+    }
+
+    private static bool MatchesChallenge(string codeVerifier, string codeChallenge)
+    {
+        var computed = Base64UrlEncoder.Encode(SHA256.HashData(Encoding.ASCII.GetBytes(codeVerifier)));
+        return CryptographicOperations.FixedTimeEquals(
+            Encoding.ASCII.GetBytes(computed),
+            Encoding.ASCII.GetBytes(codeChallenge));
     }
 
     private static List<IntegrationTokenScope> ParseScopes(string? scope)

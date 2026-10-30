@@ -38,11 +38,14 @@ public class MindflowApiFactory : WebApplicationFactory<Program>
         ["Jwt:Issuer"] = JwtIssuer,
         ["Jwt:Audience"] = JwtAudience,
         ["IntegrationTokens:HashPepper"] = "mindflow-tests-integration-pepper-0123456789",
+        ["IntegrationTokens:OAuthRateLimitPermitsPerMinute"] = OAuthRateLimitPermitsPerMinute.ToString(),
         ["Integrations:Clients:rendmark:Name"] = "Rendmark",
         ["Integrations:Clients:rendmark:SecretHash"] = Sha256Hex(ClientSecret),
         ["Integrations:Clients:rendmark:RedirectUris:0"] = RedirectUri,
         ["Integrations:Clients:rendmark:TokenLifetimeDays"] = "365"
     };
+
+    protected virtual int OAuthRateLimitPermitsPerMinute => 1000;
 
     public const string ClientId = "rendmark";
     public const string ClientSecret = "mindflow-tests-client-secret";
