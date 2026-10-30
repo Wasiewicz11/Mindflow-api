@@ -160,6 +160,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICalendarBlockRepository, CalendarBlockRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<IIntegrationTokenRepository, IntegrationTokenRepository>();
+        services.AddScoped<IIntegrationAuthorizationCodeRepository, IntegrationAuthorizationCodeRepository>();
         services.AddScoped<IPomodoroSessionRepository, PomodoroSessionRepository>();
         services.AddScoped<IBrainGraphRepository, BrainGraphRepository>();
         services.AddScoped<IGoalDayRepository, GoalDayRepository>();
@@ -247,7 +248,17 @@ public static class ServiceCollectionExtensions
                 $"{IntegrationTokenOptions.SectionName}:HashPepper must contain at least 32 bytes.")
             .ValidateOnStart();
 
+        services.AddOptions<IntegrationClientsOptions>()
+            .Bind(config.GetSection(IntegrationClientsOptions.SectionName))
+            .Validate(
+                options => options.Clients.Values.All(client =>
+                    string.IsNullOrEmpty(client.SecretHash) || IntegrationClientRegistry.IsSha256Hex(client.SecretHash)),
+                $"{IntegrationClientsOptions.SectionName}:Clients:*:SecretHash must be a 64-character SHA-256 hex string.")
+            .ValidateOnStart();
+
+        services.AddSingleton<IIntegrationClientRegistry, IntegrationClientRegistry>();
         services.AddScoped<IIntegrationService, IntegrationService>();
+        services.AddScoped<IIntegrationAuthorizationService, IntegrationAuthorizationService>();
         services.AddScoped<IIntegrationProjectService, IntegrationProjectService>();
         services.AddScoped<IIntegrationTaskQueryService, IntegrationTaskQueryService>();
         services.AddScoped<IIntegrationDocsService, IntegrationDocsService>();

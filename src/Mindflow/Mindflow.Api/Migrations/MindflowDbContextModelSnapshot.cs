@@ -531,6 +531,78 @@ namespace Mindflow.Api.Migrations
                     b.ToTable("google_calendar_connections", (string)null);
                 });
 
+            modelBuilder.Entity("Mindflow.Api.Models.IntegrationAuthorizationCode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ClientId")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("CodeChallenge")
+                        .IsRequired()
+                        .HasMaxLength(43)
+                        .HasColumnType("character varying(43)")
+                        .HasColumnName("code_challenge");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("code_hash");
+
+                    b.Property<DateTimeOffset?>("ConsumedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("consumed_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("DefaultProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("default_project_id");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("RedirectUri")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
+                        .HasColumnName("redirect_uri");
+
+                    b.PrimitiveCollection<List<string>>("Scopes")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("scopes");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_integration_authorization_codes");
+
+                    b.HasIndex("CodeHash")
+                        .IsUnique()
+                        .HasDatabaseName("ix_integration_authorization_codes_code_hash");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("ix_integration_authorization_codes_expires_at");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_integration_authorization_codes_user_id");
+
+                    b.ToTable("integration_authorization_codes", (string)null);
+                });
+
             modelBuilder.Entity("Mindflow.Api.Models.IntegrationToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1699,6 +1771,18 @@ namespace Mindflow.Api.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_google_calendar_connections_users_user_id");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Mindflow.Api.Models.IntegrationAuthorizationCode", b =>
+                {
+                    b.HasOne("Mindflow.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_integration_authorization_codes_users_user_id");
 
                     b.Navigation("User");
                 });

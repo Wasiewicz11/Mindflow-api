@@ -83,6 +83,23 @@ public record UpsertExternalTaskRequest(
     IReadOnlyCollection<string>? Tags,
     [MaxLength(2048)] string? ExternalUrl);
 
+public record IntegrationAuthorizationPreviewResponse(
+    string ClientId,
+    string Name,
+    IReadOnlyCollection<IntegrationTokenScope> Scopes,
+    string RedirectUri);
+
+public record IntegrationAuthorizationRequest(
+    string ClientId,
+    string RedirectUri,
+    IReadOnlyCollection<IntegrationTokenScope> Scopes,
+    [MaxLength(1024)] string? State,
+    string CodeChallenge,
+    string CodeChallengeMethod,
+    Guid? DefaultProjectId);
+
+public record IntegrationAuthorizationResponse(string RedirectUrl);
+
 public record IntegrationScopeDoc(
     string Scope,
     string Permission,

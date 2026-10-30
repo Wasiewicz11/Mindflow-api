@@ -38,4 +38,15 @@ public static class IntegrationScopeCatalog
             : throw new ArgumentOutOfRangeException(nameof(scope), scope, "Scope is missing from the catalog.");
 
     public static bool IsKnown(IntegrationTokenScope scope) => ByScope.ContainsKey(scope);
+
+    /// <summary>Accepts the enum name ("TasksRead") or the public name ("tasks:read"), never a number.</summary>
+    public static bool TryParse(string value, out IntegrationTokenScope scope)
+    {
+        var definition = Definitions.FirstOrDefault(candidate =>
+            string.Equals(candidate.Scope.ToString(), value, StringComparison.Ordinal)
+            || string.Equals(candidate.Name, value, StringComparison.Ordinal));
+
+        scope = definition?.Scope ?? default;
+        return definition is not null;
+    }
 }

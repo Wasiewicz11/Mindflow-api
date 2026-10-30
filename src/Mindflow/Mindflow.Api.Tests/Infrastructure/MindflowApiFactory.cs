@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -36,8 +37,19 @@ public class MindflowApiFactory : WebApplicationFactory<Program>
         ["Jwt:Secret"] = JwtSecret,
         ["Jwt:Issuer"] = JwtIssuer,
         ["Jwt:Audience"] = JwtAudience,
-        ["IntegrationTokens:HashPepper"] = "mindflow-tests-integration-pepper-0123456789"
+        ["IntegrationTokens:HashPepper"] = "mindflow-tests-integration-pepper-0123456789",
+        ["Integrations:Clients:rendmark:Name"] = "Rendmark",
+        ["Integrations:Clients:rendmark:SecretHash"] = Sha256Hex(ClientSecret),
+        ["Integrations:Clients:rendmark:RedirectUris:0"] = RedirectUri,
+        ["Integrations:Clients:rendmark:TokenLifetimeDays"] = "365"
     };
+
+    public const string ClientId = "rendmark";
+    public const string ClientSecret = "mindflow-tests-client-secret";
+    public const string RedirectUri = "https://rendmark.test/integrations/mindflow/callback";
+
+    public static string Sha256Hex(string value) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

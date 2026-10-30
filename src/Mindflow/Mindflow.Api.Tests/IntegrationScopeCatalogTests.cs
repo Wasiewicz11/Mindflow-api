@@ -42,4 +42,23 @@ public class IntegrationScopeCatalogTests
             Assert.Equal(definition.Name, IntegrationScopeCatalog.ToName(definition.Scope));
         }
     }
+
+    [Theory]
+    [InlineData("TasksRead", IntegrationTokenScope.TasksRead)]
+    [InlineData("tasks:read", IntegrationTokenScope.TasksRead)]
+    [InlineData("time_entries:delete", IntegrationTokenScope.TimeEntriesDelete)]
+    public void Scope_parses_from_enum_or_public_name(string value, IntegrationTokenScope expected)
+    {
+        Assert.True(IntegrationScopeCatalog.TryParse(value, out var scope));
+        Assert.Equal(expected, scope);
+    }
+
+    [Theory]
+    [InlineData("1")]
+    [InlineData("tasksread")]
+    [InlineData("")]
+    public void Unknown_or_numeric_scope_does_not_parse(string value)
+    {
+        Assert.False(IntegrationScopeCatalog.TryParse(value, out _));
+    }
 }

@@ -26,6 +26,7 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
     public DbSet<GoogleCalendarConnection> GoogleCalendarConnections { get; set; }
     public DbSet<IntegrationToken> IntegrationTokens { get; set; }
     public DbSet<IntegrationTokenPermission> IntegrationTokenPermissions { get; set; }
+    public DbSet<IntegrationAuthorizationCode> IntegrationAuthorizationCodes { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<AiSuggestion> AiSuggestions { get; set; }
     public DbSet<SuggestionAction> SuggestionActions { get; set; }
@@ -298,6 +299,24 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
 
             entity.HasIndex(permission => new { permission.IntegrationTokenId, permission.Scope })
                 .IsUnique();
+        });
+
+        modelBuilder.Entity<IntegrationAuthorizationCode>(entity =>
+        {
+            entity.ToTable("integration_authorization_codes");
+
+            entity.Property(code => code.Scopes)
+                .HasColumnType("text[]")
+                .IsRequired();
+
+            entity.HasOne(code => code.User)
+                .WithMany()
+                .HasForeignKey(code => code.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(code => code.CodeHash)
+                .IsUnique();
+            entity.HasIndex(code => code.ExpiresAt);
         });
 
         modelBuilder.Entity<TaskActivityEvent>(entity =>
