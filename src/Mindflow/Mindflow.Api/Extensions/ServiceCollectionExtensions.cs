@@ -251,6 +251,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IIntegrationProjectService, IntegrationProjectService>();
         services.AddScoped<IIntegrationTaskQueryService, IntegrationTaskQueryService>();
         services.AddScoped<IIntegrationDocsService, IntegrationDocsService>();
+        services.AddScoped<IIntegrationExternalTaskService, IntegrationExternalTaskService>();
 
         return services;
     }

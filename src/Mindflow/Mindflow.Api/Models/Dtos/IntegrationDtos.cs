@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Mindflow.Api.Models.Enums;
 using TaskStatus = Mindflow.Api.Models.Enums.TaskStatus;
 
@@ -69,6 +70,18 @@ public record IntegrationTaskPageResponse(
     int Total,
     int Limit,
     int Offset);
+
+public record UpsertExternalTaskRequest(
+    [MaxLength(1000)] string? Content,
+    [MaxLength(10000)] string? Description,
+    TaskPriority? Priority,
+    TaskStatus? Status,
+    DateOnly? DueDate,
+    TimeOnly? DueTime,
+    [Range(0.01, 1000)] decimal? EstimatedHours,
+    Guid? ProjectId,
+    IReadOnlyCollection<string>? Tags,
+    [MaxLength(2048)] string? ExternalUrl);
 
 public record IntegrationScopeDoc(
     string Scope,

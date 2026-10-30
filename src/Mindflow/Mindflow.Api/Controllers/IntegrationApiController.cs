@@ -20,7 +20,9 @@ public class IntegrationApiController(
     ITaskTimeEntryService timeEntryService,
     IIntegrationProjectService integrationProjectService,
     IIntegrationTaskQueryService integrationTaskQueryService,
-    IIntegrationDocsService integrationDocsService) : ControllerBase
+    IIntegrationDocsService integrationDocsService,
+    IIntegrationExternalTaskService externalTaskService,
+    IWebHostEnvironment environment) : ControllerBase
 {
     private const int DefaultPageSize = 50;
     private const int MaxPageSize = 200;
@@ -119,6 +121,65 @@ public class IntegrationApiController(
         return NoContent();
     }
 
+    [HttpGet("tasks/external/{source}/{externalId}")]
+    [RequireIntegrationScope(IntegrationTokenScope.TasksRead)]
+    public async Task<IActionResult> GetExternalTask(string source, string externalId, CancellationToken ct)
+    {
+        var rejection = RejectExternalReference(source, externalId, null);
+        if (rejection is not null) return rejection;
+
+        var task = await externalTaskService.GetAsync(source, externalId, ct);
+        if (task is null) return NotFound();
+
+        return Ok(task);
+    }
+
+    [HttpPut("tasks/external/{source}/{externalId}")]
+    [IntegrationEndpointDoc(
+        "tasks:create (new task) or tasks:update (existing task)",
+        "Create or update the task linked to an id in an external system.")]
+    public async Task<IActionResult> UpsertExternalTask(
+        string source,
+        string externalId,
+        [FromBody] UpsertExternalTaskRequest request,
+        CancellationToken ct)
+    {
+        var rejection = RejectExternalReference(source, externalId, request.ExternalUrl);
+        if (rejection is not null) return rejection;
+
+        var permissions = new ExternalTaskPermissions(
+            User.HasIntegrationScope(IntegrationTokenScope.TasksCreate),
+            User.HasIntegrationScope(IntegrationTokenScope.TasksUpdate));
+        if (!permissions.CanCreate && !permissions.CanUpdate)
+        {
+            return Forbid(IntegrationTokenAuthenticationDefaults.Scheme);
+        }
+
+        var reference = new TaskExternalReference(source, externalId, request.ExternalUrl);
+        var result = await externalTaskService.UpsertAsync(reference, request, permissions, ct);
+
+        return result.Outcome switch
+        {
+            ExternalTaskUpsertOutcome.Created => CreatedAtAction(nameof(GetExternalTask), new { source, externalId }, result.Task),
+            ExternalTaskUpsertOutcome.Updated => Ok(result.Task),
+            ExternalTaskUpsertOutcome.Forbidden => Forbid(IntegrationTokenAuthenticationDefaults.Scheme),
+            ExternalTaskUpsertOutcome.ContentRequired => ValidationProblem(new ValidationProblemDetails(
+                new Dictionary<string, string[]> { ["content"] = ["Content is required to create a task."] })),
+            _ => NotFound()
+        };
+    }
+
+    [HttpDelete("tasks/external/{source}/{externalId}")]
+    [RequireIntegrationScope(IntegrationTokenScope.TasksDelete)]
+    public async Task<IActionResult> DeleteExternalTask(string source, string externalId, CancellationToken ct)
+    {
+        var rejection = RejectExternalReference(source, externalId, null);
+        if (rejection is not null) return rejection;
+
+        await externalTaskService.DeleteAsync(source, externalId, ct);
+        return NoContent();
+    }
+
     [HttpGet("tasks/{taskId:guid}/subtasks")]
     [RequireIntegrationScope(IntegrationTokenScope.SubtasksRead)]
     public async Task<IActionResult> GetSubtasks(Guid taskId)
@@ -201,6 +262,23 @@ public class IntegrationApiController(
         if (!deleted) return NotFound();
 
         return NoContent();
+    }
+
+    private IActionResult? RejectExternalReference(string source, string externalId, string? externalUrl)
+    {
+        var errors = ExternalTaskReferenceRules.Validate(source, externalId, externalUrl, environment.IsDevelopment());
+        if (errors.Count > 0) return ValidationProblem(new ValidationProblemDetails(errors));
+
+        var clientId = User.GetIntegrationClientId();
+        if (clientId is not null && !string.Equals(clientId, source, StringComparison.Ordinal))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "Source not allowed",
+                detail: $"This token can only use the source '{clientId}'.");
+        }
+
+        return null;
     }
 
     private static IntegrationPageQuery BuildPageQuery(int? limit, int? offset)

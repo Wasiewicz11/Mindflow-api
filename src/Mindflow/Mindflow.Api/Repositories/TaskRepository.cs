@@ -75,6 +75,19 @@ public class TaskRepository(MindflowDbContext db) : ITaskRepository
             .FirstOrDefaultAsync(t => t.Id == id);
     }
 
+    public async Task<Guid?> FindIdByExternalReferenceAsync(
+        Guid userId,
+        string source,
+        string externalId,
+        CancellationToken ct = default)
+    {
+        return await db.Tasks
+            .AsNoTracking()
+            .Where(t => t.UserId == userId && t.ExternalSource == source && t.ExternalId == externalId)
+            .Select(t => (Guid?)t.Id)
+            .FirstOrDefaultAsync(ct);
+    }
+
     public async Task<TaskItem?> CreateAsync(TaskItem task)
     {
         db.Tasks.Add(task);

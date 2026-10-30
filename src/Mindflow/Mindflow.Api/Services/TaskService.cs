@@ -61,7 +61,7 @@ public class TaskService(
         return TaskResponseMapper.ToDetailResponse(task, loggedMinutes, subtaskMinutes);
     }
 
-    public async Task<TaskDetailResponse?> CreateAsync(CreateTaskRequest request)
+    public async Task<TaskDetailResponse?> CreateAsync(CreateTaskRequest request, TaskExternalReference? externalReference = null)
     {
         var userId = await currentUserService.GetCurrentUserIdAsync();
         EnsureDueTimeIsValid(request.DueDate, request.DueTime);
@@ -94,6 +94,9 @@ public class TaskService(
             EstimatedHours = request.EstimatedHours,
             Tags = tags,
             Subtasks = NormalizeSubtasks(request.Subtasks, request.DueDate),
+            ExternalSource = externalReference?.Source,
+            ExternalId = externalReference?.ExternalId,
+            ExternalUrl = externalReference?.Url,
             CreatedAt = DateTimeOffset.UtcNow
         };
 
@@ -129,7 +132,7 @@ public class TaskService(
         return TaskResponseMapper.ToDetailResponse(created);
     }
 
-    public async Task<TaskDetailResponse?> UpdateAsync(Guid id, UpdateTaskRequest request)
+    public async Task<TaskDetailResponse?> UpdateAsync(Guid id, UpdateTaskRequest request, TaskExternalReference? externalReference = null)
     {
         var userId = await currentUserService.GetCurrentUserIdAsync();
 
@@ -169,6 +172,7 @@ public class TaskService(
         if (request.ProjectId.HasValue) task.ProjectId = request.ProjectId;
         if (request.Status.HasValue) task.Status = request.Status.Value;
         if (request.Tags is not null) task.Tags = NormalizeTags(request.Tags);
+        if (externalReference?.Url is not null) task.ExternalUrl = externalReference.Url;
         NormalizeSubtaskDueDates(task);
 
         if (task.ProjectId.HasValue && task.Tags.Count > 0)

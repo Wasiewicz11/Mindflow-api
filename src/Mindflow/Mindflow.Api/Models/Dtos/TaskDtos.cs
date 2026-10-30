@@ -30,6 +30,8 @@ public record UpdateTaskRequest(
     Guid? ProjectId,
     IReadOnlyCollection<string>? Tags);
 
+public record TaskExternalReference(string Source, string ExternalId, string? Url);
+
 public record TaskSubtaskRequest(
     string? Id,
     [MaxLength(1000)] string Content,

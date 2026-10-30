@@ -36,7 +36,17 @@ public class IntegrationDocsService(EndpointDataSource endpointDataSource) : IIn
     private static IntegrationEndpointDoc ToEndpointDoc(RouteEndpoint endpoint)
     {
         var methods = endpoint.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.HttpMethodMetadata>()?.HttpMethods ?? [];
+        var documented = endpoint.Metadata.GetMetadata<IntegrationEndpointDocAttribute>();
         var required = endpoint.Metadata.GetMetadata<RequireIntegrationScopeAttribute>();
+
+        if (documented is not null)
+        {
+            return new IntegrationEndpointDoc(
+                string.Join(", ", methods),
+                $"/{endpoint.RoutePattern.RawText}",
+                documented.Scope,
+                documented.Description);
+        }
 
         var scope = required is null
             ? "any valid token"
