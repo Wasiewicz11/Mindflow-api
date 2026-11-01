@@ -12,6 +12,7 @@ public interface INotificationService
     Task UnsubscribeAsync(Guid userId, Guid subscriptionId, CancellationToken ct = default);
     Task<IReadOnlyList<NotificationInboxItemResponse>> GetInboxItemsAsync(Guid userId, CancellationToken ct = default);
     Task<NotificationInboxPageResponse> GetInboxPageAsync(Guid userId, int limit, int offset, CancellationToken ct = default);
+    Task<int> CountUnreadInboxItemsAsync(Guid userId, CancellationToken ct = default);
     Task MarkInboxItemReadAsync(Guid userId, Guid notificationId, CancellationToken ct = default);
     Task MarkInboxItemUnreadAsync(Guid userId, Guid notificationId, CancellationToken ct = default);
     Task MarkAllInboxItemsReadAsync(Guid userId, CancellationToken ct = default);

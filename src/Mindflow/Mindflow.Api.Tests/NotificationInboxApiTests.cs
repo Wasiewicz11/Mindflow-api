@@ -159,6 +159,19 @@ public class NotificationInboxApiTests(MindflowApiFactory factory) : IClassFixtu
         Assert.Equal(2, (await LoadAsync(otherId)).Count);
     }
 
+    [LocalDatabaseFact]
+    public async Task Unread_count_covers_the_whole_inbox_of_the_caller()
+    {
+        var (client, userId) = await CreateClientAsync();
+        var (_, otherId) = await CreateClientAsync();
+        await SeedAsync(userId, count: 40, readCount: 5);
+        await SeedAsync(otherId, count: 3);
+
+        var count = await client.GetFromJsonAsync<NotificationInboxUnreadCountResponse>($"{Inbox}/unread-count", MindflowApiFactory.Json);
+
+        Assert.Equal(35, count!.Unread);
+    }
+
     private async Task<(HttpClient Client, Guid UserId)> CreateClientAsync()
     {
         var user = await factory.CreateUserAsync();

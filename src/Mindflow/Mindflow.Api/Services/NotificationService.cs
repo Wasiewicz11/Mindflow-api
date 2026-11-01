@@ -171,6 +171,9 @@ public class NotificationService(
         return new NotificationInboxPageResponse(items, total, unread);
     }
 
+    public Task<int> CountUnreadInboxItemsAsync(Guid userId, CancellationToken ct = default) =>
+        InboxOf(userId).CountAsync(item => item.ReadAt == null, ct);
+
     public async Task MarkInboxItemReadAsync(Guid userId, Guid notificationId, CancellationToken ct = default)
     {
         var item = await db.NotificationInboxItems

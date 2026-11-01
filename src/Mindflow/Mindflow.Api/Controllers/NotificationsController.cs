@@ -76,6 +76,13 @@ public class NotificationsController(
         return Ok(await notificationService.GetInboxPageAsync(userId, limit, offset, ct));
     }
 
+    [HttpGet("inbox/unread-count")]
+    public async Task<ActionResult<NotificationInboxUnreadCountResponse>> GetUnreadCount(CancellationToken ct)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        return Ok(new NotificationInboxUnreadCountResponse(await notificationService.CountUnreadInboxItemsAsync(userId, ct)));
+    }
+
     [HttpPut("inbox/read-all")]
     public async Task<IActionResult> MarkAllInboxItemsRead(CancellationToken ct)
     {
