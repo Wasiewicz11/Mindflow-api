@@ -19,6 +19,7 @@ using Mindflow.Api.Models.Enums;
 using Mindflow.Api.Repositories;
 using Mindflow.Api.Services;
 using Mindflow.Api.Services.Ai;
+using Mindflow.Api.Services.Ai.Dictation;
 using Mindflow.Api.Services.Ai.Providers;
 using Mindflow.Api.Services.GoogleCalendar;
 using Mindflow.Api.Services.Integrations;
@@ -358,6 +359,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAiCredentialResolver, AiCredentialResolver>();
         services.AddScoped<IAiConnectionChecker, AiConnectionChecker>();
         services.AddScoped<IAiSettingsService, AiSettingsService>();
+        services.AddScoped<IDictationEngine, GeminiDictationEngine>();
+        services.AddScoped<IDictationEngine, OpenAiDictationEngine>();
+        services.AddScoped<IDictationService, DictationService>();
         services.AddHttpClient<GeminiApi>(client => client.Timeout = TimeSpan.FromSeconds(120));
         services.AddHttpClient<OpenAiApi>(client => client.Timeout = TimeSpan.FromSeconds(120));
 
