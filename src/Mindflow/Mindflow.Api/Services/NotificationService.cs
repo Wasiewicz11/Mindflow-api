@@ -181,6 +181,13 @@ public class NotificationService(
         await db.SaveChangesAsync(ct);
     }
 
+    public async Task MarkInboxItemUnreadAsync(Guid userId, Guid notificationId, CancellationToken ct = default)
+    {
+        await InboxOf(userId)
+            .Where(item => item.Id == notificationId && item.ReadAt != null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.ReadAt, (DateTimeOffset?)null), ct);
+    }
+
     private IQueryable<NotificationInboxItem> InboxOf(Guid userId) =>
         db.NotificationInboxItems.Where(item => item.UserId == userId);
 

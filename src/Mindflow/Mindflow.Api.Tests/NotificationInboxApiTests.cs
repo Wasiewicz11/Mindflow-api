@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
 using Mindflow.Api.Models;
 using Mindflow.Api.Models.Dtos;
 using Mindflow.Api.Models.Enums;
@@ -72,6 +73,31 @@ public class NotificationInboxApiTests(MindflowApiFactory factory) : IClassFixtu
         Assert.Equal((1, 1), (page.Total, page.Unread));
     }
 
+    [LocalDatabaseFact]
+    public async Task Single_notification_can_be_marked_unread_again()
+    {
+        var (client, userId) = await CreateClientAsync();
+        var id = (await SeedAsync(userId, count: 1))[0];
+
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsync($"{Inbox}/{id}/read", null)).StatusCode);
+        Assert.Equal(0, (await GetPageAsync(client, "")).Unread);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsync($"{Inbox}/{id}/unread", null)).StatusCode);
+        Assert.Null((await GetPageAsync(client, "")).Items.Single().ReadAt);
+    }
+
+    [LocalDatabaseFact]
+    public async Task Marking_unread_does_not_touch_other_users_notifications()
+    {
+        var (client, _) = await CreateClientAsync();
+        var (_, otherId) = await CreateClientAsync();
+        var otherIds = await SeedAsync(otherId, count: 1, readCount: 1);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsync($"{Inbox}/{otherIds[0]}/unread", null)).StatusCode);
+
+        Assert.All(await LoadAsync(otherId), item => Assert.NotNull(item.ReadAt));
+    }
+
     private async Task<(HttpClient Client, Guid UserId)> CreateClientAsync()
     {
         var user = await factory.CreateUserAsync();
@@ -110,4 +136,7 @@ public class NotificationInboxApiTests(MindflowApiFactory factory) : IClassFixtu
 
         return items.OrderByDescending(item => item.CreatedAt).Select(item => item.Id).ToList();
     }
+
+    private Task<List<NotificationInboxItem>> LoadAsync(Guid userId) =>
+        factory.WithDbAsync(db => db.NotificationInboxItems.AsNoTracking().Where(item => item.UserId == userId).ToListAsync());
 }

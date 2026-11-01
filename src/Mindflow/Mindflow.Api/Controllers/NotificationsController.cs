@@ -84,6 +84,14 @@ public class NotificationsController(
         return NoContent();
     }
 
+    [HttpPut("inbox/{notificationId:guid}/unread")]
+    public async Task<IActionResult> MarkInboxItemUnread(Guid notificationId, CancellationToken ct)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        await notificationService.MarkInboxItemUnreadAsync(userId, notificationId, ct);
+        return NoContent();
+    }
+
     [HttpPost("test")]
     public async Task<ActionResult<NotificationTestResponse>> SendTest(CancellationToken ct)
     {
