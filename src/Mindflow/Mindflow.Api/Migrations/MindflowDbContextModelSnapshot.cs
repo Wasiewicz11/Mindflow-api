@@ -94,6 +94,10 @@ namespace Mindflow.Api.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("ai_calls");
 
+                    b.Property<int>("DictationCalls")
+                        .HasColumnType("integer")
+                        .HasColumnName("dictation_calls");
+
                     b.HasKey("UserId", "Date")
                         .HasName("pk_ai_usage_daily");
 
@@ -1688,6 +1692,55 @@ namespace Mindflow.Api.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("Mindflow.Api.Models.UserAiSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ApiKeyEncrypted")
+                        .HasColumnType("text")
+                        .HasColumnName("api_key_encrypted");
+
+                    b.Property<string>("ApiKeyLast4")
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)")
+                        .HasColumnName("api_key_last4");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Model")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("model");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("provider");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_user_ai_settings");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_user_ai_settings_user_id");
+
+                    b.ToTable("user_ai_settings", (string)null);
+                });
+
             modelBuilder.Entity("Mindflow.Api.Models.UserIdentity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1957,6 +2010,18 @@ namespace Mindflow.Api.Migrations
                         .HasForeignKey("TaskId")
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_task_time_entries_tasks_task_id");
+                });
+
+            modelBuilder.Entity("Mindflow.Api.Models.UserAiSettings", b =>
+                {
+                    b.HasOne("Mindflow.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_user_ai_settings_users_user_id");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Mindflow.Api.Models.UserIdentity", b =>

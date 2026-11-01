@@ -31,6 +31,7 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
     public DbSet<AiSuggestion> AiSuggestions { get; set; }
     public DbSet<SuggestionAction> SuggestionActions { get; set; }
     public DbSet<AiUsageDaily> AiUsageDaily { get; set; }
+    public DbSet<UserAiSettings> UserAiSettings { get; set; }
     public DbSet<PomodoroSessionState> PomodoroSessions { get; set; }
     public DbSet<BrainMap> BrainMaps { get; set; }
     public DbSet<BrainNode> BrainNodes { get; set; }
@@ -388,6 +389,19 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
         {
             entity.ToTable("ai_usage_daily");
             entity.HasKey(u => new { u.UserId, u.Date });
+        });
+
+        modelBuilder.Entity<UserAiSettings>(entity =>
+        {
+            entity.ToTable("user_ai_settings");
+            entity.Property(s => s.Provider).HasConversion<string>().HasMaxLength(20);
+
+            entity.HasOne(s => s.User)
+                .WithMany()
+                .HasForeignKey(s => s.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(s => s.UserId).IsUnique();
         });
 
         modelBuilder.Entity<GoogleCalendarConnection>(entity =>
