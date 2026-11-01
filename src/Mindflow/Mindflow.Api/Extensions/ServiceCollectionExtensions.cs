@@ -19,6 +19,7 @@ using Mindflow.Api.Models.Enums;
 using Mindflow.Api.Repositories;
 using Mindflow.Api.Services;
 using Mindflow.Api.Services.Ai;
+using Mindflow.Api.Services.Ai.Providers;
 using Mindflow.Api.Services.GoogleCalendar;
 using Mindflow.Api.Services.Integrations;
 
@@ -244,6 +245,24 @@ public static class ServiceCollectionExtensions
                 });
             });
 
+            options.AddPolicy(AiRateLimits.Policy, context =>
+            {
+                var permitsPerMinute = context.RequestServices
+                    .GetRequiredService<IOptions<AiOptions>>()
+                    .Value.Dictation.PermitsPerMinute;
+                var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var partitionKey = userId is null
+                    ? $"ai-ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}"
+                    : $"ai-user:{userId}";
+
+                return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = permitsPerMinute,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0
+                });
+            });
+
             options.OnRejected = (context, _) =>
             {
                 if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
@@ -333,6 +352,14 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISuggestionActionExecutor, SuggestionActionExecutor>();
         services.AddScoped<IAiSuggestionOrchestrator, AiSuggestionOrchestrator>();
         services.AddScoped<ISuggestionService, SuggestionService>();
+
+        services.AddSingleton<IAiKeyProtector, AiKeyProtector>();
+        services.AddScoped<IUserAiSettingsRepository, UserAiSettingsRepository>();
+        services.AddScoped<IAiCredentialResolver, AiCredentialResolver>();
+        services.AddScoped<IAiConnectionChecker, AiConnectionChecker>();
+        services.AddScoped<IAiSettingsService, AiSettingsService>();
+        services.AddHttpClient<GeminiApi>(client => client.Timeout = TimeSpan.FromSeconds(120));
+        services.AddHttpClient<OpenAiApi>(client => client.Timeout = TimeSpan.FromSeconds(120));
 
         services.AddHttpClient<GeminiSuggestionProvider>();
         services.AddHttpClient<OpenAiSuggestionProvider>();
