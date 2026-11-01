@@ -14,6 +14,7 @@ public class SuggestionService(
     ISuggestionRepository repository,
     IAiUsageRepository usageRepository,
     ISuggestionActionExecutor actionExecutor,
+    IAiCredentialResolver credentialResolver,
     ICurrentUserService currentUserService,
     IOptions<AiOptions> options,
     ILogger<SuggestionService> logger) : ISuggestionService
@@ -24,7 +25,8 @@ public class SuggestionService(
     // Ścieżka crona — zawsze z AI, nie dotyka dziennego limitu ręcznych wywołań.
     public async Task<int> GenerateForUserAsync(Guid userId, CancellationToken ct = default)
     {
-        var (created, _) = await GenerateInternalAsync(userId, aiAllowed: true, ct);
+        var credentials = await credentialResolver.ResolveAsync(userId, ct);
+        var (created, _) = await GenerateInternalAsync(userId, credentials, aiAllowed: true, ct);
         return created;
     }
 
@@ -34,9 +36,11 @@ public class SuggestionService(
         var userId = await currentUserService.GetCurrentUserIdAsync();
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var used = await usageRepository.GetAiCallsAsync(userId, today);
-        var aiAllowed = used < _options.ManualAiDailyLimit;
+        var credentials = await credentialResolver.ResolveAsync(userId);
+        var limit = DailyLimit(credentials);
+        var aiAllowed = used < limit;
 
-        var (created, usedAi) = await GenerateInternalAsync(userId, aiAllowed);
+        var (created, usedAi) = await GenerateInternalAsync(userId, credentials, aiAllowed);
         if (usedAi)
         {
             await usageRepository.IncrementAiCallsAsync(userId, today);
@@ -46,7 +50,7 @@ public class SuggestionService(
         return new GenerateSuggestionsResponse(
             usedAi ? "ai" : "offline",
             used,
-            _options.ManualAiDailyLimit,
+            limit,
             created);
     }
 
@@ -55,7 +59,7 @@ public class SuggestionService(
         var userId = await currentUserService.GetCurrentUserIdAsync();
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var used = await usageRepository.GetAiCallsAsync(userId, today);
-        return new SuggestionQuotaResponse(used, _options.ManualAiDailyLimit);
+        return new SuggestionQuotaResponse(used, DailyLimit(await credentialResolver.ResolveAsync(userId)));
     }
 
     public async Task<IReadOnlyList<SuggestionResponse>> GetPendingAsync()
@@ -125,13 +129,16 @@ public class SuggestionService(
         return true;
     }
 
-    private async Task<(int Created, bool UsedAi)> GenerateInternalAsync(Guid userId, bool aiAllowed, CancellationToken ct = default)
+    private int DailyLimit(IReadOnlyList<AiCredentials> credentials) =>
+        credentials.FirstOrDefault()?.Source == AiKeySource.User ? _options.OwnKeyManualAiDailyLimit : _options.ManualAiDailyLimit;
+
+    private async Task<(int Created, bool UsedAi)> GenerateInternalAsync(Guid userId, IReadOnlyList<AiCredentials> credentials, bool aiAllowed, CancellationToken ct = default)
     {
         var snapshotResult = await snapshotBuilder.BuildAsync(userId, ct);
         if (snapshotResult.Snapshot.Tasks.Count == 0)
             return (0, false);
 
-        var result = await orchestrator.GenerateAsync(snapshotResult.Snapshot, aiAllowed, ct);
+        var result = await orchestrator.GenerateAsync(snapshotResult.Snapshot, credentials, aiAllowed, ct);
         if (result.Drafts.Count == 0)
             return (0, false);
 

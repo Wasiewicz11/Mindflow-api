@@ -365,10 +365,8 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient<GeminiApi>(client => client.Timeout = TimeSpan.FromSeconds(120));
         services.AddHttpClient<OpenAiApi>(client => client.Timeout = TimeSpan.FromSeconds(120));
 
-        services.AddHttpClient<GeminiSuggestionProvider>();
-        services.AddHttpClient<OpenAiSuggestionProvider>();
-        services.AddScoped<IAiSuggestionProvider>(sp => sp.GetRequiredService<GeminiSuggestionProvider>());
-        services.AddScoped<IAiSuggestionProvider>(sp => sp.GetRequiredService<OpenAiSuggestionProvider>());
+        services.AddScoped<IAiSuggestionProvider, GeminiSuggestionProvider>();
+        services.AddScoped<IAiSuggestionProvider, OpenAiSuggestionProvider>();
         services.AddScoped<IAiSuggestionProvider, RuleBasedSuggestionProvider>();
 
         return services;
