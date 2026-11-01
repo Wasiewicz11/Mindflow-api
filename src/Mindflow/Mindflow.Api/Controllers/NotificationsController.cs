@@ -66,6 +66,16 @@ public class NotificationsController(
         return Ok(await notificationService.GetInboxItemsAsync(userId, ct));
     }
 
+    [HttpGet("inbox/page")]
+    public async Task<ActionResult<NotificationInboxPageResponse>> GetInboxPage(
+        CancellationToken ct,
+        [FromQuery] int limit = 30,
+        [FromQuery] int offset = 0)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        return Ok(await notificationService.GetInboxPageAsync(userId, limit, offset, ct));
+    }
+
     [HttpPut("inbox/{notificationId:guid}/read")]
     public async Task<IActionResult> MarkInboxItemRead(Guid notificationId, CancellationToken ct)
     {

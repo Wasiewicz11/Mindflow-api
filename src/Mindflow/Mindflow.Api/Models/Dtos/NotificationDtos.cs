@@ -52,6 +52,11 @@ public record NotificationInboxItemResponse(
     DateTimeOffset CreatedAt,
     DateTimeOffset? ReadAt);
 
+public record NotificationInboxPageResponse(
+    IReadOnlyList<NotificationInboxItemResponse> Items,
+    int Total,
+    int Unread);
+
 public record NotificationJobResponse(
     int BriefsSent,
     int BlockRemindersSent,
