@@ -188,6 +188,21 @@ public class NotificationService(
             .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.ReadAt, (DateTimeOffset?)null), ct);
     }
 
+    public async Task MarkAllInboxItemsReadAsync(Guid userId, CancellationToken ct = default)
+    {
+        var now = DateTimeOffset.UtcNow;
+        await InboxOf(userId)
+            .Where(item => item.ReadAt == null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.ReadAt, now), ct);
+    }
+
+    public async Task MarkAllInboxItemsUnreadAsync(Guid userId, CancellationToken ct = default)
+    {
+        await InboxOf(userId)
+            .Where(item => item.ReadAt != null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.ReadAt, (DateTimeOffset?)null), ct);
+    }
+
     private IQueryable<NotificationInboxItem> InboxOf(Guid userId) =>
         db.NotificationInboxItems.Where(item => item.UserId == userId);
 

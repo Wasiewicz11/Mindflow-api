@@ -98,6 +98,36 @@ public class NotificationInboxApiTests(MindflowApiFactory factory) : IClassFixtu
         Assert.All(await LoadAsync(otherId), item => Assert.NotNull(item.ReadAt));
     }
 
+    [LocalDatabaseFact]
+    public async Task Read_all_and_unread_all_flip_every_notification_of_the_caller()
+    {
+        var (client, userId) = await CreateClientAsync();
+        var (_, otherId) = await CreateClientAsync();
+        await SeedAsync(userId, count: 4, readCount: 1);
+        await SeedAsync(otherId, count: 2, readCount: 1);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsync($"{Inbox}/read-all", null)).StatusCode);
+        Assert.All(await LoadAsync(userId), item => Assert.NotNull(item.ReadAt));
+
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsync($"{Inbox}/unread-all", null)).StatusCode);
+        Assert.All(await LoadAsync(userId), item => Assert.Null(item.ReadAt));
+
+        Assert.Equal(1, (await LoadAsync(otherId)).Count(item => item.ReadAt == null));
+    }
+
+    [LocalDatabaseFact]
+    public async Task Read_all_keeps_the_original_read_time_of_already_read_items()
+    {
+        var (client, userId) = await CreateClientAsync();
+        await SeedAsync(userId, count: 2, readCount: 1);
+        var before = (await LoadAsync(userId)).Single(item => item.ReadAt != null);
+
+        await client.PutAsync($"{Inbox}/read-all", null);
+
+        var after = (await LoadAsync(userId)).Single(item => item.Id == before.Id);
+        Assert.Equal(before.ReadAt, after.ReadAt);
+    }
+
     private async Task<(HttpClient Client, Guid UserId)> CreateClientAsync()
     {
         var user = await factory.CreateUserAsync();

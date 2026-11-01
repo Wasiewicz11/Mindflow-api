@@ -76,6 +76,22 @@ public class NotificationsController(
         return Ok(await notificationService.GetInboxPageAsync(userId, limit, offset, ct));
     }
 
+    [HttpPut("inbox/read-all")]
+    public async Task<IActionResult> MarkAllInboxItemsRead(CancellationToken ct)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        await notificationService.MarkAllInboxItemsReadAsync(userId, ct);
+        return NoContent();
+    }
+
+    [HttpPut("inbox/unread-all")]
+    public async Task<IActionResult> MarkAllInboxItemsUnread(CancellationToken ct)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        await notificationService.MarkAllInboxItemsUnreadAsync(userId, ct);
+        return NoContent();
+    }
+
     [HttpPut("inbox/{notificationId:guid}/read")]
     public async Task<IActionResult> MarkInboxItemRead(Guid notificationId, CancellationToken ct)
     {
