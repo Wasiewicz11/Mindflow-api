@@ -108,6 +108,22 @@ public class NotificationsController(
         return NoContent();
     }
 
+    [HttpDelete("inbox/{notificationId:guid}")]
+    public async Task<IActionResult> DeleteInboxItem(Guid notificationId, CancellationToken ct)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        await notificationService.DeleteInboxItemAsync(userId, notificationId, ct);
+        return NoContent();
+    }
+
+    [HttpDelete("inbox")]
+    public async Task<ActionResult<NotificationInboxDeleteResponse>> DeleteAllInboxItems(CancellationToken ct)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        var deleted = await notificationService.DeleteAllInboxItemsAsync(userId, ct);
+        return Ok(new NotificationInboxDeleteResponse(deleted));
+    }
+
     [HttpPost("test")]
     public async Task<ActionResult<NotificationTestResponse>> SendTest(CancellationToken ct)
     {

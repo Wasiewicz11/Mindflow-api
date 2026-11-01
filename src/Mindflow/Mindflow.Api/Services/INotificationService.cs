@@ -16,6 +16,8 @@ public interface INotificationService
     Task MarkInboxItemUnreadAsync(Guid userId, Guid notificationId, CancellationToken ct = default);
     Task MarkAllInboxItemsReadAsync(Guid userId, CancellationToken ct = default);
     Task MarkAllInboxItemsUnreadAsync(Guid userId, CancellationToken ct = default);
+    Task DeleteInboxItemAsync(Guid userId, Guid notificationId, CancellationToken ct = default);
+    Task<int> DeleteAllInboxItemsAsync(Guid userId, CancellationToken ct = default);
     Task<NotificationTestResponse> SendTestAsync(Guid userId, CancellationToken ct = default);
     Task<NotificationJobResponse> ProcessDueNotificationsAsync(CancellationToken ct = default);
 }

@@ -57,6 +57,8 @@ public record NotificationInboxPageResponse(
     int Total,
     int Unread);
 
+public record NotificationInboxDeleteResponse(int Deleted);
+
 public record NotificationJobResponse(
     int BriefsSent,
     int BlockRemindersSent,

@@ -128,6 +128,37 @@ public class NotificationInboxApiTests(MindflowApiFactory factory) : IClassFixtu
         Assert.Equal(before.ReadAt, after.ReadAt);
     }
 
+    [LocalDatabaseFact]
+    public async Task Single_notification_can_be_deleted_only_by_its_owner()
+    {
+        var (client, userId) = await CreateClientAsync();
+        var (_, otherId) = await CreateClientAsync();
+        var ids = await SeedAsync(userId, count: 2);
+        var otherIds = await SeedAsync(otherId, count: 1);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"{Inbox}/{ids[0]}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"{Inbox}/{otherIds[0]}")).StatusCode);
+
+        Assert.Equal([ids[1]], (await LoadAsync(userId)).Select(item => item.Id).ToList());
+        Assert.Single(await LoadAsync(otherId));
+    }
+
+    [LocalDatabaseFact]
+    public async Task Delete_all_clears_only_the_callers_inbox_and_reports_the_count()
+    {
+        var (client, userId) = await CreateClientAsync();
+        var (_, otherId) = await CreateClientAsync();
+        await SeedAsync(userId, count: 3, readCount: 1);
+        await SeedAsync(otherId, count: 2);
+
+        var response = await client.DeleteAsync(Inbox);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(3, (await response.Content.ReadFromJsonAsync<NotificationInboxDeleteResponse>(MindflowApiFactory.Json))!.Deleted);
+        Assert.Empty(await LoadAsync(userId));
+        Assert.Equal(2, (await LoadAsync(otherId)).Count);
+    }
+
     private async Task<(HttpClient Client, Guid UserId)> CreateClientAsync()
     {
         var user = await factory.CreateUserAsync();
