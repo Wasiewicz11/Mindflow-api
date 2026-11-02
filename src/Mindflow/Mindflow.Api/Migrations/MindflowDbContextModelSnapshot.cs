@@ -324,6 +324,10 @@ namespace Mindflow.Api.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("google_calendar_id");
 
+                    b.Property<bool>("IsAllDay")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_all_day");
+
                     b.Property<string>("Provider")
                         .IsRequired()
                         .HasColumnType("text")

@@ -4,7 +4,7 @@ namespace Mindflow.Api.Services.GoogleCalendar;
 
 public record GoogleTokenExchangeResult(string AccessToken, string? RefreshToken, DateTimeOffset? ExpiresAt, string Email);
 
-public record GoogleEventChange(string EventId, bool IsDeleted, string? Title, DateTimeOffset Start, int DurationMinutes);
+public record GoogleEventChange(string EventId, bool IsDeleted, string? Title, DateTimeOffset Start, int DurationMinutes, bool IsAllDay = false);
 
 public record GoogleSyncResult(IReadOnlyList<GoogleEventChange> Changes, string? NewSyncToken);
 

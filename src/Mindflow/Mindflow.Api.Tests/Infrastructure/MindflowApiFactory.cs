@@ -156,6 +156,7 @@ public class MindflowApiFactory : WebApplicationFactory<Program>
         {
             await WithDbAsync(async db =>
             {
+                await db.CalendarBlocks.Where(block => userIds.Contains(block.UserId)).ExecuteDeleteAsync();
                 await db.Tasks.Where(task => userIds.Contains(task.UserId)).ExecuteDeleteAsync();
                 await db.Projects.Where(project => userIds.Contains(project.UserId)).ExecuteDeleteAsync();
                 await db.Users.Where(user => userIds.Contains(user.Id)).ExecuteDeleteAsync();

@@ -72,6 +72,7 @@ public class GoogleCalendarSyncService(
                 Title = change.Title,
                 StartAt = change.Start.ToUniversalTime(),
                 DurationMinutes = change.DurationMinutes,
+                IsAllDay = change.IsAllDay,
                 CreatedAt = now,
                 UpdatedAt = now,
                 Provider = CalendarBlockProvider.Google,
@@ -87,6 +88,7 @@ public class GoogleCalendarSyncService(
         existing.Title = change.Title;
         existing.StartAt = change.Start.ToUniversalTime();
         existing.DurationMinutes = change.DurationMinutes;
+        existing.IsAllDay = change.IsAllDay;
         existing.UpdatedAt = DateTimeOffset.UtcNow;
         var updated = await calendarBlockRepository.UpdateAsync(existing);
         await SafeNotifyAsync(() => notifier.CalendarBlockUpdatedAsync(CalendarBlockMapper.ToResponse(updated)), "mirror-update");
