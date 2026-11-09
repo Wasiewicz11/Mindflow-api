@@ -62,6 +62,19 @@ public class TaskReminderJobTests(MindflowApiFactory factory) : IClassFixture<Mi
         Assert.Contains(bodies, body => body.StartsWith("Odłożone przypomnienie"));
     }
 
+    [LocalDatabaseFact]
+    public async Task Title_ending_in_an_emoji_still_reaches_the_inbox()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var user = await factory.CreateUserAsync();
+        await SeedTaskAsync(user.Id, now.AddMinutes(10), new string('a', 78) + "😀");
+
+        await RunAsync(now);
+
+        var item = Assert.Single(await InboxAsync(user.Id));
+        Assert.StartsWith("⏰ " + new string('a', 78), item.Title);
+    }
+
     private async Task RunAsync(DateTimeOffset now)
     {
         using var scope = factory.Services.CreateScope();

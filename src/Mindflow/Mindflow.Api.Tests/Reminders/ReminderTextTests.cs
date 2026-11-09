@@ -36,6 +36,16 @@ public class ReminderTextTests
     }
 
     [Fact]
+    public void Truncation_never_leaves_a_lone_surrogate()
+    {
+        var due = new DueReminder(At("2030-01-10 14:00"), At("2030-01-10 14:00"), 0, false, "k");
+        var text = ReminderText.Build(new string('a', 78) + "😀😀", due, Warsaw, At("2030-01-10 14:00"));
+
+        Assert.DoesNotContain(text.Title.Where(char.IsSurrogate), _ => true);
+        Assert.EndsWith("…", text.Title);
+    }
+
+    [Fact]
     public void Snoozed_reminder_says_so_and_long_titles_are_cut()
     {
         var due = new DueReminder(At("2030-01-10 14:00"), At("2030-01-10 14:10"), 10, true, "k");

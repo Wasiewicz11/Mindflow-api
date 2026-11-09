@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Mindflow.Api.Data;
 using Mindflow.Api.Models;
 using TaskStatus = Mindflow.Api.Models.Enums.TaskStatus;
@@ -95,9 +96,11 @@ public class TaskReminderService(
             await db.SaveChangesAsync(ct);
             return true;
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception)
         {
             db.Entry(delivery).State = EntityState.Detached;
+            if (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation }) return false;
+            logger.LogWarning(exception, "Recording reminder delivery {DeliveryKey} failed.", deliveryKey);
             return false;
         }
     }

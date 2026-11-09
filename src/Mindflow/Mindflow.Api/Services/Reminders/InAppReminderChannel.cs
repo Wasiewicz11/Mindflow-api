@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Mindflow.Api.Data;
 using Mindflow.Api.Hubs;
 using Mindflow.Api.Models;
@@ -24,14 +25,22 @@ public class InAppReminderChannel(
             CreatedAt = DateTimeOffset.UtcNow
         };
         db.NotificationInboxItems.Add(item);
-        await db.SaveChangesAsync(ct);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch
+        {
+            db.Entry(item).State = EntityState.Detached;
+            throw;
+        }
 
         try
         {
             await notifier.ReminderDueAsync(message.UserId, new ReminderDuePayload(
                 item.Id, message.TaskId, message.Title, message.Body, message.DueAt, message.ActionToken));
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             logger.LogWarning(exception, "ReminderDue broadcast failed for task {TaskId}.", message.TaskId);
         }

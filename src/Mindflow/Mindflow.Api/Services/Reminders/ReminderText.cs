@@ -34,6 +34,11 @@ public static class ReminderText
         return rest == 0 ? $"{hours} h" : $"{hours} h {rest} min";
     }
 
-    private static string Truncate(string value, int maxLength) =>
-        value.Length <= maxLength ? value : $"{value[..(maxLength - 1)]}…";
+    private static string Truncate(string value, int maxLength)
+    {
+        if (value.Length <= maxLength) return value;
+        var cut = maxLength - 1;
+        if (char.IsHighSurrogate(value[cut - 1])) cut--;
+        return $"{value[..cut]}…";
+    }
 }
