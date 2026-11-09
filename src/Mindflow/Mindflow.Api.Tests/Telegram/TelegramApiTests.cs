@@ -42,6 +42,7 @@ public class TelegramApiTests
 
         var updates = await api.GetUpdatesAsync(0, 0, CancellationToken.None);
 
+        Assert.NotNull(updates);
         var update = Assert.Single(updates);
         Assert.Equal((7L, 42L, "/start abc"), (update.UpdateId, update.Message!.Chat.Id, update.Message.Text));
     }
