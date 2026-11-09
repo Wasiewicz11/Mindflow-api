@@ -122,6 +122,35 @@ public class TelegramButtonsApiTests(TelegramApiFactory factory) : IClassFixture
     }
 
     [LocalDatabaseFact]
+    public async Task Polling_survives_a_timeout_while_handling_an_update()
+    {
+        var handler = new FakeTelegramHandler();
+        handler.UpdatesResults.Enqueue("""[{"update_id":1,"message":{"message_id":1,"chat":{"id":5,"type":"private"},"text":"hi"}}]""");
+        using var failing = factory.WithWebHostBuilder(b => b.ConfigureTestServices(services =>
+        {
+            services.AddHttpClient<TelegramApi>().ConfigurePrimaryHttpMessageHandler(() => handler);
+            services.AddScoped<ITelegramService, TimingOutTelegramService>();
+        }));
+        var polling = ActivatorUtilities.CreateInstance<TelegramPollingService>(failing.Services);
+        polling.ErrorDelay = TimeSpan.FromMilliseconds(50);
+
+        await polling.StartAsync(CancellationToken.None);
+        await Task.Delay(400);
+
+        Assert.False(polling.ExecuteTask!.IsCompleted);
+        Assert.True(handler.Requests.Count(r => r.Method == "getUpdates") >= 2);
+        await polling.StopAsync(CancellationToken.None);
+    }
+
+    private sealed class TimingOutTelegramService : ITelegramService
+    {
+        public Task<TelegramStatusResponse> GetStatusAsync(Guid userId, CancellationToken ct) => throw new NotSupportedException();
+        public Task<TelegramLinkResponse> CreateLinkAsync(Guid userId, CancellationToken ct) => throw new NotSupportedException();
+        public Task DisconnectAsync(Guid userId, CancellationToken ct) => throw new NotSupportedException();
+        public Task HandleUpdateAsync(TelegramUpdate update, CancellationToken ct) => throw new TaskCanceledException();
+    }
+
+    [LocalDatabaseFact]
     public async Task Polling_retries_delete_webhook_until_it_succeeds()
     {
         var handler = new FakeTelegramHandler();

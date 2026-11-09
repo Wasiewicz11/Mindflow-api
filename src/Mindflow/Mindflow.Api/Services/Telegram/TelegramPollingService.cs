@@ -22,7 +22,7 @@ public class TelegramPollingService(IServiceScopeFactory scopeFactory, ILogger<T
                     if (next is { } value) offset = value;
                     else await Task.Delay(ErrorDelay, stoppingToken);
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException)
+                catch (Exception ex) when (ex is not OperationCanceledException || !stoppingToken.IsCancellationRequested)
                 {
                     logger.LogWarning("Telegram polling failed with {ExceptionType}", ex.GetType().Name);
                     await Task.Delay(ErrorDelay, stoppingToken);
