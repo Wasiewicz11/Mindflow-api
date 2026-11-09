@@ -25,6 +25,7 @@ using Mindflow.Api.Services.GoogleCalendar;
 using Mindflow.Api.Services.Integrations;
 using Mindflow.Api.Services.Email;
 using Mindflow.Api.Services.Reminders;
+using Mindflow.Api.Services.Telegram;
 
 namespace Mindflow.Api.Extensions;
 
@@ -378,6 +379,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDictationService, DictationService>();
         services.AddHttpClient<GeminiApi>(client => client.Timeout = TimeSpan.FromSeconds(120));
         services.AddHttpClient<OpenAiApi>(client => client.Timeout = TimeSpan.FromSeconds(120));
+        services.AddHttpClient<TelegramApi>(c =>
+        {
+            c.BaseAddress = new Uri("https://api.telegram.org/");
+            c.Timeout = TimeSpan.FromSeconds(40);
+        });
 
         services.AddScoped<IAiSuggestionProvider, GeminiSuggestionProvider>();
         services.AddScoped<IAiSuggestionProvider, OpenAiSuggestionProvider>();

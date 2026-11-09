@@ -24,6 +24,7 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
     public DbSet<PushNotificationDelivery> PushNotificationDeliveries { get; set; }
     public DbSet<NotificationInboxItem> NotificationInboxItems { get; set; }
     public DbSet<GoogleCalendarConnection> GoogleCalendarConnections { get; set; }
+    public DbSet<TelegramConnection> TelegramConnections { get; set; }
     public DbSet<IntegrationToken> IntegrationTokens { get; set; }
     public DbSet<IntegrationTokenPermission> IntegrationTokenPermissions { get; set; }
     public DbSet<IntegrationAuthorizationCode> IntegrationAuthorizationCodes { get; set; }
@@ -425,6 +426,18 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
 
             entity.HasIndex(c => c.UserId).IsUnique();
             entity.HasIndex(c => c.WatchChannelId);
+        });
+
+        modelBuilder.Entity<TelegramConnection>(entity =>
+        {
+            entity.ToTable("telegram_connections");
+            entity.HasKey(c => c.UserId);
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(c => c.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(c => c.ChatId).IsUnique().HasFilter("chat_id IS NOT NULL");
+            entity.HasIndex(c => c.LinkCodeHash);
         });
 
         modelBuilder.Entity<PomodoroSessionState>(entity =>
