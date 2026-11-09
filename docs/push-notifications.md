@@ -130,6 +130,7 @@ Email__Smtp__UseSsl=true
 
 - `Email__Smtp__Port` — domyslnie 587. Port 465 = SSL od razu, inne porty = STARTTLS (wtedy `UseSsl` pozostaje true).
 - Bez `Host` i `From` kanal e-mail jest wylaczony.
+- `Email__Smtp__From` musi byc adresem konta SMTP albo adresem z zweryfikowanej domeny nadawcy (SPF/DKIM); `UseSsl=false` jest tylko dla lokalnego Mailpit.
 - Wysylka ma limit 30 s, a blad poczty nie blokuje innych kanalow.
 - Przyklad Gmail: `smtp.gmail.com`, 587, haslo aplikacji (nie zwykle haslo konta).
 
