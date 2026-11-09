@@ -77,3 +77,7 @@ public record ReminderActionRequest(
     [Required, StringLength(16)] string Action);
 
 public record ReminderActionResponse(string Action, Guid TaskId, string TaskTitle, DateTimeOffset? SnoozedUntil);
+
+public record TelegramStatusResponse(bool Configured, bool Connected, string? Username);
+
+public record TelegramLinkResponse(string Url);
