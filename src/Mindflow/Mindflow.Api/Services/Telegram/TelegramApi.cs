@@ -42,7 +42,7 @@ public class TelegramApi(HttpClient http, IConfiguration configuration, ILogger<
 
         try
         {
-            using var response = await http.PostAsJsonAsync($"bot{options.BotToken}/{method}", body, TelegramJson.Options, ct);
+            using var response = await http.PostAsJsonAsync($"/bot{options.BotToken}/{method}", body, TelegramJson.Options, ct);
             if (!response.IsSuccessStatusCode)
             {
                 logger.LogWarning("Telegram {Method} failed with status {Status}", method, (int)response.StatusCode);

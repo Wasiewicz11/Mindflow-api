@@ -27,6 +27,7 @@ public class TelegramApiTests
         Assert.True(ok);
         var (method, body) = Assert.Single(handler.Requests);
         Assert.Equal("sendMessage", method);
+        Assert.Equal("https://api.telegram.org/bot123:abc/sendMessage", handler.Uris.Single().ToString());
         Assert.Equal(42, (long)body["chat_id"]!);
         Assert.Equal("HTML", (string)body["parse_mode"]!);
         Assert.Equal("done:abc", (string)body["reply_markup"]!["inline_keyboard"]![0]![0]!["callback_data"]!);

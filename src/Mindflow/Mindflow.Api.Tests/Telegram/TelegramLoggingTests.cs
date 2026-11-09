@@ -22,7 +22,7 @@ public class TelegramLoggingTests(MindflowApiFactory factory) : IClassFixture<Mi
                 ["Telegram:BotToken"] = "123:abc",
                 ["Telegram:BotUsername"] = "mindflow_test_bot"
             }));
-            builder.ConfigureLogging(l => { l.SetMinimumLevel(LogLevel.Trace); l.AddProvider(logs); });
+            builder.ConfigureLogging(l => { l.ClearProviders(); l.SetMinimumLevel(LogLevel.Trace); l.AddProvider(logs); l.AddFilter<CapturingLoggerProvider>(null, LogLevel.Trace); });
             builder.ConfigureTestServices(services =>
                 services.AddHttpClient<TelegramApi>().ConfigurePrimaryHttpMessageHandler(() => handler));
         });
@@ -32,13 +32,20 @@ public class TelegramLoggingTests(MindflowApiFactory factory) : IClassFixture<Mi
 
         Assert.True(ok);
         Assert.Single(handler.Requests);
+        Assert.Contains(logs.Categories, c => c.StartsWith("Mindflow") || c.StartsWith("System.Net.Http"));
+        Assert.NotEmpty(logs.Messages);
         Assert.DoesNotContain(logs.Messages, m => m.Contains("123:abc"));
     }
 
     private sealed class CapturingLoggerProvider : ILoggerProvider
     {
         public List<string> Messages { get; } = [];
-        public ILogger CreateLogger(string categoryName) => new CapturingLogger(this);
+        public List<string> Categories { get; } = [];
+        public ILogger CreateLogger(string categoryName)
+        {
+            lock (Categories) Categories.Add(categoryName);
+            return new CapturingLogger(this);
+        }
         public void Dispose() { }
 
         private sealed class CapturingLogger(CapturingLoggerProvider owner) : ILogger
