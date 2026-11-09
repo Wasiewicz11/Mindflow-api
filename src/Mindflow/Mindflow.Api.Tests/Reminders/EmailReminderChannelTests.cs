@@ -1,0 +1,78 @@
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Mindflow.Api.Models;
+using Mindflow.Api.Services.Email;
+using Mindflow.Api.Services.Reminders;
+using Mindflow.Api.Tests.Infrastructure;
+
+namespace Mindflow.Api.Tests.Reminders;
+
+public class EmailReminderChannelTests(MindflowApiFactory factory) : IClassFixture<MindflowApiFactory>
+{
+    private sealed class RecordingSender : IEmailSender
+    {
+        public List<EmailMessage> Sent { get; } = [];
+        public Task SendAsync(EmailMessage message, CancellationToken ct) { Sent.Add(message); return Task.CompletedTask; }
+    }
+
+    private (IServiceProvider Services, RecordingSender Sender) Configured(bool smtp = true)
+    {
+        var sender = new RecordingSender();
+        var app = factory.WithWebHostBuilder(builder =>
+        {
+            if (smtp)
+            {
+                builder.UseSetting("Email:Smtp:Host", "smtp.test");
+                builder.UseSetting("Email:Smtp:From", "Mindflow <noreply@mindflow.test>");
+            }
+            builder.UseSetting("Notifications:FrontendUrl", "https://app.test");
+            builder.ConfigureTestServices(services => services.AddSingleton<IEmailSender>(sender));
+        });
+        return (app.Services, sender);
+    }
+
+    private static ReminderMessage MessageFor(Guid userId) => new(
+        Guid.NewGuid(), userId, Guid.NewGuid(), "⏰ Lek", "Teraz · termin dziś 08:00", "dziś 08:00", DateTimeOffset.UtcNow, "https://app.test/zadania/x", "tok");
+
+    private static async Task<bool> SendAsync(IServiceProvider services, ReminderMessage message)
+    {
+        using var scope = services.CreateScope();
+        var channel = scope.ServiceProvider.GetServices<IReminderChannel>().Single(c => c.Name == "email");
+        return await channel.SendAsync(message, CancellationToken.None);
+    }
+
+    [LocalDatabaseFact]
+    public async Task Sends_to_the_users_address_when_enabled()
+    {
+        var user = await factory.CreateUserAsync();
+        var (services, sender) = Configured();
+
+        Assert.True(await SendAsync(services, MessageFor(user.Id)));
+
+        var email = Assert.Single(sender.Sent);
+        Assert.Equal(user.Email, email.To);
+        Assert.Contains("https://app.test/przypomnienie?t=tok", email.Text);
+    }
+
+    [LocalDatabaseFact]
+    public async Task Skips_when_user_turned_email_off_or_smtp_missing()
+    {
+        var user = await factory.CreateUserAsync();
+        await factory.WithDbAsync(async db =>
+        {
+            db.NotificationSettings.Add(new NotificationSettings { UserId = user.Id, EmailRemindersEnabled = false, UpdatedAt = DateTimeOffset.UtcNow });
+            await db.SaveChangesAsync();
+        });
+        var (services, sender) = Configured();
+        Assert.False(await SendAsync(services, MessageFor(user.Id)));
+
+        var other = await factory.CreateUserAsync();
+        var (unconfigured, otherSender) = Configured(smtp: false);
+        Assert.False(await SendAsync(unconfigured, MessageFor(other.Id)));
+
+        Assert.Empty(sender.Sent);
+        Assert.Empty(otherSender.Sent);
+    }
+}
