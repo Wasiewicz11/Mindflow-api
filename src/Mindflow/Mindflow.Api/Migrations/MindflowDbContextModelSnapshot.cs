@@ -782,6 +782,10 @@ namespace Mindflow.Api.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("block_reminders_enabled");
 
+                    b.Property<bool>("EmailRemindersEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("email_reminders_enabled");
+
                     b.Property<bool>("Enabled")
                         .HasColumnType("boolean")
                         .HasColumnName("enabled");

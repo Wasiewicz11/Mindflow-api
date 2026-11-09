@@ -12,5 +12,6 @@ public class NotificationSettings
     public TimeOnly EveningSummaryTime { get; set; } = new(20, 0);
     public bool BlockRemindersEnabled { get; set; } = true;
     public int BlockReminderMinutes { get; set; } = 10;
+    public bool EmailRemindersEnabled { get; set; } = true;
     public DateTimeOffset UpdatedAt { get; set; }
 }
