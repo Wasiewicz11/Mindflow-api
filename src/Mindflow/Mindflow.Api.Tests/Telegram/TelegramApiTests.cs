@@ -52,4 +52,30 @@ public class TelegramApiTests
         Assert.False(await api.SendMessageAsync(1, "x", null, CancellationToken.None));
         Assert.Empty(handler.Requests);
     }
+
+    [Fact]
+    public async Task Returns_false_on_non_success_status()
+    {
+        var (api, handler) = Create();
+        handler.Status = System.Net.HttpStatusCode.BadGateway;
+        Assert.False(await api.SendMessageAsync(1, "x", null, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Returns_false_on_network_error_and_empty_updates()
+    {
+        var (api, handler) = Create();
+        handler.Throw = new HttpRequestException("boom");
+        Assert.False(await api.SendMessageAsync(1, "x", null, CancellationToken.None));
+        Assert.Empty(await api.GetUpdatesAsync(0, 0, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Propagates_caller_cancellation()
+    {
+        var (api, _) = Create();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => api.SendMessageAsync(1, "x", null, cts.Token));
+    }
 }

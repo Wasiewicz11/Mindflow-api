@@ -384,7 +384,7 @@ public static class ServiceCollectionExtensions
         {
             c.BaseAddress = new Uri("https://api.telegram.org/");
             c.Timeout = TimeSpan.FromSeconds(40);
-        });
+        }).RemoveAllLoggers();
 
         services.AddScoped<IAiSuggestionProvider, GeminiSuggestionProvider>();
         services.AddScoped<IAiSuggestionProvider, OpenAiSuggestionProvider>();

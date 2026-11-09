@@ -40,15 +40,23 @@ public class TelegramApi(HttpClient http, IConfiguration configuration, ILogger<
         var options = TelegramOptions.From(configuration);
         if (options is null) return (false, default);
 
-        using var response = await http.PostAsJsonAsync($"bot{options.BotToken}/{method}", body, TelegramJson.Options, ct);
-        if (!response.IsSuccessStatusCode)
+        try
         {
-            logger.LogWarning("Telegram {Method} failed with status {Status}", method, (int)response.StatusCode);
+            using var response = await http.PostAsJsonAsync($"bot{options.BotToken}/{method}", body, TelegramJson.Options, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                logger.LogWarning("Telegram {Method} failed with status {Status}", method, (int)response.StatusCode);
+                return (false, default);
+            }
+
+            var payload = await response.Content.ReadFromJsonAsync<TelegramResponse<T>>(TelegramJson.Options, ct);
+            return (payload?.Ok == true, payload is null ? default : payload.Result);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or OperationCanceledException && !ct.IsCancellationRequested)
+        {
+            logger.LogWarning("Telegram {Method} failed with {ExceptionType}", method, ex.GetType().Name);
             return (false, default);
         }
-
-        var payload = await response.Content.ReadFromJsonAsync<TelegramResponse<T>>(TelegramJson.Options, ct);
-        return (payload?.Ok == true, payload is null ? default : payload.Result);
     }
 
     private record TelegramResponse<T>(bool Ok, T? Result);
