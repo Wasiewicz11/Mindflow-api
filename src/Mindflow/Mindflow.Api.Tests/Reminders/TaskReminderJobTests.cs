@@ -63,6 +63,25 @@ public class TaskReminderJobTests(MindflowApiFactory factory) : IClassFixture<Mi
     }
 
     [LocalDatabaseFact]
+    public async Task Sends_snoozed_reminder_of_a_long_overdue_task()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var user = await factory.CreateUserAsync();
+        var taskId = await SeedTaskAsync(user.Id, now.AddDays(-5), "Stare zadanie");
+        await factory.WithDbAsync(async db =>
+        {
+            var task = await db.Tasks.SingleAsync(t => t.Id == taskId);
+            task.ReminderSnoozedUntil = now.AddMinutes(-1);
+            await db.SaveChangesAsync();
+        });
+
+        await RunAsync(now);
+
+        var item = Assert.Single(await InboxAsync(user.Id));
+        Assert.StartsWith("Odłożone przypomnienie", item.Body);
+    }
+
+    [LocalDatabaseFact]
     public async Task Title_ending_in_an_emoji_still_reaches_the_inbox()
     {
         var now = DateTimeOffset.UtcNow;

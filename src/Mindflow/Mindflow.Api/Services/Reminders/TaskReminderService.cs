@@ -25,6 +25,7 @@ public class TaskReminderService(
         var today = DateOnly.FromDateTime(now.UtcDateTime);
         var from = today.AddDays(-2);
         var to = today.AddDays(8);
+        var snoozeFrom = now - ReminderSchedule.Grace;
         var tasks = await db.Tasks
             .AsNoTracking()
             .Where(task => !task.IsCompleted
@@ -34,8 +35,8 @@ public class TaskReminderService(
                            && task.Recurrence == null
                            && task.DueDate.HasValue
                            && task.DueTime.HasValue
-                           && task.DueDate.Value >= from
-                           && task.DueDate.Value <= to)
+                           && ((task.DueDate.Value >= from && task.DueDate.Value <= to)
+                               || (task.ReminderSnoozedUntil != null && task.ReminderSnoozedUntil >= snoozeFrom)))
             .ToListAsync(ct);
         if (tasks.Count == 0) return 0;
 
