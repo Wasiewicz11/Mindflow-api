@@ -60,6 +60,29 @@ public class TelegramReminderChannelTests(TelegramApiFactory factory) : IClassFi
         Assert.False(await SendAsync(Message(user.Id, "https://app.test/zadania/1")));
     }
 
+    [LocalDatabaseFact]
+    public async Task Stops_sending_in_the_same_scope_after_a_failed_send()
+    {
+        var (first, firstChat) = await ConnectedAsync("https://app.test/zadania/1");
+        var (second, secondChat) = await ConnectedAsync("https://app.test/zadania/2");
+        lock (factory.Telegram.Requests) factory.Telegram.FailingMethods.Add("sendMessage");
+        try
+        {
+            using var scope = factory.Services.CreateScope();
+            var channel = scope.ServiceProvider.GetServices<IReminderChannel>().Single(c => c.Name == "telegram");
+
+            Assert.False(await channel.SendAsync(first, CancellationToken.None));
+            Assert.False(await channel.SendAsync(second, CancellationToken.None));
+        }
+        finally
+        {
+            factory.Telegram.FailingMethods.Remove("sendMessage");
+        }
+
+        Assert.Single(Sent(firstChat));
+        Assert.Empty(Sent(secondChat));
+    }
+
     private async Task<bool> SendAsync(ReminderMessage message)
     {
         using var scope = factory.Services.CreateScope();

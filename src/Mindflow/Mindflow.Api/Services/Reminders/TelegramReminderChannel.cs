@@ -8,12 +8,15 @@ namespace Mindflow.Api.Services.Reminders;
 public class TelegramReminderChannel(MindflowDbContext db, TelegramApi api, IConfiguration configuration) : IReminderChannel
 {
     private const string TitlePrefix = "⏰ ";
+    private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(10);
+
+    private bool telegramUnavailable;
 
     public string Name => "telegram";
 
     public async Task<bool> SendAsync(ReminderMessage message, CancellationToken ct)
     {
-        if (TelegramOptions.From(configuration) is null) return false;
+        if (telegramUnavailable || TelegramOptions.From(configuration) is null) return false;
 
         var enabled = await db.NotificationSettings.AsNoTracking()
             .Where(settings => settings.UserId == message.UserId)
@@ -41,6 +44,10 @@ public class TelegramReminderChannel(MindflowDbContext db, TelegramApi api, ICon
         if (message.TaskUrl.StartsWith("https://", StringComparison.Ordinal))
             keyboard.Add([new TelegramButton("Otwórz zadanie →", Url: message.TaskUrl)]);
 
-        return await api.SendMessageAsync(chatId.Value, html, keyboard, ct);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(SendTimeout);
+        var sent = await api.SendMessageAsync(chatId.Value, html, keyboard, timeout.Token);
+        if (!sent) telegramUnavailable = true;
+        return sent;
     }
 }
