@@ -179,6 +179,7 @@ Telegram__WebhookSecret=LOSOWY_SEKRET
 - `Telegram__BotUsername` — bez `@`.
 - `Telegram__WebhookSecret` — losowy, np. `openssl rand -hex 32`. Telegram wysyla go w naglowku `X-Telegram-Bot-Api-Secret-Token`.
 - Lokalnie zamiast webhooka ustaw `Telegram__UsePolling=true`; backend sam pobiera aktualizacje przez `getUpdates`.
+- Lokalnie używaj OSOBNEGO bota z BotFathera: polling (`UsePolling`) wywołuje `deleteWebhook` i po cichu zepsułby produkcję na tym samym bocie; po wdrożeniu sprawdź webhook przez `getWebhookInfo`.
 - Token bota nie trafia do logow (logowanie HttpClient wylaczone dla tego klienta).
 
 Jednorazowe ustawienie webhooka na produkcji:
