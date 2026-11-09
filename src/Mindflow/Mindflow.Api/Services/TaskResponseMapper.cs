@@ -35,6 +35,8 @@ internal static class TaskResponseMapper
             task.ExternalSource,
             task.ExternalId,
             task.ExternalUrl,
+            task.ReminderMinutesBefore,
+            task.ReminderDisabled,
             task.CreatedAt);
 
     public static TaskDetailResponse ToDetailResponse(
@@ -68,6 +70,8 @@ internal static class TaskResponseMapper
             task.ExternalSource,
             task.ExternalId,
             task.ExternalUrl,
+            task.ReminderMinutesBefore,
+            task.ReminderDisabled,
             task.CreatedAt);
 
     public static TaskRecurrenceResponse? ToRecurrenceResponse(TaskRecurrence? recurrence) => recurrence is null

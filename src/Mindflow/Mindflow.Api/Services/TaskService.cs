@@ -95,6 +95,8 @@ public class TaskService(
             DueDate = request.DueDate,
             DueTime = request.DueTime,
             EstimatedHours = request.EstimatedHours,
+            ReminderMinutesBefore = request.ReminderMinutesBefore,
+            ReminderDisabled = request.ReminderDisabled ?? false,
             Tags = tags,
             Subtasks = NormalizeSubtasks(request.Subtasks, request.DueDate),
             ExternalSource = externalReference?.Source,
@@ -157,6 +159,7 @@ public class TaskService(
         var previousProjectId = task.ProjectId;
         var previousStatus = task.Status;
         var previousTags = task.Tags.ToList();
+        var previousReminder = (task.DueDate, task.DueTime, task.ReminderMinutesBefore, task.ReminderDisabled);
 
         if (request.Content is not null) task.Content = request.Content;
         if (request.Description is not null) task.Description = request.Description;
@@ -172,6 +175,11 @@ public class TaskService(
         EnsureDueTimeIsValid(task.DueDate, task.DueTime);
         if (request.ClearEstimatedHours) task.EstimatedHours = null;
         else if (request.EstimatedHours.HasValue) task.EstimatedHours = request.EstimatedHours;
+        if (request.ClearReminderMinutesBefore) task.ReminderMinutesBefore = null;
+        else if (request.ReminderMinutesBefore.HasValue) task.ReminderMinutesBefore = request.ReminderMinutesBefore;
+        if (request.ReminderDisabled.HasValue) task.ReminderDisabled = request.ReminderDisabled.Value;
+        if (previousReminder != (task.DueDate, task.DueTime, task.ReminderMinutesBefore, task.ReminderDisabled))
+            task.ReminderSnoozedUntil = null;
         if (request.ProjectId.HasValue) task.ProjectId = request.ProjectId;
         var requestedStatus = ResolveRequestedStatus(task.Status, request.Status, request.IsCompleted);
         if (requestedStatus.HasValue)

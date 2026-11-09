@@ -19,6 +19,10 @@ public class TaskItem
     public DateOnly? DueDate { get; set; }
     public TimeOnly? DueTime { get; set; }
     public decimal? EstimatedHours { get; set; }
+    /// <summary>Minutes before the due time; null means the user's default.</summary>
+    public int? ReminderMinutesBefore { get; set; }
+    public bool ReminderDisabled { get; set; }
+    public DateTimeOffset? ReminderSnoozedUntil { get; set; }
     public List<string> Tags { get; set; } = new();
     public List<TaskSubtask> Subtasks { get; set; } = new();
     /// <summary>Present only on the source task shown in the "Cykliczne" section.</summary>
