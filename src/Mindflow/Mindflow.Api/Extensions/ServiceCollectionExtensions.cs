@@ -202,6 +202,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IReminderChannel, PushReminderChannel>();
         services.AddScoped<IEmailSender, SmtpEmailSender>();
         services.AddScoped<IReminderChannel, EmailReminderChannel>();
+        services.AddScoped<IReminderChannel, TelegramReminderChannel>();
         services.AddScoped<IReminderDispatcher, ReminderDispatcher>();
         services.AddScoped<ITaskReminderService, TaskReminderService>();
         services.AddScoped<IReminderActionService, ReminderActionService>();
