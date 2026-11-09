@@ -36,7 +36,10 @@ public class ReminderActionTokensTests
         var swapped = other.Split('.')[0] + "." + token.Split('.')[1];
 
         Assert.Null(tokens.Validate(swapped, Now));
-        Assert.Null(tokens.Validate(token[..^2] + "AA", Now));
+        var signature = token.Split('.')[1];
+        var middle = signature.Length / 2;
+        var flipped = signature[..middle] + (signature[middle] == 'A' ? 'B' : 'A') + signature[(middle + 1)..];
+        Assert.Null(tokens.Validate(token.Split('.')[0] + "." + flipped, Now));
         Assert.Null(Create("another-secret-0123456789-0123456789").Validate(token, Now));
         Assert.Null(tokens.Validate("garbage", Now));
         Assert.Null(tokens.Validate(null, Now));
