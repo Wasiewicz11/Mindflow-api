@@ -44,6 +44,13 @@ public record CreateIntegrationTokenResponse(
     Guid? SpaceId = null,
     Guid? DefaultProjectId = null);
 
+public record IntegrationSpaceResponse(
+    Guid Id,
+    string Name,
+    string Color,
+    SpaceRole Role,
+    DateTimeOffset CreatedAt);
+
 public record IntegrationProjectResponse(
     Guid Id,
     string Name,

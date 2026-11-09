@@ -19,6 +19,7 @@ public class IntegrationApiController(
     ITaskSubtaskService subtaskService,
     ITaskTimeEntryService timeEntryService,
     IIntegrationProjectService integrationProjectService,
+    IIntegrationSpaceService integrationSpaceService,
     IIntegrationTaskQueryService integrationTaskQueryService,
     IIntegrationDocsService integrationDocsService,
     IIntegrationExternalTaskService externalTaskService,
@@ -31,6 +32,23 @@ public class IntegrationApiController(
     public IActionResult Docs()
     {
         return Ok(integrationDocsService.Build());
+    }
+
+    [HttpGet("spaces")]
+    [RequireIntegrationScope(IntegrationTokenScope.SpacesRead)]
+    public async Task<IActionResult> GetSpaces(CancellationToken ct)
+    {
+        return Ok(await integrationSpaceService.GetSpacesAsync(ct));
+    }
+
+    [HttpGet("spaces/{spaceId:guid}")]
+    [RequireIntegrationScope(IntegrationTokenScope.SpacesRead)]
+    public async Task<IActionResult> GetSpace(Guid spaceId, CancellationToken ct)
+    {
+        var space = await integrationSpaceService.GetSpaceAsync(spaceId, ct);
+        if (space is null) return NotFound();
+
+        return Ok(space);
     }
 
     [HttpGet("projects")]

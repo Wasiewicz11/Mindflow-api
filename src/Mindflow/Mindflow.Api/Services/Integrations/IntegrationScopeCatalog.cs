@@ -12,6 +12,7 @@ public static class IntegrationScopeCatalog
 {
     private static readonly IntegrationScopeDefinition[] Definitions =
     [
+        new(IntegrationTokenScope.SpacesRead, "spaces:read", "Read the key's space, or every accessible space for a key without one."),
         new(IntegrationTokenScope.ProjectsRead, "projects:read", "Read accessible projects."),
         new(IntegrationTokenScope.TasksRead, "tasks:read", "Read tasks."),
         new(IntegrationTokenScope.TasksCreate, "tasks:create", "Create tasks."),

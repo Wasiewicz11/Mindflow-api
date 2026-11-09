@@ -47,6 +47,7 @@ public class IntegrationScopeCatalogTests
     [InlineData("TasksRead", IntegrationTokenScope.TasksRead)]
     [InlineData("tasks:read", IntegrationTokenScope.TasksRead)]
     [InlineData("time_entries:delete", IntegrationTokenScope.TimeEntriesDelete)]
+    [InlineData("spaces:read", IntegrationTokenScope.SpacesRead)]
     public void Scope_parses_from_enum_or_public_name(string value, IntegrationTokenScope expected)
     {
         Assert.True(IntegrationScopeCatalog.TryParse(value, out var scope));
