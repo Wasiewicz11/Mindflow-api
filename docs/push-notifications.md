@@ -153,6 +153,51 @@ Email__Smtp__From=Mindflow <noreply@mindflow.local>
 
 Skrzynka testowa: http://localhost:8025.
 
+## Telegram
+
+Przypomnienia o zadaniach moga przychodzic takze od bota Telegrama z przyciskami:
+
+- `✅ Zrobione` i `⏰ Odłóż 10 min`;
+- `Otwórz zadanie` — tylko gdy adres frontu jest na https.
+
+Konto łączysz w `Ustawienia -> Powiadomienia -> Telegram`: klikasz link `https://t.me/<bot>?start=<kod>`. Kod jest jednorazowy i ważny 15 minut. Rozłączasz tam albo komendą `/stop` w czacie z botem. Przełącznik `telegramRemindersEnabled` w `/notifications/settings` (domyślnie włączony) wyłącza wysyłkę bez rozłączania konta.
+
+Utworzenie bota:
+
+1. W Telegramie napisz do @BotFather i wyślij `/newbot`.
+2. Podaj nazwę i username bota (username kończy się na `bot`).
+3. Zapisz token, który dostaniesz.
+
+Zmienne na Renderze, przy backendzie:
+
+```text
+Telegram__BotToken=TOKEN_Z_BOTFATHER
+Telegram__BotUsername=nazwa_bota
+Telegram__WebhookSecret=LOSOWY_SEKRET
+```
+
+- `Telegram__BotUsername` — bez `@`.
+- `Telegram__WebhookSecret` — losowy, np. `openssl rand -hex 32`. Telegram wysyla go w naglowku `X-Telegram-Bot-Api-Secret-Token`.
+- Lokalnie zamiast webhooka ustaw `Telegram__UsePolling=true`; backend sam pobiera aktualizacje przez `getUpdates`.
+- Token bota nie trafia do logow (logowanie HttpClient wylaczone dla tego klienta).
+
+Jednorazowe ustawienie webhooka na produkcji:
+
+```bash
+curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://<api>/integrations/telegram/webhook","secret_token":"<Telegram__WebhookSecret>","allowed_updates":["message","callback_query"]}'
+```
+
+Endpointy:
+
+- `GET /integrations/telegram` — status połączenia;
+- `POST /integrations/telegram/link` — link z kodem;
+- `DELETE /integrations/telegram` — rozłączenie;
+- `POST /integrations/telegram/webhook` — webhook bota (nagłówek `X-Telegram-Bot-Api-Secret-Token`).
+
+Migracja `AddTelegramReminders` zastosowana jak pozostale (punkt 1).
+
 ## Reczne sprawdzenie joba
 
 Przed konfiguracja Cloudflare mozna wywolac job recznie:
