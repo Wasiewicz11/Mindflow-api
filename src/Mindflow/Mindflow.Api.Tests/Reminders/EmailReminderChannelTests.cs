@@ -17,6 +17,16 @@ public class EmailReminderChannelTests(MindflowApiFactory factory) : IClassFixtu
         public Task SendAsync(EmailMessage message, CancellationToken ct) { Sent.Add(message); return Task.CompletedTask; }
     }
 
+    private sealed class FailingSender : IEmailSender
+    {
+        public int Calls { get; private set; }
+        public Task SendAsync(EmailMessage message, CancellationToken ct)
+        {
+            Calls++;
+            throw new TimeoutException("SMTP send timed out.");
+        }
+    }
+
     private (IServiceProvider Services, RecordingSender Sender) Configured(bool smtp = true)
     {
         var sender = new RecordingSender();
@@ -74,5 +84,26 @@ public class EmailReminderChannelTests(MindflowApiFactory factory) : IClassFixtu
 
         Assert.Empty(sender.Sent);
         Assert.Empty(otherSender.Sent);
+    }
+
+    [LocalDatabaseFact]
+    public async Task Stops_sending_in_the_same_scope_after_smtp_failure()
+    {
+        var user = await factory.CreateUserAsync();
+        var failing = new FailingSender();
+        var app = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("Email:Smtp:Host", "smtp.test");
+            builder.UseSetting("Email:Smtp:From", "Mindflow <noreply@mindflow.test>");
+            builder.UseSetting("Notifications:FrontendUrl", "https://app.test");
+            builder.ConfigureTestServices(services => services.AddSingleton<IEmailSender>(failing));
+        });
+        using var scope = app.Services.CreateScope();
+        var channel = scope.ServiceProvider.GetServices<IReminderChannel>().Single(c => c.Name == "email");
+
+        await Assert.ThrowsAsync<TimeoutException>(() => channel.SendAsync(MessageFor(user.Id), CancellationToken.None));
+        Assert.False(await channel.SendAsync(MessageFor(user.Id), CancellationToken.None));
+
+        Assert.Equal(1, failing.Calls);
     }
 }
