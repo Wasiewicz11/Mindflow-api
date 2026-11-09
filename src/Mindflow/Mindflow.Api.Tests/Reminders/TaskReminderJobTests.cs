@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Mindflow.Api.Data;
 using Mindflow.Api.Models;
 using Mindflow.Api.Models.Enums;
 using Mindflow.Api.Services.Reminders;
@@ -86,12 +87,59 @@ public class TaskReminderJobTests(MindflowApiFactory factory) : IClassFixture<Mi
     {
         var now = DateTimeOffset.UtcNow;
         var user = await factory.CreateUserAsync();
-        await SeedTaskAsync(user.Id, now.AddMinutes(10), new string('a', 78) + "😀");
+        await SeedTaskAsync(user.Id, now.AddMinutes(10), new string('a', 78) + "😀b");
 
         await RunAsync(now);
 
         var item = Assert.Single(await InboxAsync(user.Id));
         Assert.StartsWith("⏰ " + new string('a', 78), item.Title);
+        Assert.EndsWith("…", item.Title);
+        for (var i = 0; i < item.Title.Length; i++)
+        {
+            if (char.IsHighSurrogate(item.Title[i])) Assert.True(i + 1 < item.Title.Length && char.IsLowSurrogate(item.Title[i + 1]));
+            if (char.IsLowSurrogate(item.Title[i])) Assert.True(i > 0 && char.IsHighSurrogate(item.Title[i - 1]));
+        }
+    }
+
+    [LocalDatabaseFact]
+    public async Task Failed_inbox_insert_does_not_poison_the_shared_context()
+    {
+        var user = await factory.CreateUserAsync();
+        var notificationId = Guid.NewGuid();
+        await factory.WithDbAsync(async db =>
+        {
+            db.NotificationInboxItems.Add(new NotificationInboxItem
+            {
+                Id = notificationId,
+                UserId = user.Id,
+                Kind = NotificationInboxKind.TaskReminder,
+                Title = "existing",
+                Body = "existing",
+                CreatedAt = DateTimeOffset.UtcNow
+            });
+            await db.SaveChangesAsync();
+        });
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MindflowDbContext>();
+        var channel = scope.ServiceProvider.GetServices<IReminderChannel>().Single(c => c.Name == "app");
+        var message = new ReminderMessage(
+            notificationId, user.Id, Guid.NewGuid(), "⏰ X", "Teraz", "dziś 14:00", DateTimeOffset.UtcNow, "https://app/zadania/1", "tok");
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => channel.SendAsync(message, CancellationToken.None));
+
+        db.NotificationInboxItems.Add(new NotificationInboxItem
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Kind = NotificationInboxKind.TaskReminder,
+            Title = "after",
+            Body = "after",
+            CreatedAt = DateTimeOffset.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        Assert.Contains(await InboxAsync(user.Id), item => item.Title == "after");
     }
 
     private async Task RunAsync(DateTimeOffset now)
