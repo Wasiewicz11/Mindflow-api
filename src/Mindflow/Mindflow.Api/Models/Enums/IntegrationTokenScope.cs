@@ -15,5 +15,7 @@ public enum IntegrationTokenScope
     TimeEntriesCreate,
     TimeEntriesUpdate,
     TimeEntriesDelete,
-    SpacesRead
+    SpacesRead,
+    ProjectsCreate,
+    ProjectsUpdate
 }

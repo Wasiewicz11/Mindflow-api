@@ -61,6 +61,40 @@ public class IntegrationApiController(
         return Ok(await integrationProjectService.GetAccessibleProjectsAsync(BuildPageQuery(limit, offset), ct));
     }
 
+    [HttpGet("projects/{projectId:guid}")]
+    [RequireIntegrationScope(IntegrationTokenScope.ProjectsRead)]
+    public async Task<IActionResult> GetProject(Guid projectId, CancellationToken ct)
+    {
+        var project = await integrationProjectService.GetProjectAsync(projectId, ct);
+        if (project is null) return NotFound();
+
+        return Ok(project);
+    }
+
+    [HttpPost("projects")]
+    [RequireIntegrationScope(IntegrationTokenScope.ProjectsCreate)]
+    public async Task<IActionResult> CreateProject([FromBody] IntegrationCreateProjectRequest request, CancellationToken ct)
+    {
+        var result = await integrationProjectService.CreateProjectAsync(request, ct);
+        if (result.Outcome == IntegrationProjectOutcome.Succeeded)
+        {
+            return CreatedAtAction(nameof(GetProject), new { projectId = result.Project!.Id }, result.Project);
+        }
+
+        return ProjectProblem(result.Outcome);
+    }
+
+    [HttpPatch("projects/{projectId:guid}")]
+    [RequireIntegrationScope(IntegrationTokenScope.ProjectsUpdate)]
+    public async Task<IActionResult> UpdateProject(
+        Guid projectId,
+        [FromBody] IntegrationUpdateProjectRequest request,
+        CancellationToken ct)
+    {
+        var result = await integrationProjectService.UpdateProjectAsync(projectId, request, ct);
+        return result.Outcome == IntegrationProjectOutcome.Succeeded ? Ok(result.Project) : ProjectProblem(result.Outcome);
+    }
+
     [HttpGet("projects/{projectId:guid}/tasks")]
     [RequireIntegrationScope(IntegrationTokenScope.TasksRead)]
     public async Task<IActionResult> GetProjectTasks(
@@ -301,6 +335,18 @@ public class IntegrationApiController(
         if (!deleted) return NotFound();
 
         return NoContent();
+    }
+
+    private IActionResult ProjectProblem(IntegrationProjectOutcome outcome)
+    {
+        return outcome switch
+        {
+            IntegrationProjectOutcome.SpaceRequired => ValidationProblem(new ValidationProblemDetails(
+                new Dictionary<string, string[]> { ["spaceId"] = ["Pass the spaceId the project belongs to."] })),
+            IntegrationProjectOutcome.NameRequired => ValidationProblem(new ValidationProblemDetails(
+                new Dictionary<string, string[]> { ["name"] = ["Project name cannot be empty."] })),
+            _ => NotFound()
+        };
     }
 
     private IActionResult SpaceProjectRequired()

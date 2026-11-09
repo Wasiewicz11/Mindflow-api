@@ -14,6 +14,7 @@ public interface IProjectRepository
         CancellationToken ct = default);
     Task<Project?> GetByIdAsync(Guid id);
     Task<Project> CreateInSpaceAsync(Project project);
+    Task<Project?> UpdateAsync(Guid id, string? name, string? color);
     Task<Project?> UpdateInSpaceAsync(Guid id, Guid spaceId, string? name, string? color);
     Task<bool> DeleteInSpaceAsync(Guid id, Guid spaceId);
 }

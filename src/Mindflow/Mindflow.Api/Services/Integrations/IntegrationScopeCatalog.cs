@@ -14,6 +14,8 @@ public static class IntegrationScopeCatalog
     [
         new(IntegrationTokenScope.SpacesRead, "spaces:read", "Read the key's space, or every accessible space for a key without one."),
         new(IntegrationTokenScope.ProjectsRead, "projects:read", "Read accessible projects."),
+        new(IntegrationTokenScope.ProjectsCreate, "projects:create", "Create projects in an accessible space."),
+        new(IntegrationTokenScope.ProjectsUpdate, "projects:update", "Rename projects and change their color."),
         new(IntegrationTokenScope.TasksRead, "tasks:read", "Read tasks."),
         new(IntegrationTokenScope.TasksCreate, "tasks:create", "Create tasks."),
         new(IntegrationTokenScope.TasksUpdate, "tasks:update", "Update tasks."),

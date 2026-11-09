@@ -1,3 +1,4 @@
+using Mindflow.Api.Models;
 using Mindflow.Api.Models.Enums;
 using Task = System.Threading.Tasks.Task;
 
@@ -12,4 +13,6 @@ public interface ITaskActivityService
         Guid? spaceId,
         Guid? projectId,
         object? metadata = null);
+
+    Task RecordProjectEventAsync(TaskActivityEventType eventType, Guid userId, Project project);
 }

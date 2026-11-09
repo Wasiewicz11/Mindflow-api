@@ -25,5 +25,8 @@ public enum TaskActivityEventType
     TaskRecurrenceChanged,
     TaskRecurrenceInstanceCreated,
     TaskReminderSent,
-    TaskReminderClicked
+    TaskReminderClicked,
+    ProjectCreated,
+    ProjectUpdated,
+    ProjectDeleted
 }

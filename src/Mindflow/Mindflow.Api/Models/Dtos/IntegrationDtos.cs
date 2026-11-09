@@ -58,6 +58,15 @@ public record IntegrationProjectResponse(
     Guid? SpaceId,
     DateTimeOffset CreatedAt);
 
+public record IntegrationCreateProjectRequest(
+    [Required, MaxLength(40)] string Name,
+    [RegularExpression("^#[0-9A-Fa-f]{6}$")] string? Color,
+    Guid? SpaceId);
+
+public record IntegrationUpdateProjectRequest(
+    [MaxLength(40)] string? Name,
+    [RegularExpression("^#[0-9A-Fa-f]{6}$")] string? Color);
+
 public record IntegrationPageQuery(int Limit, int Offset);
 
 public record IntegrationProjectPageResponse(

@@ -69,6 +69,18 @@ public class ProjectRepository(MindflowDbContext db) : IProjectRepository
         return project;
     }
 
+    public async Task<Project?> UpdateAsync(Guid id, string? name, string? color)
+    {
+        var project = await db.Projects.FirstOrDefaultAsync(p => p.Id == id);
+        if (project is null) return null;
+
+        if (name is not null) project.Name = name;
+        if (color is not null) project.Color = color;
+
+        await db.SaveChangesAsync();
+        return project;
+    }
+
     public async Task<Project?> UpdateInSpaceAsync(
         Guid id,
         Guid spaceId,
