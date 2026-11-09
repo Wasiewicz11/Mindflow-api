@@ -3,21 +3,24 @@ namespace Mindflow.Api.Services.Telegram;
 public class TelegramPollingService(IServiceScopeFactory scopeFactory, ILogger<TelegramPollingService> logger) : BackgroundService
 {
     private const int PollTimeoutSeconds = 25;
-    private static readonly TimeSpan ErrorDelay = TimeSpan.FromSeconds(5);
+
+    public TimeSpan ErrorDelay { get; set; } = TimeSpan.FromSeconds(5);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         try
         {
-            using (var scope = scopeFactory.CreateScope())
-                await scope.ServiceProvider.GetRequiredService<TelegramApi>().DeleteWebhookAsync(stoppingToken);
+            while (!await DeleteWebhookAsync(stoppingToken))
+                await Task.Delay(ErrorDelay, stoppingToken);
 
             long offset = 0;
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
-                    offset = await PollOnceAsync(offset, stoppingToken);
+                    var next = await PollOnceAsync(offset, stoppingToken);
+                    if (next is { } value) offset = value;
+                    else await Task.Delay(ErrorDelay, stoppingToken);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -31,11 +34,12 @@ public class TelegramPollingService(IServiceScopeFactory scopeFactory, ILogger<T
         }
     }
 
-    public async Task<long> PollOnceAsync(long offset, CancellationToken ct)
+    public async Task<long?> PollOnceAsync(long offset, CancellationToken ct)
     {
-        IReadOnlyList<TelegramUpdate> updates;
+        IReadOnlyList<TelegramUpdate>? updates;
         using (var scope = scopeFactory.CreateScope())
             updates = await scope.ServiceProvider.GetRequiredService<TelegramApi>().GetUpdatesAsync(offset, PollTimeoutSeconds, ct);
+        if (updates is null) return null;
 
         foreach (var update in updates)
         {
@@ -51,5 +55,19 @@ public class TelegramPollingService(IServiceScopeFactory scopeFactory, ILogger<T
         }
 
         return updates.Count == 0 ? offset : Math.Max(offset, updates.Max(u => u.UpdateId) + 1);
+    }
+
+    private async Task<bool> DeleteWebhookAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var scope = scopeFactory.CreateScope();
+            return await scope.ServiceProvider.GetRequiredService<TelegramApi>().DeleteWebhookAsync(ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning("Telegram deleteWebhook failed with {ExceptionType}", ex.GetType().Name);
+            return false;
+        }
     }
 }

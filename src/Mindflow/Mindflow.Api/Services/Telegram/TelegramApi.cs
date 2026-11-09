@@ -25,11 +25,11 @@ public class TelegramApi(HttpClient http, IConfiguration configuration, ILogger<
     public async Task<bool> AnswerCallbackQueryAsync(string callbackQueryId, string text, CancellationToken ct) =>
         (await CallAsync<bool>("answerCallbackQuery", new { callback_query_id = callbackQueryId, text }, ct)).Ok;
 
-    public async Task<IReadOnlyList<TelegramUpdate>> GetUpdatesAsync(long offset, int timeoutSeconds, CancellationToken ct)
+    public async Task<IReadOnlyList<TelegramUpdate>?> GetUpdatesAsync(long offset, int timeoutSeconds, CancellationToken ct)
     {
         var response = await CallAsync<List<TelegramUpdate>>("getUpdates",
             new { offset, timeout = timeoutSeconds, allowed_updates = new[] { "message", "callback_query" } }, ct);
-        return response.Ok && response.Result is not null ? response.Result : [];
+        return response.Ok && response.Result is not null ? response.Result : null;
     }
 
     public async Task<bool> DeleteWebhookAsync(CancellationToken ct) =>

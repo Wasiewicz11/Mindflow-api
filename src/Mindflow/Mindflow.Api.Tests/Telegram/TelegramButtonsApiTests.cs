@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Mindflow.Api.Models;
@@ -78,9 +79,48 @@ public class TelegramButtonsApiTests(TelegramApiFactory factory) : IClassFixture
 
         var offset = await polling.PollOnceAsync(0, CancellationToken.None);
 
-        Assert.Equal(42, offset);
+        Assert.Equal(42L, offset);
         var status = await client.GetFromJsonAsync<TelegramStatusResponse>("/integrations/telegram", MindflowApiFactory.Json);
         Assert.True(status!.Connected);
+    }
+
+    [LocalDatabaseFact]
+    public async Task Polling_reports_failure_and_backs_off_on_api_errors()
+    {
+        var handler = new FakeTelegramHandler();
+        handler.FailingMethods.Add("getUpdates");
+        using var failing = factory.WithWebHostBuilder(b => b.ConfigureTestServices(services =>
+            services.AddHttpClient<TelegramApi>().ConfigurePrimaryHttpMessageHandler(() => handler)));
+        var polling = ActivatorUtilities.CreateInstance<TelegramPollingService>(failing.Services);
+        polling.ErrorDelay = TimeSpan.FromMilliseconds(100);
+
+        Assert.Null(await polling.PollOnceAsync(7, CancellationToken.None));
+        handler.Requests.Clear();
+
+        await polling.StartAsync(CancellationToken.None);
+        await Task.Delay(550);
+        await polling.StopAsync(CancellationToken.None);
+
+        var polls = handler.Requests.Count(r => r.Method == "getUpdates");
+        Assert.InRange(polls, 2, 10);
+    }
+
+    [LocalDatabaseFact]
+    public async Task Polling_retries_delete_webhook_until_it_succeeds()
+    {
+        var handler = new FakeTelegramHandler();
+        handler.FailingMethods.Add("deleteWebhook");
+        using var failing = factory.WithWebHostBuilder(b => b.ConfigureTestServices(services =>
+            services.AddHttpClient<TelegramApi>().ConfigurePrimaryHttpMessageHandler(() => handler)));
+        var polling = ActivatorUtilities.CreateInstance<TelegramPollingService>(failing.Services);
+        polling.ErrorDelay = TimeSpan.FromMilliseconds(100);
+
+        await polling.StartAsync(CancellationToken.None);
+        await Task.Delay(550);
+        await polling.StopAsync(CancellationToken.None);
+
+        Assert.InRange(handler.Requests.Count(r => r.Method == "deleteWebhook"), 2, 10);
+        Assert.DoesNotContain(handler.Requests, r => r.Method == "getUpdates");
     }
 
     private string AnswerFor(string callbackId)

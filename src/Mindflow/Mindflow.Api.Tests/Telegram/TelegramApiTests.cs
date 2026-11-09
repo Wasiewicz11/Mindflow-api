@@ -68,7 +68,7 @@ public class TelegramApiTests
         var (api, handler) = Create();
         handler.Throw = new HttpRequestException("boom");
         Assert.False(await api.SendMessageAsync(1, "x", null, CancellationToken.None));
-        Assert.Empty(await api.GetUpdatesAsync(0, 0, CancellationToken.None));
+        Assert.Null(await api.GetUpdatesAsync(0, 0, CancellationToken.None));
     }
 
     [Fact]

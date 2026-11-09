@@ -10,6 +10,7 @@ public sealed class FakeTelegramHandler : HttpMessageHandler
     public List<(string Method, JsonObject Body)> Requests { get; } = [];
     public Queue<string> UpdatesResults { get; } = new();
     public HttpStatusCode Status { get; set; } = HttpStatusCode.OK;
+    public HashSet<string> FailingMethods { get; } = [];
     public Exception? Throw { get; set; }
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
@@ -20,6 +21,6 @@ public sealed class FakeTelegramHandler : HttpMessageHandler
         lock (Requests) Uris.Add(request.RequestUri!);
         lock (Requests) Requests.Add((method, body));
         var result = method == "getUpdates" ? (UpdatesResults.TryDequeue(out var next) ? next : "[]") : "true";
-        return new HttpResponseMessage(Status) { Content = new StringContent($$"""{"ok":true,"result":{{result}}}""", Encoding.UTF8, "application/json") };
+        return new HttpResponseMessage(FailingMethods.Contains(method) ? HttpStatusCode.Unauthorized : Status) { Content = new StringContent($$"""{"ok":true,"result":{{result}}}""", Encoding.UTF8, "application/json") };
     }
 }
