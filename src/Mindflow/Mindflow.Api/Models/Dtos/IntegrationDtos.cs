@@ -13,7 +13,9 @@ public record UpdateIntegrationSettingsRequest(bool Enabled);
 public record CreateIntegrationTokenRequest(
     string Name,
     IReadOnlyCollection<IntegrationTokenScope> Scopes,
-    DateTimeOffset ExpiresAt);
+    DateTimeOffset ExpiresAt,
+    Guid? SpaceId = null,
+    Guid? DefaultProjectId = null);
 
 public record IntegrationTokenResponse(
     Guid Id,
@@ -27,7 +29,9 @@ public record IntegrationTokenResponse(
     DateTimeOffset? RevokedAt,
     string? ClientId,
     string? ClientName,
-    Guid? DefaultProjectId);
+    Guid? DefaultProjectId,
+    Guid? SpaceId = null,
+    string? SpaceName = null);
 
 public record CreateIntegrationTokenResponse(
     Guid Id,
@@ -36,7 +40,9 @@ public record CreateIntegrationTokenResponse(
     IReadOnlyCollection<IntegrationTokenScope> Scopes,
     DateTimeOffset CreatedAt,
     DateTimeOffset ExpiresAt,
-    string Token);
+    string Token,
+    Guid? SpaceId = null,
+    Guid? DefaultProjectId = null);
 
 public record IntegrationProjectResponse(
     Guid Id,

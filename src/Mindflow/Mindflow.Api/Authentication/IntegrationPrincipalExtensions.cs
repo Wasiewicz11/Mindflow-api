@@ -21,4 +21,16 @@ public static class IntegrationPrincipalExtensions
         Guid.TryParse(user.FindFirstValue(IntegrationTokenAuthenticationDefaults.DefaultProjectIdClaim), out var projectId)
             ? projectId
             : null;
+
+    public static Guid? GetIntegrationSpaceId(this ClaimsPrincipal user)
+    {
+        if (user.FindFirstValue(IntegrationTokenAuthenticationDefaults.AuthProviderClaim) != IntegrationTokenAuthenticationDefaults.Scheme)
+        {
+            return null;
+        }
+
+        return Guid.TryParse(user.FindFirstValue(IntegrationTokenAuthenticationDefaults.SpaceIdClaim), out var spaceId)
+            ? spaceId
+            : null;
+    }
 }

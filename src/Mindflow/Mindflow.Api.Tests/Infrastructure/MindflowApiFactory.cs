@@ -86,7 +86,27 @@ public class MindflowApiFactory : WebApplicationFactory<Program>
         return user;
     }
 
-    public async Task<Project> CreateProjectAsync(Guid userId, string name = "Projekt testowy")
+    public async Task<Space> CreateSpaceAsync(Guid userId, string name = "Przestrzeń testowa")
+    {
+        var space = new Space
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Name = name,
+            Color = "#111111",
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+
+        await WithDbAsync(async db =>
+        {
+            db.Spaces.Add(space);
+            await db.SaveChangesAsync();
+        });
+
+        return space;
+    }
+
+    public async Task<Project> CreateProjectAsync(Guid userId, string name = "Projekt testowy", Guid? spaceId = null)
     {
         var project = new Project
         {
@@ -94,6 +114,7 @@ public class MindflowApiFactory : WebApplicationFactory<Program>
             UserId = userId,
             Name = name,
             Color = "#000000",
+            SpaceId = spaceId,
             CreatedAt = DateTimeOffset.UtcNow
         };
 
@@ -120,12 +141,19 @@ public class MindflowApiFactory : WebApplicationFactory<Program>
         return client;
     }
 
-    public async Task<string> CreateManualTokenAsync(Guid userId, params IntegrationTokenScope[] scopes)
+    public Task<string> CreateManualTokenAsync(Guid userId, params IntegrationTokenScope[] scopes) =>
+        CreateSpaceTokenAsync(userId, null, null, scopes);
+
+    public async Task<string> CreateSpaceTokenAsync(
+        Guid userId,
+        Guid? spaceId,
+        Guid? defaultProjectId,
+        params IntegrationTokenScope[] scopes)
     {
         using var client = CreateUserClient(userId);
         var response = await client.PostAsJsonAsync(
             "/integrations/tokens",
-            new CreateIntegrationTokenRequest("Testowy klucz", scopes, DateTimeOffset.UtcNow.AddDays(30)),
+            new CreateIntegrationTokenRequest("Testowy klucz", scopes, DateTimeOffset.UtcNow.AddDays(30), spaceId, defaultProjectId),
             Json);
         response.EnsureSuccessStatusCode();
 
@@ -159,6 +187,7 @@ public class MindflowApiFactory : WebApplicationFactory<Program>
                 await db.CalendarBlocks.Where(block => userIds.Contains(block.UserId)).ExecuteDeleteAsync();
                 await db.Tasks.Where(task => userIds.Contains(task.UserId)).ExecuteDeleteAsync();
                 await db.Projects.Where(project => userIds.Contains(project.UserId)).ExecuteDeleteAsync();
+                await db.Spaces.Where(space => userIds.Contains(space.UserId)).ExecuteDeleteAsync();
                 await db.Users.Where(user => userIds.Contains(user.Id)).ExecuteDeleteAsync();
             });
         }

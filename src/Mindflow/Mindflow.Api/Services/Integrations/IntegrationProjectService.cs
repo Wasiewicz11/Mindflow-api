@@ -5,7 +5,8 @@ namespace Mindflow.Api.Services.Integrations;
 
 public class IntegrationProjectService(
     IProjectRepository projectRepository,
-    ICurrentUserService currentUserService) : IIntegrationProjectService
+    ICurrentUserService currentUserService,
+    IIntegrationSpaceScope spaceScope) : IIntegrationProjectService
 {
     public async Task<IntegrationProjectPageResponse> GetAccessibleProjectsAsync(
         IntegrationPageQuery query,
@@ -16,6 +17,7 @@ public class IntegrationProjectService(
             userId,
             query.Limit,
             query.Offset,
+            spaceScope.SpaceId,
             ct);
 
         var items = projects

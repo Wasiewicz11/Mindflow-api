@@ -653,6 +653,10 @@ namespace Mindflow.Api.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("revoked_at");
 
+                    b.Property<Guid?>("SpaceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("space_id");
+
                     b.Property<string>("TokenHash")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -671,6 +675,9 @@ namespace Mindflow.Api.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_integration_tokens");
+
+                    b.HasIndex("SpaceId")
+                        .HasDatabaseName("ix_integration_tokens_space_id");
 
                     b.HasIndex("TokenHash")
                         .IsUnique()
@@ -1858,6 +1865,12 @@ namespace Mindflow.Api.Migrations
 
             modelBuilder.Entity("Mindflow.Api.Models.IntegrationToken", b =>
                 {
+                    b.HasOne("Mindflow.Api.Models.Space", null)
+                        .WithMany()
+                        .HasForeignKey("SpaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_integration_tokens_spaces_space_id");
+
                     b.HasOne("Mindflow.Api.Models.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")

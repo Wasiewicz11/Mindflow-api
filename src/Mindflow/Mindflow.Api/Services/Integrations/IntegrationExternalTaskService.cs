@@ -33,6 +33,8 @@ public class IntegrationExternalTaskService(
             try
             {
                 var projectId = request.ProjectId ?? await ResolveDefaultProjectAsync(defaultProjectId, userId);
+                if (projectId is null && !accessService.CanUseInbox)
+                    return new ExternalTaskUpsertResult(ExternalTaskUpsertOutcome.ProjectRequired);
                 var created = await taskService.CreateAsync(ToCreateRequest(request, projectId), reference);
                 return created is null
                     ? new ExternalTaskUpsertResult(ExternalTaskUpsertOutcome.ProjectNotFound)

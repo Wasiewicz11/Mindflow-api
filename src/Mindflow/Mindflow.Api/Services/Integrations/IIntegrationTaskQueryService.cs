@@ -10,4 +10,7 @@ public interface IIntegrationTaskQueryService
         Guid taskId,
         IntegrationPageQuery query,
         CancellationToken ct = default);
+
+    /// <summary>False when the token is limited to a space and the entry lies outside it.</summary>
+    Task<bool> CanReachTimeEntryAsync(Guid entryId, CancellationToken ct = default);
 }

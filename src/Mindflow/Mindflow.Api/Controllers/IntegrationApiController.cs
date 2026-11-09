@@ -95,6 +95,14 @@ public class IntegrationApiController(
     [RequireIntegrationScope(IntegrationTokenScope.TasksCreate)]
     public async Task<IActionResult> CreateTask([FromBody] CreateTaskRequest request)
     {
+        if (request.ProjectId is null && User.GetIntegrationSpaceId() is not null)
+        {
+            var defaultProjectId = User.GetIntegrationDefaultProjectId();
+            if (defaultProjectId is null) return SpaceProjectRequired();
+
+            request = request with { ProjectId = defaultProjectId };
+        }
+
         var task = await taskService.CreateAsync(request);
         if (task is null) return NotFound();
 
@@ -170,6 +178,7 @@ public class IntegrationApiController(
             ExternalTaskUpsertOutcome.Forbidden => Forbid(IntegrationTokenAuthenticationDefaults.Scheme),
             ExternalTaskUpsertOutcome.ContentRequired => ValidationProblem(new ValidationProblemDetails(
                 new Dictionary<string, string[]> { ["content"] = ["Content is required to create a task."] })),
+            ExternalTaskUpsertOutcome.ProjectRequired => SpaceProjectRequired(),
             _ => NotFound()
         };
     }
@@ -251,8 +260,13 @@ public class IntegrationApiController(
 
     [HttpPatch("time-entries/{entryId:guid}")]
     [RequireIntegrationScope(IntegrationTokenScope.TimeEntriesUpdate)]
-    public async Task<IActionResult> UpdateTimeEntry(Guid entryId, [FromBody] UpdateTaskTimeEntryRequest request)
+    public async Task<IActionResult> UpdateTimeEntry(
+        Guid entryId,
+        [FromBody] UpdateTaskTimeEntryRequest request,
+        CancellationToken ct)
     {
+        if (!await integrationTaskQueryService.CanReachTimeEntryAsync(entryId, ct)) return NotFound();
+
         var updated = await timeEntryService.UpdateAsync(entryId, request);
         if (updated is null) return NotFound();
 
@@ -261,12 +275,22 @@ public class IntegrationApiController(
 
     [HttpDelete("time-entries/{entryId:guid}")]
     [RequireIntegrationScope(IntegrationTokenScope.TimeEntriesDelete)]
-    public async Task<IActionResult> DeleteTimeEntry(Guid entryId)
+    public async Task<IActionResult> DeleteTimeEntry(Guid entryId, CancellationToken ct)
     {
+        if (!await integrationTaskQueryService.CanReachTimeEntryAsync(entryId, ct)) return NotFound();
+
         var deleted = await timeEntryService.DeleteAsync(entryId);
         if (!deleted) return NotFound();
 
         return NoContent();
+    }
+
+    private IActionResult SpaceProjectRequired()
+    {
+        return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
+        {
+            ["projectId"] = ["This key is limited to one space: pass a projectId from that space or give the key a default project."]
+        }));
     }
 
     private IActionResult? RejectExternalReference(string source, string externalId, string? externalUrl)

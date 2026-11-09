@@ -10,6 +10,7 @@ public interface IProjectRepository
         Guid userId,
         int limit,
         int offset,
+        Guid? spaceId = null,
         CancellationToken ct = default);
     Task<Project?> GetByIdAsync(Guid id);
     Task<Project> CreateInSpaceAsync(Project project);

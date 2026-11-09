@@ -50,6 +50,11 @@ public class IntegrationTokenAuthenticationHandler(
             claims.Add(new Claim(IntegrationTokenAuthenticationDefaults.DefaultProjectIdClaim, defaultProjectId.ToString()));
         }
 
+        if (validation.SpaceId is Guid spaceId)
+        {
+            claims.Add(new Claim(IntegrationTokenAuthenticationDefaults.SpaceIdClaim, spaceId.ToString()));
+        }
+
         claims.AddRange(validation.Scopes.Select(scope =>
             new Claim(IntegrationTokenAuthenticationDefaults.ScopeClaim, IntegrationScopeCatalog.ToName(scope))));
 

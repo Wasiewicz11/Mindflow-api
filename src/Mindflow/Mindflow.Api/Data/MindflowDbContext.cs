@@ -280,6 +280,11 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
                 .HasForeignKey(token => token.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            entity.HasOne<Space>()
+                .WithMany()
+                .HasForeignKey(token => token.SpaceId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             entity.HasIndex(token => token.UserId);
             entity.HasIndex(token => new { token.UserId, token.ClientId });
             entity.HasIndex(token => token.TokenHash)

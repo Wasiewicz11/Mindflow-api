@@ -24,6 +24,7 @@ public enum ExternalTaskUpsertOutcome
     Updated,
     Forbidden,
     ContentRequired,
+    ProjectRequired,
     ProjectNotFound
 }
 

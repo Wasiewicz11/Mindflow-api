@@ -19,6 +19,8 @@ public class IntegrationToken
     [MaxLength(40)]
     public string? ClientId { get; set; }
     public Guid? DefaultProjectId { get; set; }
+    /// <summary>When set, the token sees and changes only the data of this space.</summary>
+    public Guid? SpaceId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset ExpiresAt { get; set; }
     public DateTimeOffset? LastUsedAt { get; set; }

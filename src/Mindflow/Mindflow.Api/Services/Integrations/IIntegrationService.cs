@@ -23,6 +23,7 @@ public record IntegrationTokenValidationResult(
     Guid TokenId,
     IReadOnlyCollection<IntegrationTokenScope> Scopes,
     string? ClientId,
-    Guid? DefaultProjectId);
+    Guid? DefaultProjectId,
+    Guid? SpaceId = null);
 
 public record IssuedIntegrationToken(string Token, DateTimeOffset ExpiresAt);

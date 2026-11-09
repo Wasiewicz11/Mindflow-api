@@ -176,6 +176,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPomodoroEventBroker, PomodoroEventBroker>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IIntegrationSpaceScope, IntegrationSpaceScope>();
         services.AddScoped<IAccessService, AccessService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IStorageService, SupabaseStorageService>();

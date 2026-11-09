@@ -31,9 +31,17 @@ public class ProjectRepository(MindflowDbContext db) : IProjectRepository
         Guid userId,
         int limit,
         int offset,
+        Guid? spaceId = null,
         CancellationToken ct = default)
     {
         var query = AccessibleForUser(userId);
+        if (spaceId is Guid scopedSpaceId)
+        {
+            query = query.Where(project => project.SpaceId == scopedSpaceId
+                && db.Spaces.Any(space => space.Id == scopedSpaceId
+                    && (space.UserId == userId || db.SpaceMembers.Any(member =>
+                        member.SpaceId == scopedSpaceId && member.UserId == userId))));
+        }
 
         var total = await query.CountAsync(ct);
         var items = await query

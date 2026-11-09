@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Mindflow.Api.Data;
@@ -17,6 +18,7 @@ public class IntegrationService(
     IIntegrationTokenRepository tokenRepository,
     IOptions<IntegrationTokenOptions> optionsAccessor,
     IIntegrationClientRegistry clientRegistry,
+    ISpaceRepository spaceRepository,
     ILogger<IntegrationService> logger) : IIntegrationService
 {
     private const string TokenPrefix = "mf_";
@@ -74,8 +76,11 @@ public class IntegrationService(
         var name = NormalizeName(request.Name);
         var scopes = NormalizeScopes(request.Scopes);
         var expiresAt = NormalizeExpiresAt(request.ExpiresAt, now);
+        await EnsureSpaceAndDefaultProjectAsync(userId, request.SpaceId, request.DefaultProjectId, ct);
         var plainTextToken = GenerateToken();
         var token = BuildToken(userId, name, plainTextToken, scopes, now, expiresAt);
+        token.SpaceId = request.SpaceId;
+        token.DefaultProjectId = request.DefaultProjectId;
 
         await tokenRepository.AddAsync(token, ct);
 
@@ -86,7 +91,9 @@ public class IntegrationService(
             scopes,
             token.CreatedAt,
             token.ExpiresAt,
-            plainTextToken);
+            plainTextToken,
+            token.SpaceId,
+            token.DefaultProjectId);
     }
 
     public async Task<IssuedIntegrationToken> IssueClientTokenAsync(
@@ -167,7 +174,8 @@ public class IntegrationService(
             integrationToken.Id,
             ToScopes(integrationToken),
             integrationToken.ClientId,
-            integrationToken.DefaultProjectId);
+            integrationToken.DefaultProjectId,
+            integrationToken.SpaceId);
     }
 
     private async Task<IntegrationSettingsResponse> BuildSettingsAsync(
@@ -176,13 +184,51 @@ public class IntegrationService(
         CancellationToken ct)
     {
         var tokens = await tokenRepository.GetForUserAsync(userId, ct);
+        var spaceIds = tokens
+            .Where(token => token.SpaceId.HasValue)
+            .Select(token => token.SpaceId!.Value)
+            .Distinct()
+            .ToList();
+        var spaceNames = spaceIds.Count == 0
+            ? new Dictionary<Guid, string>()
+            : await db.Spaces
+                .AsNoTracking()
+                .Where(space => spaceIds.Contains(space.Id))
+                .ToDictionaryAsync(space => space.Id, space => space.Name, ct);
 
         return new IntegrationSettingsResponse(
             integrationsEnabled,
-            tokens.Select(MapToken).ToList());
+            tokens.Select(token => MapToken(token, spaceNames)).ToList());
     }
 
-    private IntegrationTokenResponse MapToken(IntegrationToken token)
+    private async Task EnsureSpaceAndDefaultProjectAsync(
+        Guid userId,
+        Guid? spaceId,
+        Guid? defaultProjectId,
+        CancellationToken ct)
+    {
+        if (spaceId is Guid requestedSpaceId && !await spaceRepository.CanUserAccessAsync(requestedSpaceId, userId))
+        {
+            throw new BadRequestException("Space not found.");
+        }
+
+        if (defaultProjectId is not Guid requestedProjectId) return;
+
+        if (spaceId is null)
+        {
+            throw new BadRequestException("A default project can only be set on a key limited to a space.");
+        }
+
+        var projectInSpace = await db.Projects
+            .AsNoTracking()
+            .AnyAsync(project => project.Id == requestedProjectId && project.SpaceId == spaceId, ct);
+        if (!projectInSpace)
+        {
+            throw new BadRequestException("The default project must belong to the key's space.");
+        }
+    }
+
+    private IntegrationTokenResponse MapToken(IntegrationToken token, IReadOnlyDictionary<Guid, string> spaceNames)
     {
         return new IntegrationTokenResponse(
             token.Id,
@@ -196,7 +242,9 @@ public class IntegrationService(
             token.RevokedAt,
             token.ClientId,
             token.ClientId is null ? null : clientRegistry.Find(token.ClientId)?.Name ?? token.Name,
-            token.DefaultProjectId);
+            token.DefaultProjectId,
+            token.SpaceId,
+            token.SpaceId is Guid spaceId && spaceNames.TryGetValue(spaceId, out var spaceName) ? spaceName : null);
     }
 
     private static IReadOnlyCollection<IntegrationTokenScope> ToScopes(IntegrationToken token)

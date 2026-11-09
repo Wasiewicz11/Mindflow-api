@@ -69,6 +69,9 @@ public class TaskService(
         if (request.ProjectId.HasValue && !await accessService.CanAccessProjectAsync(request.ProjectId.Value, userId))
             return null;
 
+        if (!request.ProjectId.HasValue && !accessService.CanUseInbox)
+            throw new BadRequestException("This key is limited to one space: pass a projectId from that space.");
+
         var tags = NormalizeTags(request.Tags);
         if (request.ProjectId.HasValue && tags.Count > 0)
         {

@@ -33,6 +33,10 @@ public class TaskRepository(MindflowDbContext db) : ITaskRepository
             .Where(t => t.UserId == userId
                         || (t.ProjectId != null && accessibleProjectIds.Contains(t.ProjectId.Value)));
 
+        if (filter.SpaceId is Guid spaceId)
+            query = query.Where(t => t.ProjectId != null
+                                     && db.Projects.Any(p => p.Id == t.ProjectId && p.SpaceId == spaceId));
+
         if (filter.ProjectId is Guid projectId)
             query = query.Where(t => t.ProjectId == projectId);
 
