@@ -220,11 +220,13 @@ public class TaskTimeEntryService(
 
         if (entry.TaskId is Guid taskId)
         {
+            var task = await taskRepository.GetByIdAsync(taskId);
+            var spaceId = task is null ? null : await taskRepository.GetSpaceIdForTaskAsync(task);
             await taskActivityService.RecordUserTaskEventAsync(
                 TaskActivityEventType.TaskTimeRemoved,
                 userId,
                 taskId,
-                null,
+                spaceId,
                 entry.ProjectId,
                 new
                 {

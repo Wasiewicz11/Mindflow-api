@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Mindflow.Api.Models.Enums;
-using Mindflow.Api.Services.Integrations;
 
 namespace Mindflow.Api.Authentication;
 
@@ -20,12 +19,7 @@ public class RequireIntegrationScopeAttribute(IntegrationTokenScope scope) : Att
             return;
         }
 
-        var required = IntegrationScopeCatalog.ToName(scope);
-        var hasScope = user.Claims.Any(claim =>
-            claim.Type == IntegrationTokenAuthenticationDefaults.ScopeClaim
-            && string.Equals(claim.Value, required, StringComparison.Ordinal));
-
-        if (!hasScope)
+        if (!user.HasIntegrationScope(scope))
         {
             context.Result = new ForbidResult(IntegrationTokenAuthenticationDefaults.Scheme);
         }

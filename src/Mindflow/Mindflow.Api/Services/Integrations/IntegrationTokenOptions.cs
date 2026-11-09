@@ -16,6 +16,8 @@ public class IntegrationTokenOptions
 
     public int RateLimitPermitsPerMinute { get; set; } = 120;
 
+    public int OAuthRateLimitPermitsPerMinute { get; set; } = 10;
+
     /// <summary>Without a pepper the integration API stays off; the rest of the API keeps running.</summary>
     public bool IsConfigured => !string.IsNullOrWhiteSpace(HashPepper);
 }

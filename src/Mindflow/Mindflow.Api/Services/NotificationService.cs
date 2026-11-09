@@ -19,6 +19,7 @@ public class NotificationService(
 {
     private const int ScheduleGraceMinutes = 12;
     private const int BlockReminderToleranceMinutes = 3;
+    private const int MaxInboxPageSize = 100;
     private static readonly TimeSpan ScheduleGrace = TimeSpan.FromMinutes(ScheduleGraceMinutes);
 
     public async Task<NotificationSettingsResponse> GetSettingsAsync(Guid userId, CancellationToken ct = default)
@@ -149,19 +150,29 @@ public class NotificationService(
         Guid userId,
         CancellationToken ct = default)
     {
-        return await db.NotificationInboxItems
-            .AsNoTracking()
-            .Where(item => item.UserId == userId)
-            .OrderByDescending(item => item.CreatedAt)
-            .Select(item => new NotificationInboxItemResponse(
-                item.Id,
-                item.Kind.ToString(),
-                item.Title,
-                item.Body,
-                item.CreatedAt,
-                item.ReadAt))
-            .ToListAsync(ct);
+        return await ToInboxResponses(InboxOf(userId).AsNoTracking()).ToListAsync(ct);
     }
+
+    public async Task<NotificationInboxPageResponse> GetInboxPageAsync(
+        Guid userId,
+        int limit,
+        int offset,
+        CancellationToken ct = default)
+    {
+        if (limit is < 1 or > MaxInboxPageSize)
+            throw new BadRequestException($"Limit must be between 1 and {MaxInboxPageSize}.");
+        if (offset < 0)
+            throw new BadRequestException("Offset must not be negative.");
+
+        var inbox = InboxOf(userId).AsNoTracking();
+        var total = await inbox.CountAsync(ct);
+        var unread = await inbox.CountAsync(item => item.ReadAt == null, ct);
+        var items = await ToInboxResponses(inbox).Skip(offset).Take(limit).ToListAsync(ct);
+        return new NotificationInboxPageResponse(items, total, unread);
+    }
+
+    public Task<int> CountUnreadInboxItemsAsync(Guid userId, CancellationToken ct = default) =>
+        InboxOf(userId).CountAsync(item => item.ReadAt == null, ct);
 
     public async Task MarkInboxItemReadAsync(Guid userId, Guid notificationId, CancellationToken ct = default)
     {
@@ -172,6 +183,53 @@ public class NotificationService(
         item.ReadAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
     }
+
+    public async Task MarkInboxItemUnreadAsync(Guid userId, Guid notificationId, CancellationToken ct = default)
+    {
+        await InboxOf(userId)
+            .Where(item => item.Id == notificationId && item.ReadAt != null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.ReadAt, (DateTimeOffset?)null), ct);
+    }
+
+    public async Task MarkAllInboxItemsReadAsync(Guid userId, CancellationToken ct = default)
+    {
+        var now = DateTimeOffset.UtcNow;
+        await InboxOf(userId)
+            .Where(item => item.ReadAt == null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.ReadAt, now), ct);
+    }
+
+    public async Task MarkAllInboxItemsUnreadAsync(Guid userId, CancellationToken ct = default)
+    {
+        await InboxOf(userId)
+            .Where(item => item.ReadAt != null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.ReadAt, (DateTimeOffset?)null), ct);
+    }
+
+    public async Task DeleteInboxItemAsync(Guid userId, Guid notificationId, CancellationToken ct = default)
+    {
+        await InboxOf(userId)
+            .Where(item => item.Id == notificationId)
+            .ExecuteDeleteAsync(ct);
+    }
+
+    public Task<int> DeleteAllInboxItemsAsync(Guid userId, CancellationToken ct = default) =>
+        InboxOf(userId).ExecuteDeleteAsync(ct);
+
+    private IQueryable<NotificationInboxItem> InboxOf(Guid userId) =>
+        db.NotificationInboxItems.Where(item => item.UserId == userId);
+
+    private static IQueryable<NotificationInboxItemResponse> ToInboxResponses(IQueryable<NotificationInboxItem> items) =>
+        items
+            .OrderByDescending(item => item.CreatedAt)
+            .ThenByDescending(item => item.Id)
+            .Select(item => new NotificationInboxItemResponse(
+                item.Id,
+                item.Kind.ToString(),
+                item.Title,
+                item.Body,
+                item.CreatedAt,
+                item.ReadAt));
 
     public async Task<NotificationTestResponse> SendTestAsync(Guid userId, CancellationToken ct = default)
     {

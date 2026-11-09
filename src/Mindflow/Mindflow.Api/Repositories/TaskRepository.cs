@@ -33,6 +33,10 @@ public class TaskRepository(MindflowDbContext db) : ITaskRepository
             .Where(t => t.UserId == userId
                         || (t.ProjectId != null && accessibleProjectIds.Contains(t.ProjectId.Value)));
 
+        if (filter.SpaceId is Guid spaceId)
+            query = query.Where(t => t.ProjectId != null
+                                     && db.Projects.Any(p => p.Id == t.ProjectId && p.SpaceId == spaceId));
+
         if (filter.ProjectId is Guid projectId)
             query = query.Where(t => t.ProjectId == projectId);
 
@@ -73,6 +77,19 @@ public class TaskRepository(MindflowDbContext db) : ITaskRepository
             .Include(t => t.Subtasks)
             .Include(t => t.Recurrence)
             .FirstOrDefaultAsync(t => t.Id == id);
+    }
+
+    public async Task<Guid?> FindIdByExternalReferenceAsync(
+        Guid userId,
+        string source,
+        string externalId,
+        CancellationToken ct = default)
+    {
+        return await db.Tasks
+            .AsNoTracking()
+            .Where(t => t.UserId == userId && t.ExternalSource == source && t.ExternalId == externalId)
+            .Select(t => (Guid?)t.Id)
+            .FirstOrDefaultAsync(ct);
     }
 
     public async Task<TaskItem?> CreateAsync(TaskItem task)

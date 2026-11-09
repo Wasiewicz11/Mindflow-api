@@ -8,7 +8,8 @@ public class IntegrationTaskQueryService(
     ITaskTimeEntryRepository timeEntryRepository,
     ITaskTimeEntryService timeEntryService,
     IAccessService accessService,
-    ICurrentUserService currentUserService) : IIntegrationTaskQueryService
+    ICurrentUserService currentUserService,
+    IIntegrationSpaceScope spaceScope) : IIntegrationTaskQueryService
 {
     public async Task<IntegrationTaskPageResponse?> GetTasksAsync(
         IntegrationTaskQuery query,
@@ -28,7 +29,8 @@ public class IntegrationTaskQueryService(
             query.DueBefore,
             query.CreatedAfter,
             query.Limit,
-            query.Offset);
+            query.Offset,
+            spaceScope.SpaceId);
 
         var (items, total) = await taskRepository.GetForUserFilteredAsync(userId, filter, ct);
         var loggedMinutes = await timeEntryRepository.GetDurationMinutesByTaskIdsAsync(
@@ -66,5 +68,19 @@ public class IntegrationTaskQueryService(
         var items = entries.Select(timeEntryService.ToResponse).ToList();
 
         return new IntegrationTimeEntryPageResponse(items, total, query.Limit, query.Offset);
+    }
+
+    public async Task<bool> CanReachTimeEntryAsync(Guid entryId, CancellationToken ct = default)
+    {
+        if (spaceScope.SpaceId is null) return true;
+
+        var entry = await timeEntryRepository.GetByIdAsync(entryId);
+        if (entry is null) return false;
+
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        if (entry.TaskId is Guid taskId) return await accessService.CanAccessTaskAsync(taskId, userId);
+        if (entry.ProjectId is Guid projectId) return await accessService.CanAccessProjectAsync(projectId, userId);
+
+        return false;
     }
 }

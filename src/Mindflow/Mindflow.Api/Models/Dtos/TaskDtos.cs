@@ -28,7 +28,10 @@ public record UpdateTaskRequest(
     [Range(0.01, 1000)] decimal? EstimatedHours,
     bool ClearEstimatedHours,
     Guid? ProjectId,
-    IReadOnlyCollection<string>? Tags);
+    IReadOnlyCollection<string>? Tags,
+    bool? IsCompleted = null);
+
+public record TaskExternalReference(string Source, string ExternalId, string? Url);
 
 public record TaskSubtaskRequest(
     string? Id,
@@ -116,6 +119,9 @@ public record TaskListResponse(
     Guid? RecurringTaskId,
     DateOnly? RecurrenceOccurrenceDate,
     TaskRecurrenceResponse? Recurrence,
+    string? ExternalSource,
+    string? ExternalId,
+    string? ExternalUrl,
     DateTimeOffset CreatedAt);
 
 public record TaskDetailResponse(
@@ -142,4 +148,7 @@ public record TaskDetailResponse(
     Guid? RecurringTaskId,
     DateOnly? RecurrenceOccurrenceDate,
     TaskRecurrenceResponse? Recurrence,
+    string? ExternalSource,
+    string? ExternalId,
+    string? ExternalUrl,
     DateTimeOffset CreatedAt);

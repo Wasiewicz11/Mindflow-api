@@ -14,10 +14,13 @@ using Microsoft.EntityFrameworkCore;
 using Mindflow.Api.Authentication;
 using Mindflow.Api.Data;
 using Mindflow.Api.Hubs;
+using Mindflow.Api.Middleware;
 using Mindflow.Api.Models.Enums;
 using Mindflow.Api.Repositories;
 using Mindflow.Api.Services;
 using Mindflow.Api.Services.Ai;
+using Mindflow.Api.Services.Ai.Dictation;
+using Mindflow.Api.Services.Ai.Providers;
 using Mindflow.Api.Services.GoogleCalendar;
 using Mindflow.Api.Services.Integrations;
 
@@ -160,6 +163,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICalendarBlockRepository, CalendarBlockRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<IIntegrationTokenRepository, IntegrationTokenRepository>();
+        services.AddScoped<IIntegrationAuthorizationCodeRepository, IntegrationAuthorizationCodeRepository>();
         services.AddScoped<IPomodoroSessionRepository, PomodoroSessionRepository>();
         services.AddScoped<IBrainGraphRepository, BrainGraphRepository>();
         services.AddScoped<IGoalDayRepository, GoalDayRepository>();
@@ -172,6 +176,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPomodoroEventBroker, PomodoroEventBroker>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IIntegrationSpaceScope, IntegrationSpaceScope>();
         services.AddScoped<IAccessService, AccessService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IStorageService, SupabaseStorageService>();
@@ -223,6 +228,43 @@ public static class ServiceCollectionExtensions
                 });
             });
 
+            options.AddPolicy(IntegrationRoutes.OAuthRateLimitPolicy, context =>
+            {
+                var services = context.RequestServices;
+                var permitsPerMinute = services
+                    .GetRequiredService<IOptions<IntegrationTokenOptions>>()
+                    .Value.OAuthRateLimitPermitsPerMinute;
+
+                var clientId = context.Items[OAuthClientIdCaptureMiddleware.ItemKey] as string;
+                var knownClientId = services.GetRequiredService<IIntegrationClientRegistry>().Find(clientId)?.Id ?? "unknown";
+                var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+                return RateLimitPartition.GetFixedWindowLimiter($"oauth:{knownClientId}:{ip}", _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = permitsPerMinute,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0
+                });
+            });
+
+            options.AddPolicy(AiRateLimits.Policy, context =>
+            {
+                var permitsPerMinute = context.RequestServices
+                    .GetRequiredService<IOptions<AiOptions>>()
+                    .Value.Dictation.PermitsPerMinute;
+                var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var partitionKey = userId is null
+                    ? $"ai-ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}"
+                    : $"ai-user:{userId}";
+
+                return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = permitsPerMinute,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0
+                });
+            });
+
             options.OnRejected = (context, _) =>
             {
                 if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
@@ -247,10 +289,23 @@ public static class ServiceCollectionExtensions
                 $"{IntegrationTokenOptions.SectionName}:HashPepper must contain at least 32 bytes.")
             .ValidateOnStart();
 
+        services.AddOptions<IntegrationClientsOptions>()
+            .Bind(config.GetSection(IntegrationClientsOptions.SectionName))
+            .Validate(
+                options => options.Clients.Values.All(client =>
+                    string.IsNullOrEmpty(client.SecretHash) || IntegrationClientRegistry.IsSha256Hex(client.SecretHash)),
+                $"{IntegrationClientsOptions.SectionName}:Clients:*:SecretHash must be a 64-character SHA-256 hex string.")
+            .ValidateOnStart();
+
+        services.AddSingleton<IIntegrationClientRegistry, IntegrationClientRegistry>();
         services.AddScoped<IIntegrationService, IntegrationService>();
+        services.AddScoped<IIntegrationAuthorizationService, IntegrationAuthorizationService>();
         services.AddScoped<IIntegrationProjectService, IntegrationProjectService>();
+        services.AddScoped<IIntegrationSpaceService, IntegrationSpaceService>();
+        services.AddScoped<IIntegrationChangesService, IntegrationChangesService>();
         services.AddScoped<IIntegrationTaskQueryService, IntegrationTaskQueryService>();
         services.AddScoped<IIntegrationDocsService, IntegrationDocsService>();
+        services.AddScoped<IIntegrationExternalTaskService, IntegrationExternalTaskService>();
 
         return services;
     }
@@ -302,10 +357,19 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAiSuggestionOrchestrator, AiSuggestionOrchestrator>();
         services.AddScoped<ISuggestionService, SuggestionService>();
 
-        services.AddHttpClient<GeminiSuggestionProvider>();
-        services.AddHttpClient<OpenAiSuggestionProvider>();
-        services.AddScoped<IAiSuggestionProvider>(sp => sp.GetRequiredService<GeminiSuggestionProvider>());
-        services.AddScoped<IAiSuggestionProvider>(sp => sp.GetRequiredService<OpenAiSuggestionProvider>());
+        services.AddSingleton<IAiKeyProtector, AiKeyProtector>();
+        services.AddScoped<IUserAiSettingsRepository, UserAiSettingsRepository>();
+        services.AddScoped<IAiCredentialResolver, AiCredentialResolver>();
+        services.AddScoped<IAiConnectionChecker, AiConnectionChecker>();
+        services.AddScoped<IAiSettingsService, AiSettingsService>();
+        services.AddScoped<IDictationEngine, GeminiDictationEngine>();
+        services.AddScoped<IDictationEngine, OpenAiDictationEngine>();
+        services.AddScoped<IDictationService, DictationService>();
+        services.AddHttpClient<GeminiApi>(client => client.Timeout = TimeSpan.FromSeconds(120));
+        services.AddHttpClient<OpenAiApi>(client => client.Timeout = TimeSpan.FromSeconds(120));
+
+        services.AddScoped<IAiSuggestionProvider, GeminiSuggestionProvider>();
+        services.AddScoped<IAiSuggestionProvider, OpenAiSuggestionProvider>();
         services.AddScoped<IAiSuggestionProvider, RuleBasedSuggestionProvider>();
 
         return services;

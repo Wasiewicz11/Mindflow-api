@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -19,8 +21,12 @@ public class IntegrationApiController(
     ITaskSubtaskService subtaskService,
     ITaskTimeEntryService timeEntryService,
     IIntegrationProjectService integrationProjectService,
+    IIntegrationSpaceService integrationSpaceService,
+    IIntegrationChangesService integrationChangesService,
     IIntegrationTaskQueryService integrationTaskQueryService,
-    IIntegrationDocsService integrationDocsService) : ControllerBase
+    IIntegrationDocsService integrationDocsService,
+    IIntegrationExternalTaskService externalTaskService,
+    IWebHostEnvironment environment) : ControllerBase
 {
     private const int DefaultPageSize = 50;
     private const int MaxPageSize = 200;
@@ -31,6 +37,59 @@ public class IntegrationApiController(
         return Ok(integrationDocsService.Build());
     }
 
+    [HttpGet("changes")]
+    [RequireIntegrationScope(IntegrationTokenScope.TasksRead)]
+    [IntegrationEndpointDoc(
+        "tasks:read",
+        "Poll task and project changes in the key's reach, oldest first. Pass nextCursor back as since; since=latest returns only the current cursor.")]
+    public async Task<IActionResult> GetChanges(
+        [FromQuery] string? since,
+        [FromQuery] int? limit,
+        CancellationToken ct)
+    {
+        if (string.Equals(since, "latest", StringComparison.OrdinalIgnoreCase))
+        {
+            return Ok(await integrationChangesService.GetLatestCursorAsync(ct));
+        }
+
+        long cursor = 0;
+        if (!string.IsNullOrEmpty(since)
+            && (!long.TryParse(since, NumberStyles.None, CultureInfo.InvariantCulture, out cursor) || cursor < 0))
+        {
+            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
+            {
+                ["since"] = ["Pass a nextCursor returned by this endpoint, or 'latest'."]
+            }));
+        }
+
+        var tokenId = Guid.TryParse(User.FindFirstValue(IntegrationTokenAuthenticationDefaults.TokenIdClaim), out var parsed)
+            ? parsed
+            : (Guid?)null;
+
+        return Ok(await integrationChangesService.GetChangesAsync(
+            cursor,
+            Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize),
+            tokenId,
+            ct));
+    }
+
+    [HttpGet("spaces")]
+    [RequireIntegrationScope(IntegrationTokenScope.SpacesRead)]
+    public async Task<IActionResult> GetSpaces(CancellationToken ct)
+    {
+        return Ok(await integrationSpaceService.GetSpacesAsync(ct));
+    }
+
+    [HttpGet("spaces/{spaceId:guid}")]
+    [RequireIntegrationScope(IntegrationTokenScope.SpacesRead)]
+    public async Task<IActionResult> GetSpace(Guid spaceId, CancellationToken ct)
+    {
+        var space = await integrationSpaceService.GetSpaceAsync(spaceId, ct);
+        if (space is null) return NotFound();
+
+        return Ok(space);
+    }
+
     [HttpGet("projects")]
     [RequireIntegrationScope(IntegrationTokenScope.ProjectsRead)]
     public async Task<IActionResult> GetProjects(
@@ -39,6 +98,40 @@ public class IntegrationApiController(
         CancellationToken ct)
     {
         return Ok(await integrationProjectService.GetAccessibleProjectsAsync(BuildPageQuery(limit, offset), ct));
+    }
+
+    [HttpGet("projects/{projectId:guid}")]
+    [RequireIntegrationScope(IntegrationTokenScope.ProjectsRead)]
+    public async Task<IActionResult> GetProject(Guid projectId, CancellationToken ct)
+    {
+        var project = await integrationProjectService.GetProjectAsync(projectId, ct);
+        if (project is null) return NotFound();
+
+        return Ok(project);
+    }
+
+    [HttpPost("projects")]
+    [RequireIntegrationScope(IntegrationTokenScope.ProjectsCreate)]
+    public async Task<IActionResult> CreateProject([FromBody] IntegrationCreateProjectRequest request, CancellationToken ct)
+    {
+        var result = await integrationProjectService.CreateProjectAsync(request, ct);
+        if (result.Outcome == IntegrationProjectOutcome.Succeeded)
+        {
+            return CreatedAtAction(nameof(GetProject), new { projectId = result.Project!.Id }, result.Project);
+        }
+
+        return ProjectProblem(result.Outcome);
+    }
+
+    [HttpPatch("projects/{projectId:guid}")]
+    [RequireIntegrationScope(IntegrationTokenScope.ProjectsUpdate)]
+    public async Task<IActionResult> UpdateProject(
+        Guid projectId,
+        [FromBody] IntegrationUpdateProjectRequest request,
+        CancellationToken ct)
+    {
+        var result = await integrationProjectService.UpdateProjectAsync(projectId, request, ct);
+        return result.Outcome == IntegrationProjectOutcome.Succeeded ? Ok(result.Project) : ProjectProblem(result.Outcome);
     }
 
     [HttpGet("projects/{projectId:guid}/tasks")]
@@ -93,6 +186,14 @@ public class IntegrationApiController(
     [RequireIntegrationScope(IntegrationTokenScope.TasksCreate)]
     public async Task<IActionResult> CreateTask([FromBody] CreateTaskRequest request)
     {
+        if (request.ProjectId is null && User.GetIntegrationSpaceId() is not null)
+        {
+            var defaultProjectId = User.GetIntegrationDefaultProjectId();
+            if (defaultProjectId is null) return SpaceProjectRequired();
+
+            request = request with { ProjectId = defaultProjectId };
+        }
+
         var task = await taskService.CreateAsync(request);
         if (task is null) return NotFound();
 
@@ -116,6 +217,71 @@ public class IntegrationApiController(
         var deleted = await taskService.DeleteAsync(id);
         if (!deleted) return NotFound();
 
+        return NoContent();
+    }
+
+    [HttpGet("tasks/external/{source}/{externalId}")]
+    [RequireIntegrationScope(IntegrationTokenScope.TasksRead)]
+    public async Task<IActionResult> GetExternalTask(string source, string externalId, CancellationToken ct)
+    {
+        var rejection = RejectExternalReference(source, externalId, null);
+        if (rejection is not null) return rejection;
+
+        var task = await externalTaskService.GetAsync(source, externalId, ct);
+        if (task is null) return NotFound();
+
+        return Ok(task);
+    }
+
+    [HttpPut("tasks/external/{source}/{externalId}")]
+    [IntegrationEndpointDoc(
+        "tasks:create (new task) or tasks:update (existing task)",
+        "Create or update the task linked to an id in an external system.")]
+    public async Task<IActionResult> UpsertExternalTask(
+        string source,
+        string externalId,
+        [FromBody] UpsertExternalTaskRequest request,
+        CancellationToken ct)
+    {
+        var rejection = RejectExternalReference(source, externalId, request.ExternalUrl);
+        if (rejection is not null) return rejection;
+
+        var permissions = new ExternalTaskPermissions(
+            User.HasIntegrationScope(IntegrationTokenScope.TasksCreate),
+            User.HasIntegrationScope(IntegrationTokenScope.TasksUpdate));
+        if (!permissions.CanCreate && !permissions.CanUpdate)
+        {
+            return Forbid(IntegrationTokenAuthenticationDefaults.Scheme);
+        }
+
+        var reference = new TaskExternalReference(source, externalId, request.ExternalUrl);
+        var result = await externalTaskService.UpsertAsync(
+            reference,
+            request,
+            permissions,
+            User.GetIntegrationDefaultProjectId(),
+            ct);
+
+        return result.Outcome switch
+        {
+            ExternalTaskUpsertOutcome.Created => CreatedAtAction(nameof(GetExternalTask), new { source, externalId }, result.Task),
+            ExternalTaskUpsertOutcome.Updated => Ok(result.Task),
+            ExternalTaskUpsertOutcome.Forbidden => Forbid(IntegrationTokenAuthenticationDefaults.Scheme),
+            ExternalTaskUpsertOutcome.ContentRequired => ValidationProblem(new ValidationProblemDetails(
+                new Dictionary<string, string[]> { ["content"] = ["Content is required to create a task."] })),
+            ExternalTaskUpsertOutcome.ProjectRequired => SpaceProjectRequired(),
+            _ => NotFound()
+        };
+    }
+
+    [HttpDelete("tasks/external/{source}/{externalId}")]
+    [RequireIntegrationScope(IntegrationTokenScope.TasksDelete)]
+    public async Task<IActionResult> DeleteExternalTask(string source, string externalId, CancellationToken ct)
+    {
+        var rejection = RejectExternalReference(source, externalId, null);
+        if (rejection is not null) return rejection;
+
+        await externalTaskService.DeleteAsync(source, externalId, ct);
         return NoContent();
     }
 
@@ -185,8 +351,13 @@ public class IntegrationApiController(
 
     [HttpPatch("time-entries/{entryId:guid}")]
     [RequireIntegrationScope(IntegrationTokenScope.TimeEntriesUpdate)]
-    public async Task<IActionResult> UpdateTimeEntry(Guid entryId, [FromBody] UpdateTaskTimeEntryRequest request)
+    public async Task<IActionResult> UpdateTimeEntry(
+        Guid entryId,
+        [FromBody] UpdateTaskTimeEntryRequest request,
+        CancellationToken ct)
     {
+        if (!await integrationTaskQueryService.CanReachTimeEntryAsync(entryId, ct)) return NotFound();
+
         var updated = await timeEntryService.UpdateAsync(entryId, request);
         if (updated is null) return NotFound();
 
@@ -195,12 +366,51 @@ public class IntegrationApiController(
 
     [HttpDelete("time-entries/{entryId:guid}")]
     [RequireIntegrationScope(IntegrationTokenScope.TimeEntriesDelete)]
-    public async Task<IActionResult> DeleteTimeEntry(Guid entryId)
+    public async Task<IActionResult> DeleteTimeEntry(Guid entryId, CancellationToken ct)
     {
+        if (!await integrationTaskQueryService.CanReachTimeEntryAsync(entryId, ct)) return NotFound();
+
         var deleted = await timeEntryService.DeleteAsync(entryId);
         if (!deleted) return NotFound();
 
         return NoContent();
+    }
+
+    private IActionResult ProjectProblem(IntegrationProjectOutcome outcome)
+    {
+        return outcome switch
+        {
+            IntegrationProjectOutcome.SpaceRequired => ValidationProblem(new ValidationProblemDetails(
+                new Dictionary<string, string[]> { ["spaceId"] = ["Pass the spaceId the project belongs to."] })),
+            IntegrationProjectOutcome.NameRequired => ValidationProblem(new ValidationProblemDetails(
+                new Dictionary<string, string[]> { ["name"] = ["Project name cannot be empty."] })),
+            _ => NotFound()
+        };
+    }
+
+    private IActionResult SpaceProjectRequired()
+    {
+        return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
+        {
+            ["projectId"] = ["This key is limited to one space: pass a projectId from that space or give the key a default project."]
+        }));
+    }
+
+    private IActionResult? RejectExternalReference(string source, string externalId, string? externalUrl)
+    {
+        var errors = ExternalTaskReferenceRules.Validate(source, externalId, externalUrl, environment.IsDevelopment());
+        if (errors.Count > 0) return ValidationProblem(new ValidationProblemDetails(errors));
+
+        var clientId = User.GetIntegrationClientId();
+        if (clientId is not null && !string.Equals(clientId, source, StringComparison.Ordinal))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "Source not allowed",
+                detail: $"This token can only use the source '{clientId}'.");
+        }
+
+        return null;
     }
 
     private static IntegrationPageQuery BuildPageQuery(int? limit, int? offset)

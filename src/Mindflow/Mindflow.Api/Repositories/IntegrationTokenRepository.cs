@@ -39,6 +39,16 @@ public class IntegrationTokenRepository(MindflowDbContext db) : IIntegrationToke
             .FirstOrDefaultAsync(token => token.Id == id && token.UserId == userId, ct);
     }
 
+    public async Task<IReadOnlyList<IntegrationToken>> GetActiveForClientAsync(
+        Guid userId,
+        string clientId,
+        CancellationToken ct = default)
+    {
+        return await db.IntegrationTokens
+            .Where(token => token.UserId == userId && token.ClientId == clientId && !token.IsRevoked)
+            .ToListAsync(ct);
+    }
+
     public async Task AddAsync(IntegrationToken token, CancellationToken ct = default)
     {
         await db.IntegrationTokens.AddAsync(token, ct);

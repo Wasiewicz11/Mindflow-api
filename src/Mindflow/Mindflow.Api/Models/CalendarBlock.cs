@@ -12,6 +12,7 @@ public class CalendarBlock
     public string? Title { get; set; }
     public DateTimeOffset StartAt { get; set; }
     public int DurationMinutes { get; set; }
+    public bool IsAllDay { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public CalendarBlockProvider Provider { get; set; }

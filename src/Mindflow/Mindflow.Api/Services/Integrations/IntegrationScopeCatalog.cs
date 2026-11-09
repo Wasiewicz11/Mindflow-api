@@ -12,7 +12,10 @@ public static class IntegrationScopeCatalog
 {
     private static readonly IntegrationScopeDefinition[] Definitions =
     [
+        new(IntegrationTokenScope.SpacesRead, "spaces:read", "Read the key's space, or every accessible space for a key without one."),
         new(IntegrationTokenScope.ProjectsRead, "projects:read", "Read accessible projects."),
+        new(IntegrationTokenScope.ProjectsCreate, "projects:create", "Create projects in an accessible space."),
+        new(IntegrationTokenScope.ProjectsUpdate, "projects:update", "Rename projects and change their color."),
         new(IntegrationTokenScope.TasksRead, "tasks:read", "Read tasks."),
         new(IntegrationTokenScope.TasksCreate, "tasks:create", "Create tasks."),
         new(IntegrationTokenScope.TasksUpdate, "tasks:update", "Update tasks."),
@@ -38,4 +41,15 @@ public static class IntegrationScopeCatalog
             : throw new ArgumentOutOfRangeException(nameof(scope), scope, "Scope is missing from the catalog.");
 
     public static bool IsKnown(IntegrationTokenScope scope) => ByScope.ContainsKey(scope);
+
+    /// <summary>Accepts the enum name ("TasksRead") or the public name ("tasks:read"), never a number.</summary>
+    public static bool TryParse(string value, out IntegrationTokenScope scope)
+    {
+        var definition = Definitions.FirstOrDefault(candidate =>
+            string.Equals(candidate.Scope.ToString(), value, StringComparison.Ordinal)
+            || string.Equals(candidate.Name, value, StringComparison.Ordinal));
+
+        scope = definition?.Scope ?? default;
+        return definition is not null;
+    }
 }

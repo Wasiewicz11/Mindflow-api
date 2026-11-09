@@ -50,6 +50,7 @@ app.UseMiddleware<ApiExceptionHandlingMiddleware>();
 app.UseRouting();
 app.UseCors("Frontend");
 app.UseAuthentication();
+app.UseMiddleware<OAuthClientIdCaptureMiddleware>();
 // After authentication so the limiter can partition by token.
 app.UseRateLimiter();
 app.UseAuthorization();

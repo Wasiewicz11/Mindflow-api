@@ -18,5 +18,6 @@ internal static class CalendarBlockMapper
             block.Provider,
             block.ExternalEventId,
             block.GoogleCalendarId,
-            block.SyncStatus);
+            block.SyncStatus,
+            block.IsAllDay);
 }

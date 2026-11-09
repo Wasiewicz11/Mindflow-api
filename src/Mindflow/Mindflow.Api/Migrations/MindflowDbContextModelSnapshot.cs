@@ -94,6 +94,10 @@ namespace Mindflow.Api.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("ai_calls");
 
+                    b.Property<int>("DictationCalls")
+                        .HasColumnType("integer")
+                        .HasColumnName("dictation_calls");
+
                     b.HasKey("UserId", "Date")
                         .HasName("pk_ai_usage_daily");
 
@@ -320,6 +324,10 @@ namespace Mindflow.Api.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("google_calendar_id");
 
+                    b.Property<bool>("IsAllDay")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_all_day");
+
                     b.Property<string>("Provider")
                         .IsRequired()
                         .HasColumnType("text")
@@ -531,6 +539,78 @@ namespace Mindflow.Api.Migrations
                     b.ToTable("google_calendar_connections", (string)null);
                 });
 
+            modelBuilder.Entity("Mindflow.Api.Models.IntegrationAuthorizationCode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ClientId")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("CodeChallenge")
+                        .IsRequired()
+                        .HasMaxLength(43)
+                        .HasColumnType("character varying(43)")
+                        .HasColumnName("code_challenge");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("code_hash");
+
+                    b.Property<DateTimeOffset?>("ConsumedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("consumed_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("DefaultProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("default_project_id");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("RedirectUri")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
+                        .HasColumnName("redirect_uri");
+
+                    b.PrimitiveCollection<List<string>>("Scopes")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("scopes");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_integration_authorization_codes");
+
+                    b.HasIndex("CodeHash")
+                        .IsUnique()
+                        .HasDatabaseName("ix_integration_authorization_codes_code_hash");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("ix_integration_authorization_codes_expires_at");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_integration_authorization_codes_user_id");
+
+                    b.ToTable("integration_authorization_codes", (string)null);
+                });
+
             modelBuilder.Entity("Mindflow.Api.Models.IntegrationToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -538,9 +618,18 @@ namespace Mindflow.Api.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("ClientId")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("client_id");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<Guid?>("DefaultProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("default_project_id");
 
                     b.Property<DateTimeOffset>("ExpiresAt")
                         .HasColumnType("timestamp with time zone")
@@ -564,6 +653,10 @@ namespace Mindflow.Api.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("revoked_at");
 
+                    b.Property<Guid?>("SpaceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("space_id");
+
                     b.Property<string>("TokenHash")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -583,12 +676,18 @@ namespace Mindflow.Api.Migrations
                     b.HasKey("Id")
                         .HasName("pk_integration_tokens");
 
+                    b.HasIndex("SpaceId")
+                        .HasDatabaseName("ix_integration_tokens_space_id");
+
                     b.HasIndex("TokenHash")
                         .IsUnique()
                         .HasDatabaseName("ix_integration_tokens_token_hash");
 
                     b.HasIndex("UserId")
                         .HasDatabaseName("ix_integration_tokens_user_id");
+
+                    b.HasIndex("UserId", "ClientId")
+                        .HasDatabaseName("ix_integration_tokens_user_id_client_id");
 
                     b.ToTable("integration_tokens", (string)null);
                 });
@@ -1153,6 +1252,13 @@ namespace Mindflow.Api.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("request_id");
 
+                    b.Property<long>("Sequence")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("sequence");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Sequence"));
+
                     b.Property<string>("SessionId")
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)")
@@ -1183,6 +1289,10 @@ namespace Mindflow.Api.Migrations
 
                     b.HasIndex("ProjectId")
                         .HasDatabaseName("ix_task_activity_events_project_id");
+
+                    b.HasIndex("Sequence")
+                        .IsUnique()
+                        .HasDatabaseName("ix_task_activity_events_sequence");
 
                     b.HasIndex("SpaceId")
                         .HasDatabaseName("ix_task_activity_events_space_id");
@@ -1233,6 +1343,21 @@ namespace Mindflow.Api.Migrations
                         .HasColumnType("numeric(6,2)")
                         .HasColumnName("estimated_hours");
 
+                    b.Property<string>("ExternalId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("external_id");
+
+                    b.Property<string>("ExternalSource")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("external_source");
+
+                    b.Property<string>("ExternalUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
+                        .HasColumnName("external_url");
+
                     b.Property<bool>("IsCompleted")
                         .HasColumnType("boolean")
                         .HasColumnName("is_completed");
@@ -1282,6 +1407,11 @@ namespace Mindflow.Api.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_tasks_recurring_task_id_recurrence_occurrence_date")
                         .HasFilter("recurring_task_id IS NOT NULL AND recurrence_occurrence_date IS NOT NULL");
+
+                    b.HasIndex("UserId", "ExternalSource", "ExternalId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_tasks_user_id_external_source_external_id")
+                        .HasFilter("external_source IS NOT NULL");
 
                     b.ToTable("tasks", (string)null);
                 });
@@ -1584,6 +1714,55 @@ namespace Mindflow.Api.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("Mindflow.Api.Models.UserAiSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ApiKeyEncrypted")
+                        .HasColumnType("text")
+                        .HasColumnName("api_key_encrypted");
+
+                    b.Property<string>("ApiKeyLast4")
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)")
+                        .HasColumnName("api_key_last4");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Model")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("model");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("provider");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_user_ai_settings");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_user_ai_settings_user_id");
+
+                    b.ToTable("user_ai_settings", (string)null);
+                });
+
             modelBuilder.Entity("Mindflow.Api.Models.UserIdentity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1683,8 +1862,26 @@ namespace Mindflow.Api.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Mindflow.Api.Models.IntegrationAuthorizationCode", b =>
+                {
+                    b.HasOne("Mindflow.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_integration_authorization_codes_users_user_id");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Mindflow.Api.Models.IntegrationToken", b =>
                 {
+                    b.HasOne("Mindflow.Api.Models.Space", null)
+                        .WithMany()
+                        .HasForeignKey("SpaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_integration_tokens_spaces_space_id");
+
                     b.HasOne("Mindflow.Api.Models.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
@@ -1841,6 +2038,18 @@ namespace Mindflow.Api.Migrations
                         .HasForeignKey("TaskId")
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_task_time_entries_tasks_task_id");
+                });
+
+            modelBuilder.Entity("Mindflow.Api.Models.UserAiSettings", b =>
+                {
+                    b.HasOne("Mindflow.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_user_ai_settings_users_user_id");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Mindflow.Api.Models.UserIdentity", b =>

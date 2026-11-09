@@ -10,7 +10,9 @@ public class CalendarBlockRepository(MindflowDbContext db) : ICalendarBlockRepos
     public async Task<IEnumerable<CalendarBlock>> GetForUserInRangeAsync(Guid userId, DateTimeOffset from, DateTimeOffset to)
     {
         return await db.CalendarBlocks
-            .Where(b => b.UserId == userId && b.StartAt >= from && b.StartAt < to)
+            .Where(b => b.UserId == userId
+                && b.StartAt < to
+                && (b.StartAt >= from || (b.IsAllDay && b.StartAt.AddMinutes(b.DurationMinutes) > from)))
             .OrderBy(b => b.StartAt)
             .ToListAsync();
     }

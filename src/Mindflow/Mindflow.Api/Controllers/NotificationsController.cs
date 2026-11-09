@@ -66,12 +66,69 @@ public class NotificationsController(
         return Ok(await notificationService.GetInboxItemsAsync(userId, ct));
     }
 
+    [HttpGet("inbox/page")]
+    public async Task<ActionResult<NotificationInboxPageResponse>> GetInboxPage(
+        CancellationToken ct,
+        [FromQuery] int limit = 30,
+        [FromQuery] int offset = 0)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        return Ok(await notificationService.GetInboxPageAsync(userId, limit, offset, ct));
+    }
+
+    [HttpGet("inbox/unread-count")]
+    public async Task<ActionResult<NotificationInboxUnreadCountResponse>> GetUnreadCount(CancellationToken ct)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        return Ok(new NotificationInboxUnreadCountResponse(await notificationService.CountUnreadInboxItemsAsync(userId, ct)));
+    }
+
+    [HttpPut("inbox/read-all")]
+    public async Task<IActionResult> MarkAllInboxItemsRead(CancellationToken ct)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        await notificationService.MarkAllInboxItemsReadAsync(userId, ct);
+        return NoContent();
+    }
+
+    [HttpPut("inbox/unread-all")]
+    public async Task<IActionResult> MarkAllInboxItemsUnread(CancellationToken ct)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        await notificationService.MarkAllInboxItemsUnreadAsync(userId, ct);
+        return NoContent();
+    }
+
     [HttpPut("inbox/{notificationId:guid}/read")]
     public async Task<IActionResult> MarkInboxItemRead(Guid notificationId, CancellationToken ct)
     {
         var userId = await currentUserService.GetCurrentUserIdAsync();
         await notificationService.MarkInboxItemReadAsync(userId, notificationId, ct);
         return NoContent();
+    }
+
+    [HttpPut("inbox/{notificationId:guid}/unread")]
+    public async Task<IActionResult> MarkInboxItemUnread(Guid notificationId, CancellationToken ct)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        await notificationService.MarkInboxItemUnreadAsync(userId, notificationId, ct);
+        return NoContent();
+    }
+
+    [HttpDelete("inbox/{notificationId:guid}")]
+    public async Task<IActionResult> DeleteInboxItem(Guid notificationId, CancellationToken ct)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        await notificationService.DeleteInboxItemAsync(userId, notificationId, ct);
+        return NoContent();
+    }
+
+    [HttpDelete("inbox")]
+    public async Task<ActionResult<NotificationInboxDeleteResponse>> DeleteAllInboxItems(CancellationToken ct)
+    {
+        var userId = await currentUserService.GetCurrentUserIdAsync();
+        var deleted = await notificationService.DeleteAllInboxItemsAsync(userId, ct);
+        return Ok(new NotificationInboxDeleteResponse(deleted));
     }
 
     [HttpPost("test")]

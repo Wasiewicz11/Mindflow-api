@@ -1,4 +1,5 @@
 using System.Net;
+using CultureInfo = System.Globalization.CultureInfo;
 using System.Text.Json;
 using Google;
 using Google.Apis.Auth.OAuth2;
@@ -221,12 +222,21 @@ public class GoogleCalendarClient(
         }
     }
 
-    private static GoogleEventChange? MapChange(Event item)
+    internal static GoogleEventChange? MapChange(Event item)
     {
         if (string.Equals(item.Status, "cancelled", StringComparison.OrdinalIgnoreCase))
             return new GoogleEventChange(item.Id, IsDeleted: true, null, default, 0);
 
-        // Only timed events land on the time grid; all-day events (Start.Date) are skipped.
+        if (DateOnly.TryParse(item.Start?.Date, CultureInfo.InvariantCulture, out var startDay))
+        {
+            var endDay = DateOnly.TryParse(item.End?.Date, CultureInfo.InvariantCulture, out var parsed) && parsed > startDay
+                ? parsed
+                : startDay.AddDays(1);
+            var days = endDay.DayNumber - startDay.DayNumber;
+            var midnight = new DateTimeOffset(startDay.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+            return new GoogleEventChange(item.Id, IsDeleted: false, item.Summary, midnight, days * 24 * 60, IsAllDay: true);
+        }
+
         var start = item.Start?.DateTimeDateTimeOffset;
         var end = item.End?.DateTimeDateTimeOffset;
         if (start is null || end is null)

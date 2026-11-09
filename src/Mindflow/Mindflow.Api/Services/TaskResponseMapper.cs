@@ -32,6 +32,9 @@ internal static class TaskResponseMapper
             task.RecurringTaskId,
             task.RecurrenceOccurrenceDate,
             ToRecurrenceResponse(task.Recurrence),
+            task.ExternalSource,
+            task.ExternalId,
+            task.ExternalUrl,
             task.CreatedAt);
 
     public static TaskDetailResponse ToDetailResponse(
@@ -62,6 +65,9 @@ internal static class TaskResponseMapper
             task.RecurringTaskId,
             task.RecurrenceOccurrenceDate,
             ToRecurrenceResponse(task.Recurrence),
+            task.ExternalSource,
+            task.ExternalId,
+            task.ExternalUrl,
             task.CreatedAt);
 
     public static TaskRecurrenceResponse? ToRecurrenceResponse(TaskRecurrence? recurrence) => recurrence is null

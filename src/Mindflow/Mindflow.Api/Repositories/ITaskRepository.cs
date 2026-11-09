@@ -11,6 +11,7 @@ public interface ITaskRepository
         CancellationToken ct = default);
     Task<TaskItem?> GetByIdAsync(Guid id);
     Task<TaskItem?> GetByIdReadOnlyAsync(Guid id);
+    Task<Guid?> FindIdByExternalReferenceAsync(Guid userId, string source, string externalId, CancellationToken ct = default);
     Task<TaskItem?> CreateAsync(TaskItem task);
     Task<TaskItem?> UpdateAsync(TaskItem task);
     Task<bool> DeleteAsync(Guid id);

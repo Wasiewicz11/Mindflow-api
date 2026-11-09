@@ -62,6 +62,15 @@ public class TaskActivityService(
         }
     }
 
+    public Task RecordProjectEventAsync(TaskActivityEventType eventType, Guid userId, Project project) =>
+        RecordUserTaskEventAsync(
+            eventType,
+            userId,
+            null,
+            project.SpaceId,
+            project.Id,
+            new { name = project.Name, color = project.Color });
+
     private static string? GetHeaderValue(HttpContext? httpContext, string headerName)
     {
         if (httpContext is null) return null;

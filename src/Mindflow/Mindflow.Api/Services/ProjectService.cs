@@ -1,6 +1,7 @@
 using Mindflow.Api.Exceptions;
 using Mindflow.Api.Models;
 using Mindflow.Api.Models.Dtos;
+using Mindflow.Api.Models.Enums;
 using Mindflow.Api.Repositories;
 
 namespace Mindflow.Api.Services;
@@ -8,7 +9,8 @@ namespace Mindflow.Api.Services;
 public class ProjectService(
     IProjectRepository projectRepository,
     ISpaceRepository spaceRepository,
-    ICurrentUserService currentUserService) : IProjectService
+    ICurrentUserService currentUserService,
+    ITaskActivityService taskActivityService) : IProjectService
 {
     public async Task<IEnumerable<Project>> GetAllInSpaceForCurrentUserAsync(Guid spaceId)
     {
@@ -33,7 +35,9 @@ public class ProjectService(
             CreatedAt = DateTimeOffset.UtcNow
         };
 
-        return await projectRepository.CreateInSpaceAsync(project);
+        var created = await projectRepository.CreateInSpaceAsync(project);
+        await taskActivityService.RecordProjectEventAsync(TaskActivityEventType.ProjectCreated, userId, created);
+        return created;
     }
 
     public async Task<Project> UpdateInSpaceForCurrentUserAsync(Guid id, Guid spaceId, UpdateProjectRequest request)
@@ -41,9 +45,10 @@ public class ProjectService(
         var userId = await currentUserService.GetCurrentUserIdAsync();
         await EnsureUserCanAccessSpaceAsync(spaceId, userId);
 
-        var project = await projectRepository.UpdateInSpaceAsync(id, spaceId, request.Name, request.Color);
-        return project 
-               ?? throw new NotFoundException("Project not found.");
+        var project = await projectRepository.UpdateInSpaceAsync(id, spaceId, request.Name, request.Color)
+                      ?? throw new NotFoundException("Project not found.");
+        await taskActivityService.RecordProjectEventAsync(TaskActivityEventType.ProjectUpdated, userId, project);
+        return project;
     }
 
     public async Task DeleteInSpaceForCurrentUserAsync(Guid id, Guid spaceId)
@@ -51,8 +56,11 @@ public class ProjectService(
         var userId = await currentUserService.GetCurrentUserIdAsync();
         await EnsureUserCanAccessSpaceAsync(spaceId, userId);
 
+        var project = await projectRepository.GetByIdAsync(id);
         var deleted = await projectRepository.DeleteInSpaceAsync(id, spaceId);
-        if (!deleted) throw new NotFoundException("Project not found.");
+        if (!deleted || project is null) throw new NotFoundException("Project not found.");
+
+        await taskActivityService.RecordProjectEventAsync(TaskActivityEventType.ProjectDeleted, userId, project);
     }
 
     private async Task EnsureUserCanAccessSpaceAsync(Guid spaceId, Guid userId)

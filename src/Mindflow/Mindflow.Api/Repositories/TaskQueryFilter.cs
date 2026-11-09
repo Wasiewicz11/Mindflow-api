@@ -9,4 +9,5 @@ public record TaskQueryFilter(
     DateOnly? DueBefore,
     DateTimeOffset? CreatedAfter,
     int Limit,
-    int Offset);
+    int Offset,
+    Guid? SpaceId = null);

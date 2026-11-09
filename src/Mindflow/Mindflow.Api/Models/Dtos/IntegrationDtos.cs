@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Mindflow.Api.Models.Enums;
 using TaskStatus = Mindflow.Api.Models.Enums.TaskStatus;
 
@@ -12,7 +13,9 @@ public record UpdateIntegrationSettingsRequest(bool Enabled);
 public record CreateIntegrationTokenRequest(
     string Name,
     IReadOnlyCollection<IntegrationTokenScope> Scopes,
-    DateTimeOffset ExpiresAt);
+    DateTimeOffset ExpiresAt,
+    Guid? SpaceId = null,
+    Guid? DefaultProjectId = null);
 
 public record IntegrationTokenResponse(
     Guid Id,
@@ -23,7 +26,12 @@ public record IntegrationTokenResponse(
     DateTimeOffset ExpiresAt,
     DateTimeOffset? LastUsedAt,
     bool IsRevoked,
-    DateTimeOffset? RevokedAt);
+    DateTimeOffset? RevokedAt,
+    string? ClientId,
+    string? ClientName,
+    Guid? DefaultProjectId,
+    Guid? SpaceId = null,
+    string? SpaceName = null);
 
 public record CreateIntegrationTokenResponse(
     Guid Id,
@@ -32,7 +40,16 @@ public record CreateIntegrationTokenResponse(
     IReadOnlyCollection<IntegrationTokenScope> Scopes,
     DateTimeOffset CreatedAt,
     DateTimeOffset ExpiresAt,
-    string Token);
+    string Token,
+    Guid? SpaceId = null,
+    Guid? DefaultProjectId = null);
+
+public record IntegrationSpaceResponse(
+    Guid Id,
+    string Name,
+    string Color,
+    SpaceRole Role,
+    DateTimeOffset CreatedAt);
 
 public record IntegrationProjectResponse(
     Guid Id,
@@ -40,6 +57,50 @@ public record IntegrationProjectResponse(
     string Color,
     Guid? SpaceId,
     DateTimeOffset CreatedAt);
+
+public record IntegrationCreateProjectRequest(
+    [Required, MaxLength(40)] string Name,
+    [RegularExpression("^#[0-9A-Fa-f]{6}$")] string? Color,
+    Guid? SpaceId);
+
+public record IntegrationUpdateProjectRequest(
+    [MaxLength(40)] string? Name,
+    [RegularExpression("^#[0-9A-Fa-f]{6}$")] string? Color);
+
+public record IntegrationChangeActor(string Type, bool IsCurrentKey);
+
+public record IntegrationChangeTaskSnapshot(
+    Guid Id,
+    string Content,
+    TaskStatus Status,
+    bool IsCompleted,
+    Guid? ProjectId,
+    TaskPriority Priority,
+    DateOnly? DueDate,
+    decimal? EstimatedHours);
+
+public record IntegrationChangeProjectSnapshot(
+    Guid Id,
+    string Name,
+    string Color,
+    Guid? SpaceId);
+
+public record IntegrationChangeResponse(
+    string Cursor,
+    Guid Id,
+    TaskActivityEventType Type,
+    Guid? TaskId,
+    Guid? ProjectId,
+    Guid? SpaceId,
+    DateTimeOffset OccurredAt,
+    IntegrationChangeActor Actor,
+    IntegrationChangeTaskSnapshot? Task,
+    IntegrationChangeProjectSnapshot? Project);
+
+public record IntegrationChangesPageResponse(
+    IReadOnlyList<IntegrationChangeResponse> Items,
+    string NextCursor,
+    bool HasMore);
 
 public record IntegrationPageQuery(int Limit, int Offset);
 
@@ -69,6 +130,35 @@ public record IntegrationTaskPageResponse(
     int Total,
     int Limit,
     int Offset);
+
+public record UpsertExternalTaskRequest(
+    [MaxLength(1000)] string? Content,
+    [MaxLength(10000)] string? Description,
+    TaskPriority? Priority,
+    TaskStatus? Status,
+    DateOnly? DueDate,
+    TimeOnly? DueTime,
+    [Range(0.01, 1000)] decimal? EstimatedHours,
+    Guid? ProjectId,
+    IReadOnlyCollection<string>? Tags,
+    [MaxLength(2048)] string? ExternalUrl);
+
+public record IntegrationAuthorizationPreviewResponse(
+    string ClientId,
+    string Name,
+    IReadOnlyCollection<IntegrationTokenScope> Scopes,
+    string RedirectUri);
+
+public record IntegrationAuthorizationRequest(
+    string ClientId,
+    string RedirectUri,
+    IReadOnlyCollection<IntegrationTokenScope> Scopes,
+    [MaxLength(1024)] string? State,
+    string CodeChallenge,
+    string CodeChallengeMethod,
+    Guid? DefaultProjectId);
+
+public record IntegrationAuthorizationResponse(string RedirectUrl);
 
 public record IntegrationScopeDoc(
     string Scope,

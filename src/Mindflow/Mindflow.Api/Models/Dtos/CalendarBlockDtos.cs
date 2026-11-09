@@ -27,4 +27,5 @@ public record CalendarBlockResponse(
     CalendarBlockProvider Provider,
     string? ExternalEventId,
     string? GoogleCalendarId,
-    CalendarBlockSyncStatus SyncStatus);
+    CalendarBlockSyncStatus SyncStatus,
+    bool IsAllDay);

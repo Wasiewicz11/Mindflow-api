@@ -31,9 +31,17 @@ public class ProjectRepository(MindflowDbContext db) : IProjectRepository
         Guid userId,
         int limit,
         int offset,
+        Guid? spaceId = null,
         CancellationToken ct = default)
     {
         var query = AccessibleForUser(userId);
+        if (spaceId is Guid scopedSpaceId)
+        {
+            query = query.Where(project => project.SpaceId == scopedSpaceId
+                && db.Spaces.Any(space => space.Id == scopedSpaceId
+                    && (space.UserId == userId || db.SpaceMembers.Any(member =>
+                        member.SpaceId == scopedSpaceId && member.UserId == userId))));
+        }
 
         var total = await query.CountAsync(ct);
         var items = await query
@@ -57,6 +65,18 @@ public class ProjectRepository(MindflowDbContext db) : IProjectRepository
     public async Task<Project> CreateInSpaceAsync(Project project)
     {
         db.Projects.Add(project);
+        await db.SaveChangesAsync();
+        return project;
+    }
+
+    public async Task<Project?> UpdateAsync(Guid id, string? name, string? color)
+    {
+        var project = await db.Projects.FirstOrDefaultAsync(p => p.Id == id);
+        if (project is null) return null;
+
+        if (name is not null) project.Name = name;
+        if (color is not null) project.Color = color;
+
         await db.SaveChangesAsync();
         return project;
     }

@@ -26,10 +26,12 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
     public DbSet<GoogleCalendarConnection> GoogleCalendarConnections { get; set; }
     public DbSet<IntegrationToken> IntegrationTokens { get; set; }
     public DbSet<IntegrationTokenPermission> IntegrationTokenPermissions { get; set; }
+    public DbSet<IntegrationAuthorizationCode> IntegrationAuthorizationCodes { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<AiSuggestion> AiSuggestions { get; set; }
     public DbSet<SuggestionAction> SuggestionActions { get; set; }
     public DbSet<AiUsageDaily> AiUsageDaily { get; set; }
+    public DbSet<UserAiSettings> UserAiSettings { get; set; }
     public DbSet<PomodoroSessionState> PomodoroSessions { get; set; }
     public DbSet<BrainMap> BrainMaps { get; set; }
     public DbSet<BrainNode> BrainNodes { get; set; }
@@ -94,6 +96,9 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
             entity.HasIndex(t => new { t.RecurringTaskId, t.RecurrenceOccurrenceDate })
                 .IsUnique()
                 .HasFilter("recurring_task_id IS NOT NULL AND recurrence_occurrence_date IS NOT NULL");
+            entity.HasIndex(t => new { t.UserId, t.ExternalSource, t.ExternalId })
+                .IsUnique()
+                .HasFilter("external_source IS NOT NULL");
 
             entity.HasOne(t => t.RecurringTask)
                 .WithMany(t => t.RecurringInstances)
@@ -275,7 +280,13 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
                 .HasForeignKey(token => token.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            entity.HasOne<Space>()
+                .WithMany()
+                .HasForeignKey(token => token.SpaceId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             entity.HasIndex(token => token.UserId);
+            entity.HasIndex(token => new { token.UserId, token.ClientId });
             entity.HasIndex(token => token.TokenHash)
                 .IsUnique();
         });
@@ -295,6 +306,24 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
 
             entity.HasIndex(permission => new { permission.IntegrationTokenId, permission.Scope })
                 .IsUnique();
+        });
+
+        modelBuilder.Entity<IntegrationAuthorizationCode>(entity =>
+        {
+            entity.ToTable("integration_authorization_codes");
+
+            entity.Property(code => code.Scopes)
+                .HasColumnType("text[]")
+                .IsRequired();
+
+            entity.HasOne(code => code.User)
+                .WithMany()
+                .HasForeignKey(code => code.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(code => code.CodeHash)
+                .IsUnique();
+            entity.HasIndex(code => code.ExpiresAt);
         });
 
         modelBuilder.Entity<TaskActivityEvent>(entity =>
@@ -319,6 +348,11 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
                 .HasColumnType("jsonb")
                 .HasDefaultValueSql("'{}'::jsonb");
 
+            entity.Property(e => e.Sequence)
+                .UseIdentityByDefaultColumn();
+
+            entity.HasIndex(e => e.Sequence)
+                .IsUnique();
             entity.HasIndex(e => new { e.UserId, e.OccurredAt });
             entity.HasIndex(e => new { e.UserId, e.EventType, e.OccurredAt });
             entity.HasIndex(e => new { e.TaskId, e.OccurredAt });
@@ -365,6 +399,19 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
         {
             entity.ToTable("ai_usage_daily");
             entity.HasKey(u => new { u.UserId, u.Date });
+        });
+
+        modelBuilder.Entity<UserAiSettings>(entity =>
+        {
+            entity.ToTable("user_ai_settings");
+            entity.Property(s => s.Provider).HasConversion<string>().HasMaxLength(20);
+
+            entity.HasOne(s => s.User)
+                .WithMany()
+                .HasForeignKey(s => s.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(s => s.UserId).IsUnique();
         });
 
         modelBuilder.Entity<GoogleCalendarConnection>(entity =>

@@ -8,7 +8,9 @@ namespace Mindflow.Api.Controllers;
 [ApiController]
 [Route("integrations")]
 [Authorize]
-public class IntegrationsController(IIntegrationService integrationService) : ControllerBase
+public class IntegrationsController(
+    IIntegrationService integrationService,
+    IIntegrationAuthorizationService authorizationService) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> Get(CancellationToken ct)
@@ -37,6 +39,21 @@ public class IntegrationsController(IIntegrationService integrationService) : Co
     {
         var created = await integrationService.CreateTokenAsync(request, ct);
         return CreatedAtAction(nameof(Get), new { }, created);
+    }
+
+    [HttpGet("authorize/preview")]
+    public IActionResult PreviewAuthorization(
+        [FromQuery(Name = "client_id")] string? clientId,
+        [FromQuery(Name = "redirect_uri")] string? redirectUri,
+        [FromQuery(Name = "scope")] string? scope)
+    {
+        return Ok(authorizationService.Preview(clientId, redirectUri, scope));
+    }
+
+    [HttpPost("authorize")]
+    public async Task<IActionResult> Authorize([FromBody] IntegrationAuthorizationRequest request, CancellationToken ct)
+    {
+        return Ok(await authorizationService.AuthorizeAsync(request, ct));
     }
 
     [HttpDelete("tokens/{id:guid}")]

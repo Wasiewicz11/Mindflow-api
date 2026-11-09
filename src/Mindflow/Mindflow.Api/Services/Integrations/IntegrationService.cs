@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Mindflow.Api.Data;
@@ -16,6 +17,8 @@ public class IntegrationService(
     ICurrentUserService currentUserService,
     IIntegrationTokenRepository tokenRepository,
     IOptions<IntegrationTokenOptions> optionsAccessor,
+    IIntegrationClientRegistry clientRegistry,
+    ISpaceRepository spaceRepository,
     ILogger<IntegrationService> logger) : IIntegrationService
 {
     private const string TokenPrefix = "mf_";
@@ -52,11 +55,7 @@ public class IntegrationService(
         CreateIntegrationTokenRequest request,
         CancellationToken ct = default)
     {
-        if (tokenHashKey is null)
-        {
-            throw new ServiceUnavailableException(
-                $"Integration tokens are unavailable: {IntegrationTokenOptions.SectionName}:HashPepper is not configured.");
-        }
+        EnsureTokensAvailable();
 
         var userId = await currentUserService.GetCurrentUserIdAsync();
         var user = await db.Users.FindAsync([userId], ct)
@@ -77,29 +76,11 @@ public class IntegrationService(
         var name = NormalizeName(request.Name);
         var scopes = NormalizeScopes(request.Scopes);
         var expiresAt = NormalizeExpiresAt(request.ExpiresAt, now);
+        await EnsureSpaceAndDefaultProjectAsync(userId, request.SpaceId, request.DefaultProjectId, ct);
         var plainTextToken = GenerateToken();
-
-        var token = new IntegrationToken
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            Name = name,
-            TokenHash = HashToken(plainTextToken),
-            TokenPrefix = DisplayPrefix(plainTextToken),
-            CreatedAt = now,
-            ExpiresAt = expiresAt,
-            IsRevoked = false
-        };
-
-        foreach (var scope in scopes)
-        {
-            token.Permissions.Add(new IntegrationTokenPermission
-            {
-                Id = Guid.NewGuid(),
-                IntegrationTokenId = token.Id,
-                Scope = scope
-            });
-        }
+        var token = BuildToken(userId, name, plainTextToken, scopes, now, expiresAt);
+        token.SpaceId = request.SpaceId;
+        token.DefaultProjectId = request.DefaultProjectId;
 
         await tokenRepository.AddAsync(token, ct);
 
@@ -110,7 +91,36 @@ public class IntegrationService(
             scopes,
             token.CreatedAt,
             token.ExpiresAt,
-            plainTextToken);
+            plainTextToken,
+            token.SpaceId,
+            token.DefaultProjectId);
+    }
+
+    public async Task<IssuedIntegrationToken> IssueClientTokenAsync(
+        IntegrationClient client,
+        Guid userId,
+        IReadOnlyCollection<IntegrationTokenScope> scopes,
+        Guid? defaultProjectId,
+        CancellationToken ct = default)
+    {
+        EnsureTokensAvailable();
+
+        var now = DateTimeOffset.UtcNow;
+        foreach (var previous in await tokenRepository.GetActiveForClientAsync(userId, client.Id, ct))
+        {
+            previous.IsRevoked = true;
+            previous.RevokedAt = now;
+        }
+
+        var plainTextToken = GenerateToken();
+        var lifetimeDays = Math.Min(client.TokenLifetimeDays, options.MaxLifetimeDays);
+        var token = BuildToken(userId, client.Name, plainTextToken, scopes, now, now.AddDays(lifetimeDays));
+        token.ClientId = client.Id;
+        token.DefaultProjectId = defaultProjectId;
+
+        await tokenRepository.AddAsync(token, ct);
+
+        return new IssuedIntegrationToken(plainTextToken, token.ExpiresAt);
     }
 
     public async Task<bool> RevokeTokenAsync(Guid id, CancellationToken ct = default)
@@ -147,7 +157,8 @@ public class IntegrationService(
 
         if (integrationToken?.User is null
             || !integrationToken.User.IntegrationsEnabled
-            || integrationToken.ExpiresAt <= now)
+            || integrationToken.ExpiresAt <= now
+            || (integrationToken.ClientId is not null && clientRegistry.Find(integrationToken.ClientId) is null))
         {
             return null;
         }
@@ -161,7 +172,10 @@ public class IntegrationService(
         return new IntegrationTokenValidationResult(
             integrationToken.UserId,
             integrationToken.Id,
-            ToScopes(integrationToken));
+            ToScopes(integrationToken),
+            integrationToken.ClientId,
+            integrationToken.DefaultProjectId,
+            integrationToken.SpaceId);
     }
 
     private async Task<IntegrationSettingsResponse> BuildSettingsAsync(
@@ -170,13 +184,51 @@ public class IntegrationService(
         CancellationToken ct)
     {
         var tokens = await tokenRepository.GetForUserAsync(userId, ct);
+        var spaceIds = tokens
+            .Where(token => token.SpaceId.HasValue)
+            .Select(token => token.SpaceId!.Value)
+            .Distinct()
+            .ToList();
+        var spaceNames = spaceIds.Count == 0
+            ? new Dictionary<Guid, string>()
+            : await db.Spaces
+                .AsNoTracking()
+                .Where(space => spaceIds.Contains(space.Id))
+                .ToDictionaryAsync(space => space.Id, space => space.Name, ct);
 
         return new IntegrationSettingsResponse(
             integrationsEnabled,
-            tokens.Select(MapToken).ToList());
+            tokens.Select(token => MapToken(token, spaceNames)).ToList());
     }
 
-    private static IntegrationTokenResponse MapToken(IntegrationToken token)
+    private async Task EnsureSpaceAndDefaultProjectAsync(
+        Guid userId,
+        Guid? spaceId,
+        Guid? defaultProjectId,
+        CancellationToken ct)
+    {
+        if (spaceId is Guid requestedSpaceId && !await spaceRepository.CanUserAccessAsync(requestedSpaceId, userId))
+        {
+            throw new BadRequestException("Space not found.");
+        }
+
+        if (defaultProjectId is not Guid requestedProjectId) return;
+
+        if (spaceId is null)
+        {
+            throw new BadRequestException("A default project can only be set on a key limited to a space.");
+        }
+
+        var projectInSpace = await db.Projects
+            .AsNoTracking()
+            .AnyAsync(project => project.Id == requestedProjectId && project.SpaceId == spaceId, ct);
+        if (!projectInSpace)
+        {
+            throw new BadRequestException("The default project must belong to the key's space.");
+        }
+    }
+
+    private IntegrationTokenResponse MapToken(IntegrationToken token, IReadOnlyDictionary<Guid, string> spaceNames)
     {
         return new IntegrationTokenResponse(
             token.Id,
@@ -187,7 +239,12 @@ public class IntegrationService(
             token.ExpiresAt,
             token.LastUsedAt,
             token.IsRevoked,
-            token.RevokedAt);
+            token.RevokedAt,
+            token.ClientId,
+            token.ClientId is null ? null : clientRegistry.Find(token.ClientId)?.Name ?? token.Name,
+            token.DefaultProjectId,
+            token.SpaceId,
+            token.SpaceId is Guid spaceId && spaceNames.TryGetValue(spaceId, out var spaceName) ? spaceName : null);
     }
 
     private static IReadOnlyCollection<IntegrationTokenScope> ToScopes(IntegrationToken token)
@@ -248,6 +305,48 @@ public class IntegrationService(
         }
 
         return normalized;
+    }
+
+    private void EnsureTokensAvailable()
+    {
+        if (tokenHashKey is null)
+        {
+            throw new ServiceUnavailableException(
+                $"Integration tokens are unavailable: {IntegrationTokenOptions.SectionName}:HashPepper is not configured.");
+        }
+    }
+
+    private IntegrationToken BuildToken(
+        Guid userId,
+        string name,
+        string plainTextToken,
+        IReadOnlyCollection<IntegrationTokenScope> scopes,
+        DateTimeOffset now,
+        DateTimeOffset expiresAt)
+    {
+        var token = new IntegrationToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Name = name,
+            TokenHash = HashToken(plainTextToken),
+            TokenPrefix = DisplayPrefix(plainTextToken),
+            CreatedAt = now,
+            ExpiresAt = expiresAt,
+            IsRevoked = false
+        };
+
+        foreach (var scope in scopes)
+        {
+            token.Permissions.Add(new IntegrationTokenPermission
+            {
+                Id = Guid.NewGuid(),
+                IntegrationTokenId = token.Id,
+                Scope = scope
+            });
+        }
+
+        return token;
     }
 
     private static string GenerateToken()

@@ -61,13 +61,16 @@ public class TaskService(
         return TaskResponseMapper.ToDetailResponse(task, loggedMinutes, subtaskMinutes);
     }
 
-    public async Task<TaskDetailResponse?> CreateAsync(CreateTaskRequest request)
+    public async Task<TaskDetailResponse?> CreateAsync(CreateTaskRequest request, TaskExternalReference? externalReference = null)
     {
         var userId = await currentUserService.GetCurrentUserIdAsync();
         EnsureDueTimeIsValid(request.DueDate, request.DueTime);
 
         if (request.ProjectId.HasValue && !await accessService.CanAccessProjectAsync(request.ProjectId.Value, userId))
             return null;
+
+        if (!request.ProjectId.HasValue && !accessService.CanUseInbox)
+            throw new BadRequestException("This key is limited to one space: pass a projectId from that space.");
 
         var tags = NormalizeTags(request.Tags);
         if (request.ProjectId.HasValue && tags.Count > 0)
@@ -86,7 +89,7 @@ public class TaskService(
             ProjectId = request.ProjectId,
             Content = request.Content,
             Description = request.Description,
-            IsCompleted = false,
+            IsCompleted = request.Status == TaskStatus.Completed,
             Priority = request.Priority ?? TaskPriority.P3,
             Status = request.Status ?? TaskStatus.NotStarted,
             DueDate = request.DueDate,
@@ -94,6 +97,9 @@ public class TaskService(
             EstimatedHours = request.EstimatedHours,
             Tags = tags,
             Subtasks = NormalizeSubtasks(request.Subtasks, request.DueDate),
+            ExternalSource = externalReference?.Source,
+            ExternalId = externalReference?.ExternalId,
+            ExternalUrl = externalReference?.Url,
             CreatedAt = DateTimeOffset.UtcNow
         };
 
@@ -129,7 +135,7 @@ public class TaskService(
         return TaskResponseMapper.ToDetailResponse(created);
     }
 
-    public async Task<TaskDetailResponse?> UpdateAsync(Guid id, UpdateTaskRequest request)
+    public async Task<TaskDetailResponse?> UpdateAsync(Guid id, UpdateTaskRequest request, TaskExternalReference? externalReference = null)
     {
         var userId = await currentUserService.GetCurrentUserIdAsync();
 
@@ -167,8 +173,14 @@ public class TaskService(
         if (request.ClearEstimatedHours) task.EstimatedHours = null;
         else if (request.EstimatedHours.HasValue) task.EstimatedHours = request.EstimatedHours;
         if (request.ProjectId.HasValue) task.ProjectId = request.ProjectId;
-        if (request.Status.HasValue) task.Status = request.Status.Value;
+        var requestedStatus = ResolveRequestedStatus(task.Status, request.Status, request.IsCompleted);
+        if (requestedStatus.HasValue)
+        {
+            task.Status = requestedStatus.Value;
+            task.IsCompleted = task.Status == TaskStatus.Completed;
+        }
         if (request.Tags is not null) task.Tags = NormalizeTags(request.Tags);
+        if (externalReference?.Url is not null) task.ExternalUrl = externalReference.Url;
         NormalizeSubtaskDueDates(task);
 
         if (task.ProjectId.HasValue && task.Tags.Count > 0)
@@ -359,6 +371,18 @@ public class TaskService(
             if (seen.Add(trimmed)) result.Add(trimmed);
         }
         return result;
+    }
+
+    private static TaskStatus? ResolveRequestedStatus(TaskStatus current, TaskStatus? status, bool? isCompleted)
+    {
+        if (status.HasValue && isCompleted.HasValue && (status.Value == TaskStatus.Completed) != isCompleted.Value)
+            throw new BadRequestException("Status and isCompleted contradict each other.");
+
+        if (status.HasValue) return status;
+        if (isCompleted is null) return null;
+        if (isCompleted.Value) return TaskStatus.Completed;
+
+        return current == TaskStatus.Completed ? TaskStatus.NotStarted : null;
     }
 
     private static void EnsureDueTimeIsValid(DateOnly? dueDate, TimeOnly? dueTime)
