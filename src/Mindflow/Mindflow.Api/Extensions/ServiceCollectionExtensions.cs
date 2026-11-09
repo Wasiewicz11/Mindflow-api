@@ -302,6 +302,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IIntegrationAuthorizationService, IntegrationAuthorizationService>();
         services.AddScoped<IIntegrationProjectService, IntegrationProjectService>();
         services.AddScoped<IIntegrationSpaceService, IntegrationSpaceService>();
+        services.AddScoped<IIntegrationChangesService, IntegrationChangesService>();
         services.AddScoped<IIntegrationTaskQueryService, IntegrationTaskQueryService>();
         services.AddScoped<IIntegrationDocsService, IntegrationDocsService>();
         services.AddScoped<IIntegrationExternalTaskService, IntegrationExternalTaskService>();

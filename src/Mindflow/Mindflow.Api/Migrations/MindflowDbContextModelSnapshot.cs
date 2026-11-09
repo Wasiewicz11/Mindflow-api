@@ -1252,6 +1252,13 @@ namespace Mindflow.Api.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("request_id");
 
+                    b.Property<long>("Sequence")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("sequence");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Sequence"));
+
                     b.Property<string>("SessionId")
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)")
@@ -1282,6 +1289,10 @@ namespace Mindflow.Api.Migrations
 
                     b.HasIndex("ProjectId")
                         .HasDatabaseName("ix_task_activity_events_project_id");
+
+                    b.HasIndex("Sequence")
+                        .IsUnique()
+                        .HasDatabaseName("ix_task_activity_events_sequence");
 
                     b.HasIndex("SpaceId")
                         .HasDatabaseName("ix_task_activity_events_space_id");

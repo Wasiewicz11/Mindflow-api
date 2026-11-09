@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -20,6 +22,7 @@ public class IntegrationApiController(
     ITaskTimeEntryService timeEntryService,
     IIntegrationProjectService integrationProjectService,
     IIntegrationSpaceService integrationSpaceService,
+    IIntegrationChangesService integrationChangesService,
     IIntegrationTaskQueryService integrationTaskQueryService,
     IIntegrationDocsService integrationDocsService,
     IIntegrationExternalTaskService externalTaskService,
@@ -32,6 +35,42 @@ public class IntegrationApiController(
     public IActionResult Docs()
     {
         return Ok(integrationDocsService.Build());
+    }
+
+    [HttpGet("changes")]
+    [RequireIntegrationScope(IntegrationTokenScope.TasksRead)]
+    [IntegrationEndpointDoc(
+        "tasks:read",
+        "Poll task and project changes in the key's reach, oldest first. Pass nextCursor back as since; since=latest returns only the current cursor.")]
+    public async Task<IActionResult> GetChanges(
+        [FromQuery] string? since,
+        [FromQuery] int? limit,
+        CancellationToken ct)
+    {
+        if (string.Equals(since, "latest", StringComparison.OrdinalIgnoreCase))
+        {
+            return Ok(await integrationChangesService.GetLatestCursorAsync(ct));
+        }
+
+        long cursor = 0;
+        if (!string.IsNullOrEmpty(since)
+            && (!long.TryParse(since, NumberStyles.None, CultureInfo.InvariantCulture, out cursor) || cursor < 0))
+        {
+            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]>
+            {
+                ["since"] = ["Pass a nextCursor returned by this endpoint, or 'latest'."]
+            }));
+        }
+
+        var tokenId = Guid.TryParse(User.FindFirstValue(IntegrationTokenAuthenticationDefaults.TokenIdClaim), out var parsed)
+            ? parsed
+            : (Guid?)null;
+
+        return Ok(await integrationChangesService.GetChangesAsync(
+            cursor,
+            Math.Clamp(limit ?? DefaultPageSize, 1, MaxPageSize),
+            tokenId,
+            ct));
     }
 
     [HttpGet("spaces")]

@@ -6,6 +6,8 @@ namespace Mindflow.Api.Models;
 public class TaskActivityEvent
 {
     public Guid Id { get; set; }
+    /// <summary>Insertion order across all events; the cursor of the integration changes feed.</summary>
+    public long Sequence { get; set; }
     public Guid UserId { get; set; }
     public Guid? TaskId { get; set; }
     public Guid? SpaceId { get; set; }

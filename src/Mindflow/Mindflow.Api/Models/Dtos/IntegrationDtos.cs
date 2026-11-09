@@ -67,6 +67,41 @@ public record IntegrationUpdateProjectRequest(
     [MaxLength(40)] string? Name,
     [RegularExpression("^#[0-9A-Fa-f]{6}$")] string? Color);
 
+public record IntegrationChangeActor(string Type, bool IsCurrentKey);
+
+public record IntegrationChangeTaskSnapshot(
+    Guid Id,
+    string Content,
+    TaskStatus Status,
+    bool IsCompleted,
+    Guid? ProjectId,
+    TaskPriority Priority,
+    DateOnly? DueDate,
+    decimal? EstimatedHours);
+
+public record IntegrationChangeProjectSnapshot(
+    Guid Id,
+    string Name,
+    string Color,
+    Guid? SpaceId);
+
+public record IntegrationChangeResponse(
+    string Cursor,
+    Guid Id,
+    TaskActivityEventType Type,
+    Guid? TaskId,
+    Guid? ProjectId,
+    Guid? SpaceId,
+    DateTimeOffset OccurredAt,
+    IntegrationChangeActor Actor,
+    IntegrationChangeTaskSnapshot? Task,
+    IntegrationChangeProjectSnapshot? Project);
+
+public record IntegrationChangesPageResponse(
+    IReadOnlyList<IntegrationChangeResponse> Items,
+    string NextCursor,
+    bool HasMore);
+
 public record IntegrationPageQuery(int Limit, int Offset);
 
 public record IntegrationProjectPageResponse(

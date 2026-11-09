@@ -348,6 +348,11 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
                 .HasColumnType("jsonb")
                 .HasDefaultValueSql("'{}'::jsonb");
 
+            entity.Property(e => e.Sequence)
+                .UseIdentityByDefaultColumn();
+
+            entity.HasIndex(e => e.Sequence)
+                .IsUnique();
             entity.HasIndex(e => new { e.UserId, e.OccurredAt });
             entity.HasIndex(e => new { e.UserId, e.EventType, e.OccurredAt });
             entity.HasIndex(e => new { e.TaskId, e.OccurredAt });
