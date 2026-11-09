@@ -26,6 +26,8 @@ public class TelegramService(MindflowDbContext db, TelegramApi api, IReminderAct
     private const string ConnectedText = "✅ Połączono z Mindflow. Tutaj będą przychodzić przypomnienia o zadaniach.";
     private const string ExpiredText = "Ten link wygasł. Wygeneruj nowy w Mindflow: Ustawienia → Powiadomienia → Telegram.";
     private const string HelpText = "Połącz konto w Mindflow: Ustawienia → Powiadomienia → Telegram.";
+    private const string PrivateChatOnlyText = "Połącz konto w prywatnej rozmowie z botem.";
+    private const string PrivateChat = "private";
     private const string NotLinkedText = "Najpierw połącz konto w Mindflow";
     private const string TaskNotFoundText = "Nie znaleziono zadania";
     private const string DoneAnswerText = "✅ Ukończono";
@@ -76,7 +78,9 @@ public class TelegramService(MindflowDbContext db, TelegramApi api, IReminderAct
         var parts = text.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         var command = parts.Length > 0 ? parts[0].Split('@')[0] : string.Empty;
 
-        if (command == "/start" && parts.Length == 2)
+        if (command == "/start" && parts.Length == 2 && message.Chat.Type != PrivateChat)
+            await api.SendMessageAsync(chatId, PrivateChatOnlyText, null, ct);
+        else if (command == "/start" && parts.Length == 2)
             await ConnectAsync(chatId, message.From?.Username, parts[1], ct);
         else if (command == "/stop")
         {
@@ -90,7 +94,9 @@ public class TelegramService(MindflowDbContext db, TelegramApi api, IReminderAct
     private async Task HandleCallbackAsync(TelegramCallbackQuery callback, CancellationToken ct)
     {
         var chatId = callback.Message?.Chat.Id ?? callback.From.Id;
-        var row = await db.TelegramConnections.AsNoTracking().FirstOrDefaultAsync(c => c.ChatId == chatId, ct);
+        var row = callback.Message is { Chat.Type: not PrivateChat }
+            ? null
+            : await db.TelegramConnections.AsNoTracking().FirstOrDefaultAsync(c => c.ChatId == chatId, ct);
         if (row is null)
         {
             await api.AnswerCallbackQueryAsync(callback.Id, NotLinkedText, ct);

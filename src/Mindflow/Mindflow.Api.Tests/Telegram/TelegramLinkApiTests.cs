@@ -130,6 +130,24 @@ public class TelegramLinkApiTests(TelegramApiFactory factory) : IClassFixture<Te
         Assert.Equal(HttpStatusCode.Unauthorized, (await factory.CreateClient().SendAsync(request)).StatusCode);
     }
 
+    [LocalDatabaseFact]
+    public async Task Start_from_a_group_chat_does_not_connect()
+    {
+        var user = await factory.CreateUserAsync();
+        var client = factory.CreateUserClient(user.Id);
+        var chatId = -Interlocked.Increment(ref chatSeed);
+        var code = await LinkCodeAsync(client);
+
+        await Webhook(new
+        {
+            update_id = 1,
+            message = new { message_id = 1, chat = new { id = chatId, type = "group" }, from = new { id = 7, username = "filip" }, text = $"/start {code}" }
+        });
+
+        Assert.False((await Status(client)).Connected);
+        Assert.Contains(factory.Telegram.Requests, r => (long?)r.Body["chat_id"] == chatId && (string)r.Body["text"]! == "Połącz konto w prywatnej rozmowie z botem.");
+    }
+
     private static async Task<string> LinkCodeAsync(HttpClient client)
     {
         var link = await (await client.PostAsync("/integrations/telegram/link", null)).Content.ReadFromJsonAsync<TelegramLinkResponse>(MindflowApiFactory.Json);
@@ -142,7 +160,7 @@ public class TelegramLinkApiTests(TelegramApiFactory factory) : IClassFixture<Te
     private static object Start(long chatId, string text) => new
     {
         update_id = 1,
-        message = new { message_id = 1, chat = new { id = chatId }, from = new { id = chatId, username = "filip" }, text }
+        message = new { message_id = 1, chat = new { id = chatId, type = "private" }, from = new { id = chatId, username = "filip" }, text }
     };
 
     private Task<HttpResponseMessage> Webhook(object update)

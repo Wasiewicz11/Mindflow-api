@@ -64,6 +64,22 @@ public class TelegramButtonsApiTests(TelegramApiFactory factory) : IClassFixture
     }
 
     [LocalDatabaseFact]
+    public async Task Button_from_a_group_chat_is_rejected()
+    {
+        var (_, chatId, taskId) = await ConnectedWithTaskAsync();
+
+        await Webhook(new
+        {
+            update_id = 2,
+            callback_query = new { id = "cb-1", from = new { id = chatId, username = "filip" }, message = new { message_id = 5, chat = new { id = chatId, type = "group" } }, data = $"done:{taskId:N}" }
+        });
+
+        var task = await factory.WithDbAsync(db => db.Tasks.AsNoTracking().SingleAsync(t => t.Id == taskId));
+        Assert.False(task.IsCompleted);
+        Assert.Equal("Najpierw połącz konto w Mindflow", AnswerFor("cb-1"));
+    }
+
+    [LocalDatabaseFact]
     public async Task Polling_handles_updates_and_advances_offset()
     {
         var user = await factory.CreateUserAsync();
@@ -73,7 +89,7 @@ public class TelegramButtonsApiTests(TelegramApiFactory factory) : IClassFixture
         var code = link!.Url.Split("start=")[1];
         factory.Telegram.UpdatesResults.Enqueue(System.Text.Json.JsonSerializer.Serialize(new[]
         {
-            new { update_id = 41, message = new { message_id = 1, chat = new { id = chatId }, from = new { id = chatId, username = "filip" }, text = $"/start {code}" } }
+            new { update_id = 41, message = new { message_id = 1, chat = new { id = chatId, type = "private" }, from = new { id = chatId, username = "filip" }, text = $"/start {code}" } }
         }));
         var polling = ActivatorUtilities.CreateInstance<TelegramPollingService>(factory.Services);
 
@@ -139,7 +155,7 @@ public class TelegramButtonsApiTests(TelegramApiFactory factory) : IClassFixture
         await Webhook(new
         {
             update_id = 1,
-            message = new { message_id = 1, chat = new { id = chatId }, from = new { id = chatId, username = "filip" }, text = $"/start {link!.Url.Split("start=")[1]}" }
+            message = new { message_id = 1, chat = new { id = chatId, type = "private" }, from = new { id = chatId, username = "filip" }, text = $"/start {link!.Url.Split("start=")[1]}" }
         });
 
         var task = new TaskItem { Id = Guid.NewGuid(), UserId = user.Id, Content = "Telefon & mail", CreatedAt = DateTimeOffset.UtcNow };
@@ -154,7 +170,7 @@ public class TelegramButtonsApiTests(TelegramApiFactory factory) : IClassFixture
     private static object Callback(long chatId, string data) => new
     {
         update_id = 2,
-        callback_query = new { id = "cb-1", from = new { id = chatId, username = "filip" }, message = new { message_id = 5, chat = new { id = chatId } }, data }
+        callback_query = new { id = "cb-1", from = new { id = chatId, username = "filip" }, message = new { message_id = 5, chat = new { id = chatId, type = "private" } }, data }
     };
 
     private Task<HttpResponseMessage> Webhook(object update)
