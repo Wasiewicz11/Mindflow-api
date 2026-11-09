@@ -66,3 +66,9 @@ public record NotificationJobResponse(
     int BlockRemindersSent,
     int TaskRemindersSent,
     int EveningSummariesSent);
+
+public record ReminderActionRequest(
+    [Required, StringLength(512)] string Token,
+    [Required, StringLength(16)] string Action);
+
+public record ReminderActionResponse(string Action, Guid TaskId, string TaskTitle, DateTimeOffset? SnoozedUntil);
