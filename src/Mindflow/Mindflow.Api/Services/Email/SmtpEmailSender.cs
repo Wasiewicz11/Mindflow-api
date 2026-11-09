@@ -16,7 +16,10 @@ public class SmtpEmailSender(IConfiguration configuration) : IEmailSender
         mime.Subject = message.Subject;
         mime.Body = new BodyBuilder { HtmlBody = message.Html, TextBody = message.Text }.ToMessageBody();
 
-        using var client = new SmtpClient();
+        using var client = new SmtpClient { Timeout = 10_000 };
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(30));
+        ct = cts.Token;
         var security = !options.UseSsl
             ? SecureSocketOptions.None
             : options.Port == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls;

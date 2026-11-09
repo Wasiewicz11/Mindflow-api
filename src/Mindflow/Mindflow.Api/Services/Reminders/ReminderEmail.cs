@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.RegularExpressions;
 using Mindflow.Api.Services.Email;
 
 namespace Mindflow.Api.Services.Reminders;
@@ -7,7 +8,8 @@ public static class ReminderEmail
 {
     public static EmailMessage Build(ReminderMessage message, string actionPageUrl, string to)
     {
-        var taskTitle = message.Title.StartsWith("⏰ ") ? message.Title[2..] : message.Title;
+        var rawTitle = message.Title.StartsWith("⏰ ") ? message.Title[2..] : message.Title;
+        var taskTitle = Regex.Replace(rawTitle, @"\s+", " ").Trim();
         var time = message.LocalDue.Length >= 5 ? message.LocalDue[^5..] : message.LocalDue;
         var done = $"{actionPageUrl}&a=done";
         var snooze = $"{actionPageUrl}&a=snooze";

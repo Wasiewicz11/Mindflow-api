@@ -28,4 +28,14 @@ public class ReminderEmailTests
         Assert.Contains("Za 10 min · termin dziś 14:00", email.Text);
         Assert.Contains("https://app.test/przypomnienie?t=tok&a=done", email.Text);
     }
+
+    [Fact]
+    public void Subject_collapses_line_breaks_in_title()
+    {
+        var message = Message with { Title = "⏰ Linia\r\nBcc: x@y.pl" };
+        var email = ReminderEmail.Build(message, "https://app.test/przypomnienie?t=tok", "a@b.pl");
+        Assert.DoesNotContain('\r', email.Subject);
+        Assert.DoesNotContain('\n', email.Subject);
+        Assert.Equal("⏰ Linia Bcc: x@y.pl o 14:00", email.Subject);
+    }
 }
