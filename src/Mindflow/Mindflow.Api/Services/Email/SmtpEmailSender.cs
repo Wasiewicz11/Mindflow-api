@@ -4,8 +4,10 @@ using MimeKit;
 
 namespace Mindflow.Api.Services.Email;
 
-public class SmtpEmailSender(IConfiguration configuration) : IEmailSender
+public class SmtpEmailSender(IConfiguration configuration, TimeSpan? sendTimeout = null) : IEmailSender
 {
+    private readonly TimeSpan totalTimeout = sendTimeout ?? TimeSpan.FromSeconds(30);
+
     public async Task SendAsync(EmailMessage message, CancellationToken ct)
     {
         var options = EmailOptions.FromConfiguration(configuration)
@@ -17,16 +19,22 @@ public class SmtpEmailSender(IConfiguration configuration) : IEmailSender
         mime.Body = new BodyBuilder { HtmlBody = message.Html, TextBody = message.Text }.ToMessageBody();
 
         using var client = new SmtpClient { Timeout = 10_000 };
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(TimeSpan.FromSeconds(30));
-        ct = cts.Token;
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(totalTimeout);
         var security = !options.UseSsl
             ? SecureSocketOptions.None
             : options.Port == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls;
-        await client.ConnectAsync(options.Host, options.Port, security, ct);
-        if (!string.IsNullOrWhiteSpace(options.User))
-            await client.AuthenticateAsync(options.User, options.Password ?? "", ct);
-        await client.SendAsync(mime, ct);
-        await client.DisconnectAsync(true, ct);
+        try
+        {
+            await client.ConnectAsync(options.Host, options.Port, security, timeout.Token);
+            if (!string.IsNullOrWhiteSpace(options.User))
+                await client.AuthenticateAsync(options.User, options.Password ?? "", timeout.Token);
+            await client.SendAsync(mime, timeout.Token);
+            await client.DisconnectAsync(true, timeout.Token);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new TimeoutException("SMTP send timed out.");
+        }
     }
 }

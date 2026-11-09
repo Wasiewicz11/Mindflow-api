@@ -33,4 +33,16 @@ public class ReminderDispatcherTests
         Assert.Equal(["app"], delivered);
         Assert.Equal((1, 1, 1), (broken.Calls, silent.Calls, app.Calls));
     }
+
+    [Fact]
+    public async Task Timing_out_channel_does_not_stop_the_others()
+    {
+        var slow = new FakeChannel("email", () => throw new TimeoutException("SMTP send timed out."));
+        var app = new FakeChannel("app", () => true);
+        var dispatcher = new ReminderDispatcher([slow, app], NullLogger<ReminderDispatcher>.Instance);
+
+        var delivered = await dispatcher.DispatchAsync(Message, CancellationToken.None);
+
+        Assert.Equal(["app"], delivered);
+    }
 }
