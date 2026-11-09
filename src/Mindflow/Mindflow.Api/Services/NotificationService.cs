@@ -5,6 +5,7 @@ using Mindflow.Api.Exceptions;
 using Mindflow.Api.Models;
 using Mindflow.Api.Models.Dtos;
 using Mindflow.Api.Models.Enums;
+using Mindflow.Api.Services.Reminders;
 using TaskStatus = Mindflow.Api.Models.Enums.TaskStatus;
 
 namespace Mindflow.Api.Services;
@@ -12,6 +13,7 @@ namespace Mindflow.Api.Services;
 public class NotificationService(
     MindflowDbContext db,
     IWebPushSender webPushSender,
+    ITaskReminderService taskReminderService,
     ILogger<NotificationService> logger) : INotificationService
 {
     private const int ScheduleGraceMinutes = 12;
@@ -289,12 +291,6 @@ public class NotificationService(
                     eveningSummariesSent++;
             }
 
-            taskRemindersSent += await SendDueTaskRemindersAsync(
-                user.Id,
-                now,
-                GetTimeZoneOrUtc(user.TimeZone),
-                settings,
-                ct);
             taskRemindersSent += await SendDueRecurringTaskRemindersAsync(
                 user.Id,
                 now,
@@ -302,57 +298,9 @@ public class NotificationService(
                 ct);
         }
 
+        taskRemindersSent += await taskReminderService.SendDueAsync(now, ct);
         var blockRemindersSent = await SendDueBlockRemindersAsync(now, userIds, settingsByUser, ct);
         return new NotificationJobResponse(briefsSent, blockRemindersSent, taskRemindersSent, eveningSummariesSent);
-    }
-
-    private async Task<int> SendDueTaskRemindersAsync(
-        Guid userId,
-        DateTimeOffset now,
-        TimeZoneInfo timeZone,
-        NotificationSettings settings,
-        CancellationToken ct)
-    {
-        if (!settings.BlockRemindersEnabled) return 0;
-
-        var localDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, timeZone).DateTime);
-        var tasks = await db.Tasks
-            .AsNoTracking()
-            .Where(task => task.UserId == userId
-                           && !task.IsCompleted
-                           && task.Status != TaskStatus.Completed
-                           && task.RecurringTaskId == null
-                           && task.Recurrence == null
-                           && task.DueDate.HasValue
-                           && task.DueTime.HasValue
-                           && task.DueDate.Value >= localDate.AddDays(-1)
-                           && task.DueDate.Value <= localDate.AddDays(1))
-            .ToListAsync(ct);
-
-        var sent = 0;
-        foreach (var task in tasks)
-        {
-            var dueAt = ToUtc(task.DueDate!.Value, task.DueTime!.Value, timeZone);
-            if (!dueAt.HasValue || dueAt.Value <= now) continue;
-
-            var minutesUntilDue = (int)Math.Round((dueAt.Value - now).TotalMinutes);
-            if (Math.Abs(minutesUntilDue - settings.BlockReminderMinutes) > BlockReminderToleranceMinutes)
-                continue;
-
-            var exactMinutes = Math.Max(1, minutesUntilDue);
-            var deliveryKey = $"task:{task.Id:N}:{task.DueDate:yyyy-MM-dd}:{task.DueTime:HH\\:mm}:reminder";
-            if (await SendOnceAsync(
-                    userId,
-                    deliveryKey,
-                    "Termin zadania",
-                    $"Za {exactMinutes} min termin zadania „{Truncate(task.Content, 120)}”",
-                    deliveryKey,
-                    null,
-                    ct))
-                sent++;
-        }
-
-        return sent;
     }
 
     private async Task<int> SendDueRecurringTaskRemindersAsync(

@@ -199,6 +199,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IReminderChannel, InAppReminderChannel>();
         services.AddScoped<IReminderChannel, PushReminderChannel>();
         services.AddScoped<IReminderDispatcher, ReminderDispatcher>();
+        services.AddScoped<ITaskReminderService, TaskReminderService>();
         services.AddScoped<ITasksNotifier, TasksNotifier>();
         services.AddScoped<TokenService>();
         if (!string.Equals(Environment.GetEnvironmentVariable("EF_DESIGN_TIME"), "true", StringComparison.Ordinal))
