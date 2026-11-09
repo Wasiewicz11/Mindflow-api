@@ -28,7 +28,8 @@ public record UpdateTaskRequest(
     [Range(0.01, 1000)] decimal? EstimatedHours,
     bool ClearEstimatedHours,
     Guid? ProjectId,
-    IReadOnlyCollection<string>? Tags);
+    IReadOnlyCollection<string>? Tags,
+    bool? IsCompleted = null);
 
 public record TaskExternalReference(string Source, string ExternalId, string? Url);
 
