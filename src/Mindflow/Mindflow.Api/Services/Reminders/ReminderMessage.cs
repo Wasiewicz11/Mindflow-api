@@ -1,6 +1,7 @@
 namespace Mindflow.Api.Services.Reminders;
 
 public record ReminderMessage(
+    Guid NotificationId,
     Guid UserId,
     Guid TaskId,
     string Title,

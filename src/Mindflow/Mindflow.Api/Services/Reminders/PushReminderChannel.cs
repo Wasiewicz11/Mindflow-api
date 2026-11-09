@@ -10,6 +10,8 @@ public class PushReminderChannel(IWebPushSender sender, IConfiguration configura
         sender.SendAsync(message.UserId, new
         {
             kind = "reminder",
+            notificationId = message.NotificationId,
+            dueAt = message.DueAt,
             title = message.Title,
             body = message.Body,
             tag = $"reminder:{message.TaskId:N}",

@@ -16,7 +16,7 @@ public class InAppReminderChannel(
     {
         var item = new NotificationInboxItem
         {
-            Id = Guid.NewGuid(),
+            Id = message.NotificationId,
             UserId = message.UserId,
             Kind = NotificationInboxKind.TaskReminder,
             Title = message.Title,

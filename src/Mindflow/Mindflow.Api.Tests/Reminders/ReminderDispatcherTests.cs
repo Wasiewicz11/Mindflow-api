@@ -17,7 +17,7 @@ public class ReminderDispatcherTests
     }
 
     private static readonly ReminderMessage Message = new(
-        Guid.NewGuid(), Guid.NewGuid(), "⏰ X", "Za 10 min · termin dziś 14:00", "dziś 14:00",
+        Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "⏰ X", "Za 10 min · termin dziś 14:00", "dziś 14:00",
         DateTimeOffset.UtcNow, "https://app/zadania/1", "token");
 
     [Fact]

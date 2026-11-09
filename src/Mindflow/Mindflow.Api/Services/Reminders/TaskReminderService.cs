@@ -61,6 +61,7 @@ public class TaskReminderService(
             var text = ReminderText.Build(task.Content, due, timeZone, now);
             var expiresAt = (due.DueAt > now ? due.DueAt : now) + TokenLifetimeAfterDue;
             var message = new ReminderMessage(
+                Guid.NewGuid(),
                 task.UserId,
                 task.Id,
                 text.Title,
