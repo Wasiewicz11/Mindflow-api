@@ -17,6 +17,10 @@ public class EmailReminderChannel(MindflowDbContext db, IEmailSender sender, ICo
     {
         if (smtpUnavailable || !EmailOptions.IsConfigured(configuration)) return false;
 
+        var frontendUrl = ReminderLinks.FrontendUrl(configuration);
+        if (!Uri.TryCreate(frontendUrl, UriKind.Absolute, out var frontend) || (frontend.Scheme != Uri.UriSchemeHttp && frontend.Scheme != Uri.UriSchemeHttps))
+            return false;
+
         var enabled = await db.NotificationSettings.AsNoTracking()
             .Where(settings => settings.UserId == message.UserId)
             .Select(settings => (bool?)settings.EmailRemindersEnabled)
@@ -31,7 +35,7 @@ public class EmailReminderChannel(MindflowDbContext db, IEmailSender sender, ICo
 
         try
         {
-            await sender.SendAsync(ReminderEmail.Build(message, ReminderLinks.ActionPageUrl(configuration, message.ActionToken), email), ct);
+            await sender.SendAsync(ReminderEmail.Build(message, ReminderLinks.ActionPageUrl(configuration, message.ActionToken), email, $"{frontendUrl}/ustawienia"), ct);
         }
         catch (Exception exception) when (exception is TimeoutException or SmtpCommandException or SmtpProtocolException or ServiceNotConnectedException or SocketException or IOException)
         {

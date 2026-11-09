@@ -195,7 +195,7 @@ public class MindflowApiFactory : WebApplicationFactory<Program>
         await base.DisposeAsync();
     }
 
-    private static string CreateUserJwt(Guid userId)
+    public static string CreateUserJwt(Guid userId)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(JwtSecret));
         var token = new JwtSecurityToken(

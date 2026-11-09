@@ -1,4 +1,7 @@
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
 using Mindflow.Api.Models.Dtos;
 using Mindflow.Api.Tests.Infrastructure;
 
@@ -10,7 +13,13 @@ public class NotificationSettingsEmailApiTests(MindflowApiFactory factory) : ICl
     public async Task Email_reminders_are_on_by_default_and_can_be_switched_off()
     {
         var user = await factory.CreateUserAsync();
-        var client = factory.CreateUserClient(user.Id);
+        var client = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Email:Smtp:Host"] = "",
+                ["Email:Smtp:From"] = ""
+            }))).CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", MindflowApiFactory.CreateUserJwt(user.Id));
 
         var initial = await client.GetFromJsonAsync<NotificationSettingsResponse>("/notifications/settings", MindflowApiFactory.Json);
         Assert.True(initial!.EmailRemindersEnabled);

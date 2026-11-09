@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Mindflow.Api.Models;
 using Mindflow.Api.Services.Email;
@@ -27,7 +28,7 @@ public class EmailReminderChannelTests(MindflowApiFactory factory) : IClassFixtu
         }
     }
 
-    private (IServiceProvider Services, RecordingSender Sender) Configured(bool smtp = true)
+    private (IServiceProvider Services, RecordingSender Sender) Configured(bool smtp = true, string frontendUrl = "https://app.test")
     {
         var sender = new RecordingSender();
         var app = factory.WithWebHostBuilder(builder =>
@@ -37,7 +38,13 @@ public class EmailReminderChannelTests(MindflowApiFactory factory) : IClassFixtu
                 builder.UseSetting("Email:Smtp:Host", "smtp.test");
                 builder.UseSetting("Email:Smtp:From", "Mindflow <noreply@mindflow.test>");
             }
-            builder.UseSetting("Notifications:FrontendUrl", "https://app.test");
+            if (!smtp)
+                builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Email:Smtp:Host"] = "",
+                    ["Email:Smtp:From"] = ""
+                }));
+            builder.UseSetting("Notifications:FrontendUrl", frontendUrl);
             builder.ConfigureTestServices(services => services.AddSingleton<IEmailSender>(sender));
         });
         return (app.Services, sender);
@@ -105,5 +112,15 @@ public class EmailReminderChannelTests(MindflowApiFactory factory) : IClassFixtu
         Assert.False(await channel.SendAsync(MessageFor(user.Id), CancellationToken.None));
 
         Assert.Equal(1, failing.Calls);
+    }
+
+    [LocalDatabaseFact]
+    public async Task Skips_when_frontend_url_is_not_absolute()
+    {
+        var user = await factory.CreateUserAsync();
+        var (services, sender) = Configured(frontendUrl: "/relative");
+
+        Assert.False(await SendAsync(services, MessageFor(user.Id)));
+        Assert.Empty(sender.Sent);
     }
 }

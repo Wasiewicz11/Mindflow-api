@@ -6,9 +6,9 @@ namespace Mindflow.Api.Services.Reminders;
 
 public static class ReminderEmail
 {
-    public static EmailMessage Build(ReminderMessage message, string actionPageUrl, string to)
+    public static EmailMessage Build(ReminderMessage message, string actionPageUrl, string to, string settingsUrl)
     {
-        var rawTitle = message.Title.StartsWith("⏰ ") ? message.Title[2..] : message.Title;
+        var rawTitle = message.Title.StartsWith("⏰ ", StringComparison.Ordinal) ? message.Title[2..] : message.Title;
         var taskTitle = Regex.Replace(rawTitle, @"\s+", " ").Trim();
         var time = message.LocalDue.Length >= 5 ? message.LocalDue[^5..] : message.LocalDue;
         var done = $"{actionPageUrl}&a=done";
@@ -28,6 +28,7 @@ public static class ReminderEmail
               <a href="{WebUtility.HtmlEncode(snooze)}" style="display:inline-block;background:#fff;color:#111;text-decoration:none;font-weight:700;padding:10px 16px;border-radius:10px;border:2px solid #111;margin:0 8px 8px 0">Odłóż 10 min</a>
               <a href="{WebUtility.HtmlEncode(message.TaskUrl)}" style="display:inline-block;color:#111;font-weight:600;padding:12px 4px">Otwórz zadanie →</a>
             </td></tr>
+            <tr><td style="padding-top:20px;font-size:12px;color:#71717a">Nie chcesz takich maili? Wyłącz je w <a href="{WebUtility.HtmlEncode(settingsUrl)}" style="color:#71717a">Ustawieniach → Powiadomienia</a>.</td></tr>
             </table></td></tr></table></body></html>
             """;
         var text = $"""
@@ -37,6 +38,8 @@ public static class ReminderEmail
             Zrobione: {done}
             Odłóż 10 min: {snooze}
             Otwórz zadanie: {message.TaskUrl}
+
+            Nie chcesz takich maili? Wyłącz je w Ustawieniach → Powiadomienia: {settingsUrl}
             """;
 
         return new EmailMessage(to, $"⏰ {taskTitle} o {time}", html, text);

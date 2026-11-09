@@ -32,9 +32,9 @@ public class SmtpEmailSender(IConfiguration configuration, TimeSpan? sendTimeout
             await client.SendAsync(mime, timeout.Token);
             await client.DisconnectAsync(true, timeout.Token);
         }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        catch (OperationCanceledException exception) when (!ct.IsCancellationRequested)
         {
-            throw new TimeoutException("SMTP send timed out.");
+            throw new TimeoutException("SMTP send timed out.", exception);
         }
     }
 }
