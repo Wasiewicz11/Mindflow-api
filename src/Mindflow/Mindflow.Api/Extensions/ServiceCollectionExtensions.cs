@@ -202,11 +202,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IReminderChannel, PushReminderChannel>();
         services.AddScoped<IEmailSender, SmtpEmailSender>();
         services.AddScoped<IReminderChannel, EmailReminderChannel>();
-        services.AddScoped<IReminderChannel, TelegramReminderChannel>();
         services.AddScoped<IReminderDispatcher, ReminderDispatcher>();
         services.AddScoped<ITaskReminderService, TaskReminderService>();
         services.AddScoped<IReminderActionService, ReminderActionService>();
-        services.AddScoped<ITelegramService, TelegramService>();
         services.AddScoped<ITasksNotifier, TasksNotifier>();
         services.AddScoped<TokenService>();
         if (!string.Equals(Environment.GetEnvironmentVariable("EF_DESIGN_TIME"), "true", StringComparison.Ordinal))
@@ -381,17 +379,25 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDictationService, DictationService>();
         services.AddHttpClient<GeminiApi>(client => client.Timeout = TimeSpan.FromSeconds(120));
         services.AddHttpClient<OpenAiApi>(client => client.Timeout = TimeSpan.FromSeconds(120));
+
+        services.AddScoped<IAiSuggestionProvider, GeminiSuggestionProvider>();
+        services.AddScoped<IAiSuggestionProvider, OpenAiSuggestionProvider>();
+        services.AddScoped<IAiSuggestionProvider, RuleBasedSuggestionProvider>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddMindflowTelegram(this IServiceCollection services, IConfiguration config)
+    {
         services.AddHttpClient<TelegramApi>(c =>
         {
             c.BaseAddress = new Uri("https://api.telegram.org/");
             c.Timeout = TimeSpan.FromSeconds(40);
         }).RemoveAllLoggers();
+        services.AddScoped<ITelegramService, TelegramService>();
+        services.AddScoped<IReminderChannel, TelegramReminderChannel>();
         if (TelegramOptions.From(config)?.UsePolling == true)
             services.AddHostedService<TelegramPollingService>();
-
-        services.AddScoped<IAiSuggestionProvider, GeminiSuggestionProvider>();
-        services.AddScoped<IAiSuggestionProvider, OpenAiSuggestionProvider>();
-        services.AddScoped<IAiSuggestionProvider, RuleBasedSuggestionProvider>();
 
         return services;
     }
