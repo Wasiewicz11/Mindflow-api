@@ -15,6 +15,7 @@ public class TasksNotifier(
     private const string CalendarBlockCreated = "CalendarBlockCreated";
     private const string CalendarBlockUpdated = "CalendarBlockUpdated";
     private const string CalendarBlockDeleted = "CalendarBlockDeleted";
+    private const string ReminderDue = "ReminderDue";
 
     public System.Threading.Tasks.Task TaskCreatedAsync(TaskItem task, Guid? spaceId)
         => BroadcastAsync(TaskCreated, task.UserId, spaceId, task);
@@ -36,6 +37,9 @@ public class TasksNotifier(
 
     public System.Threading.Tasks.Task CalendarBlockDeletedAsync(Guid blockId, Guid userId)
         => BroadcastToUserAsync(CalendarBlockDeleted, userId, new { id = blockId });
+
+    public System.Threading.Tasks.Task ReminderDueAsync(Guid userId, ReminderDuePayload payload)
+        => BroadcastToUserAsync(ReminderDue, userId, payload);
 
     private async System.Threading.Tasks.Task BroadcastAsync(string method, Guid ownerUserId, Guid? spaceId, object payload)
     {

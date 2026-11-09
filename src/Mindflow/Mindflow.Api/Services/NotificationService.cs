@@ -1,20 +1,17 @@
 using System.Globalization;
-using System.Net;
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Mindflow.Api.Data;
 using Mindflow.Api.Exceptions;
 using Mindflow.Api.Models;
 using Mindflow.Api.Models.Dtos;
 using Mindflow.Api.Models.Enums;
-using WebPush;
 using TaskStatus = Mindflow.Api.Models.Enums.TaskStatus;
 
 namespace Mindflow.Api.Services;
 
 public class NotificationService(
     MindflowDbContext db,
-    IConfiguration configuration,
+    IWebPushSender webPushSender,
     ILogger<NotificationService> logger) : INotificationService
 {
     private const int ScheduleGraceMinutes = 12;
@@ -660,68 +657,14 @@ public class NotificationService(
         }
     }
 
-    private async Task<bool> SendToUserAsync(
+    private Task<bool> SendToUserAsync(
         Guid userId,
         string title,
         string body,
         string tag,
         string targetUrl,
-        CancellationToken ct)
-    {
-        var subscriptions = await db.PushNotificationSubscriptions
-            .Where(subscription => subscription.UserId == userId)
-            .ToListAsync(ct);
-        if (subscriptions.Count == 0) return false;
-
-        var vapidDetails = GetVapidDetails();
-        var client = new WebPushClient();
-        var payload = JsonSerializer.Serialize(new
-        {
-            title,
-            body,
-            tag,
-            url = targetUrl
-        });
-        var expiredSubscriptions = new List<PushNotificationSubscription>();
-        var sent = false;
-
-        foreach (var subscription in subscriptions)
-        {
-            try
-            {
-                await client.SendNotificationAsync(
-                    new PushSubscription(subscription.Endpoint, subscription.P256dh, subscription.Auth),
-                    payload,
-                    vapidDetails,
-                    ct);
-                sent = true;
-            }
-            catch (WebPushException exception) when (
-                exception.StatusCode == HttpStatusCode.Gone || exception.StatusCode == HttpStatusCode.NotFound)
-            {
-                expiredSubscriptions.Add(subscription);
-            }
-            catch (WebPushException exception)
-            {
-                logger.LogWarning(
-                    "Web Push delivery failed for user {UserId} with status {StatusCode}.",
-                    userId,
-                    exception.StatusCode);
-            }
-            catch (HttpRequestException exception)
-            {
-                logger.LogWarning(exception, "Web Push request failed for user {UserId}.", userId);
-            }
-        }
-
-        if (expiredSubscriptions.Count > 0)
-        {
-            db.PushNotificationSubscriptions.RemoveRange(expiredSubscriptions);
-            await db.SaveChangesAsync(ct);
-        }
-
-        return sent;
-    }
+        CancellationToken ct) =>
+        webPushSender.SendAsync(userId, new { title, body, tag, url = targetUrl }, ct);
 
     private async Task<NotificationSettings> GetOrCreateSettingsAsync(Guid userId, CancellationToken ct)
     {
@@ -735,19 +678,6 @@ public class NotificationService(
         };
         db.NotificationSettings.Add(settings);
         return settings;
-    }
-
-    private VapidDetails GetVapidDetails()
-    {
-        var subject = configuration["WebPush:Subject"];
-        var publicKey = configuration["WebPush:PublicKey"];
-        var privateKey = configuration["WebPush:PrivateKey"];
-        if (string.IsNullOrWhiteSpace(subject)
-            || string.IsNullOrWhiteSpace(publicKey)
-            || string.IsNullOrWhiteSpace(privateKey))
-            throw new BadRequestException("Web Push is not configured on the server.");
-
-        return new VapidDetails(subject, publicKey, privateKey);
     }
 
     private TimeZoneInfo GetTimeZoneOrUtc(string? timeZone)
