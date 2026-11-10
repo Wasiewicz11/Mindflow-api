@@ -12,6 +12,7 @@ namespace Mindflow.Api.Services.Telegram;
 public interface ITelegramAiPlan
 {
     Task<bool> SendAsync(Guid userId, DateOnly localDate, CancellationToken ct);
+    Task HandleCallbackAsync(Guid userId, TelegramCallbackQuery callback, CancellationToken ct);
 }
 
 public class TelegramAiPlan(
@@ -19,10 +20,15 @@ public class TelegramAiPlan(
     ITelegramNotifier notifier,
     IDayPlanWriter dayPlanWriter,
     ISuggestionService suggestions,
+    TelegramApi api,
+    IHttpContextAccessor httpContextAccessor,
     IConfiguration configuration,
     ILogger<TelegramAiPlan> logger) : ITelegramAiPlan
 {
     public const int MaxMessageLength = 4096;
+    public const string AcceptedText = "✅ Przyjęto";
+    public const string RejectedText = "Odrzucono";
+    public const string StaleText = "Ta sugestia jest już nieaktualna.";
 
     private const int MaxSuggestions = 3;
     private const string LocalProvider = "RuleBased";
@@ -69,6 +75,29 @@ public class TelegramAiPlan(
         foreach (var suggestion in cards)
             await notifier.SendAsync(chatId, FormatSuggestion(suggestion), Buttons(suggestion.Id), ct);
         return true;
+    }
+
+    public async Task HandleCallbackAsync(Guid userId, TelegramCallbackQuery callback, CancellationToken ct)
+    {
+        var parts = callback.Data?.Split(':');
+        if (parts is not ["sg", var verb, var id] || verb is not ("ok" or "no") || !Guid.TryParseExact(id, "N", out var suggestionId))
+        {
+            await api.AnswerCallbackQueryAsync(callback.Id, StaleText, ct);
+            return;
+        }
+
+        TelegramActor.ActAs(httpContextAccessor, userId);
+        var accept = verb == "ok";
+        var decided = accept ? await suggestions.AcceptAsync(suggestionId) : await suggestions.RejectAsync(suggestionId);
+        if (!decided)
+        {
+            await api.AnswerCallbackQueryAsync(callback.Id, StaleText, ct);
+            return;
+        }
+
+        await api.AnswerCallbackQueryAsync(callback.Id, accept ? AcceptedText : RejectedText, ct);
+        if (callback.Message is { } message)
+            await api.RemoveKeyboardAsync(message.Chat.Id, message.MessageId, ct);
     }
 
     public static string FormatPlan(DayPlan plan, DateOnly date)

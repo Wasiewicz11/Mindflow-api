@@ -24,6 +24,7 @@ public class TelegramService(
     TelegramApi api,
     IReminderActionService reminderActions,
     ITelegramTaskCapture capture,
+    ITelegramAiPlan aiPlan,
     IConfiguration configuration) : ITelegramService
 {
     private static readonly TimeSpan LinkCodeLifetime = TimeSpan.FromMinutes(15);
@@ -134,6 +135,12 @@ public class TelegramService(
         if (callback.Data?.StartsWith("cap:", StringComparison.Ordinal) == true)
         {
             await capture.HandleCallbackAsync(row.UserId, callback, ct);
+            return;
+        }
+
+        if (callback.Data?.StartsWith("sg:", StringComparison.Ordinal) == true)
+        {
+            await aiPlan.HandleCallbackAsync(row.UserId, callback, ct);
             return;
         }
 
