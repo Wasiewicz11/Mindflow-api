@@ -21,6 +21,8 @@ public class TelegramNotifier(
     private const string OpenButtonText = "Otwórz Mindflow";
     private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(10);
 
+    private bool telegramUnavailable;
+
     public async Task<long?> FindChatAsync(Guid userId, CancellationToken ct)
     {
         if (TelegramOptions.From(configuration) is null) return null;
@@ -39,15 +41,20 @@ public class TelegramNotifier(
 
     public async Task<bool> SendAsync(long chatId, string html, IReadOnlyList<IReadOnlyList<TelegramButton>>? keyboard, CancellationToken ct)
     {
+        if (telegramUnavailable) return false;
+
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(SendTimeout);
         try
         {
-            return await api.SendMessageAsync(chatId, html, keyboard, timeout.Token);
+            var sent = await api.SendMessageAsync(chatId, html, keyboard, timeout.Token);
+            if (!sent) telegramUnavailable = true;
+            return sent;
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
             logger.LogWarning("Telegram notification timed out");
+            telegramUnavailable = true;
             return false;
         }
     }

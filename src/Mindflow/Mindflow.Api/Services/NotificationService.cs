@@ -264,10 +264,13 @@ public class NotificationService(
             .Select(subscription => subscription.UserId)
             .Distinct()
             .ToListAsync(ct)).ToHashSet();
+        var telegramConfigured = TelegramOptions.From(configuration) is not null;
         var users = await db.Users
             .AsNoTracking()
-            .Where(user => db.PushNotificationSubscriptions.Any(subscription => subscription.UserId == user.Id)
-                           || db.TelegramConnections.Any(connection => connection.UserId == user.Id && connection.ChatId != null))
+            .Where(user => pushUserIds.Contains(user.Id)
+                           || (telegramConfigured
+                               && db.TelegramConnections.Any(connection => connection.UserId == user.Id && connection.ChatId != null)
+                               && !db.NotificationSettings.Any(settings => settings.UserId == user.Id && !settings.TelegramRemindersEnabled)))
             .ToListAsync(ct);
         var userIds = users.Select(user => user.Id).ToArray();
         var settingsByUser = await db.NotificationSettings
@@ -576,8 +579,16 @@ public class NotificationService(
         bool sent;
         try
         {
-            var pushed = await SendToUserAsync(userId, title, body, tag, targetUrl, ct);
-            var telegramSent = viaTelegram && await telegramNotifier.SendNotificationAsync(userId, title, body, targetUrl, ct);
+            var pushed = await TrySendAsync(
+                "push",
+                userId,
+                () => SendToUserAsync(userId, title, body, tag, targetUrl, ct),
+                ct);
+            var telegramSent = viaTelegram && await TrySendAsync(
+                "telegram",
+                userId,
+                () => telegramNotifier.SendNotificationAsync(userId, title, body, targetUrl, ct),
+                ct);
             sent = pushed || telegramSent;
         }
         catch
@@ -625,6 +636,19 @@ public class NotificationService(
                 await db.SaveChangesAsync(ct);
             }
 
+            return false;
+        }
+    }
+
+    private async Task<bool> TrySendAsync(string channel, Guid userId, Func<Task<bool>> send, CancellationToken ct)
+    {
+        try
+        {
+            return await send();
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            logger.LogWarning("Notification channel {Channel} failed for user {UserId}: {ExceptionType}", channel, userId, ex.GetType().Name);
             return false;
         }
     }
