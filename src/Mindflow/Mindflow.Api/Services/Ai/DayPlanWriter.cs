@@ -12,7 +12,6 @@ public class DayPlanWriter(
     MindflowDbContext db,
     IDaySnapshotBuilder snapshotBuilder,
     IAiCredentialResolver credentialResolver,
-    IAiUsageRepository usageRepository,
     GeminiApi gemini,
     OpenAiApi openAi,
     IOptions<AiOptions> options,
@@ -112,14 +111,6 @@ public class DayPlanWriter(
         var credentials = await credentialResolver.ResolveAsync(userId, ct);
         if (credentials.Count == 0) return null;
 
-        var usageDate = DateOnly.FromDateTime(DateTime.UtcNow);
-        var limit = credentials[0].Source == AiKeySource.User ? _options.OwnKeyManualAiDailyLimit : _options.ManualAiDailyLimit;
-        if (await usageRepository.GetAiCallsAsync(userId, usageDate) >= limit)
-        {
-            logger.LogWarning("Day plan for user {UserId} is over the daily AI limit.", userId);
-            return null;
-        }
-
         var system = DayPlanPromptBuilder.SystemInstruction();
         var payload = DayPlanPromptBuilder.BuildUserPayload(context);
         foreach (var creds in credentials)
@@ -140,7 +131,6 @@ public class DayPlanWriter(
                     continue;
                 }
 
-                await usageRepository.IncrementAiCallsAsync(userId, usageDate);
                 return plan;
             }
             catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
