@@ -228,7 +228,7 @@ public class TelegramTaskCapture(
         foreach (var task in tasks.Take(MaxListedTasks))
         {
             lines.Add($"{++number}. <b>{WebUtility.HtmlEncode(Truncate(task.Title, MaxListedTitle))}</b>");
-            lines.Add(WebUtility.HtmlEncode(Details(task)));
+            lines.Add(Details(task));
         }
 
         if (tasks.Count > MaxListedTasks)
@@ -241,7 +241,7 @@ public class TelegramTaskCapture(
         var due = task.DueDate is { } date
             ? $"📅 {date.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture)}{(task.DueTime is { } time ? " " + time.ToString("HH:mm", CultureInfo.InvariantCulture) : "")}"
             : "📅 bez terminu";
-        return $"{due} · 📁 {task.ProjectName ?? "bez projektu"} · {task.Priority}";
+        return $"{due} · 📁 {WebUtility.HtmlEncode(task.ProjectName ?? "bez projektu")} · {task.Priority}";
     }
 
     private static string Truncate(string value, int max)
