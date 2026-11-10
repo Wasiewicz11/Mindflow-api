@@ -1,11 +1,13 @@
-using System.Net;
 using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Mindflow.Api.Models;
 using Mindflow.Api.Models.Dtos;
 using Mindflow.Api.Models.Enums;
 using Mindflow.Api.Services;
+using Mindflow.Api.Services.Reminders;
 using Mindflow.Api.Tests.Infrastructure;
 
 namespace Mindflow.Api.Tests.Telegram;
@@ -52,12 +54,14 @@ public class TelegramBriefsJobTests(TelegramApiFactory factory) : IClassFixture<
     public async Task Evening_summary_reaches_telegram()
     {
         var (userId, chatId) = await TelegramUserAsync(s => { s.EveningSummaryEnabled = true; s.EveningSummaryTime = LocalTime(Now); });
+        await SeedTaskAsync(userId, "Zadanie <A> & B", LocalDate(Now));
 
         await RunAsync(Now);
 
         var item = Assert.Single(await InboxAsync(userId));
         Assert.Equal(NotificationInboxKind.EveningSummary, item.Kind);
-        Assert.Equal($"<b>Podsumowanie dnia</b>\n{WebUtility.HtmlEncode(item.Body)}", (string)Assert.Single(Sent(chatId))["text"]!);
+        Assert.Equal("Ukończone dziś: 0. Do zrobienia: Zadanie <A> & B.", item.Body);
+        Assert.Equal("<b>Podsumowanie dnia</b>\nUkończone dziś: 0. Do zrobienia: Zadanie &lt;A&gt; &amp; B.", (string)Assert.Single(Sent(chatId))["text"]!);
     }
 
     [LocalDatabaseFact]
@@ -100,6 +104,166 @@ public class TelegramBriefsJobTests(TelegramApiFactory factory) : IClassFixture<
         Assert.Empty(await InboxAsync(userId));
     }
 
+    [LocalDatabaseFact]
+    public async Task Push_user_keeps_delivery_when_telegram_fails()
+    {
+        var push = new FakePush();
+        var (userId, chatId) = await TelegramUserAsync(s => { s.MorningBriefEnabled = true; s.MorningBriefTime = LocalTime(Now); }, push: true);
+        factory.Telegram.Throw = new HttpRequestException("down");
+        try
+        {
+            await RunAsync(Now, push);
+        }
+        finally
+        {
+            factory.Telegram.Throw = null;
+        }
+
+        Assert.Single(await InboxAsync(userId));
+        Assert.Equal(1, push.Calls);
+        Assert.True(await DeliveredAsync(userId, $"brief:morning:{LocalDate(Now):yyyy-MM-dd}"));
+        Assert.Empty(Sent(chatId));
+    }
+
+    [LocalDatabaseFact]
+    public async Task Telegram_still_receives_brief_when_push_throws()
+    {
+        var push = new FakePush { Throw = new InvalidOperationException("bad subscription") };
+        var (userId, chatId) = await TelegramUserAsync(s => { s.MorningBriefEnabled = true; s.MorningBriefTime = LocalTime(Now); }, push: true);
+
+        await RunAsync(Now, push);
+
+        Assert.Single(await InboxAsync(userId));
+        Assert.Single(Sent(chatId));
+        Assert.True(await DeliveredAsync(userId, $"brief:morning:{LocalDate(Now):yyyy-MM-dd}"));
+    }
+
+    [LocalDatabaseFact]
+    public async Task Both_channels_failing_leaves_no_trace_and_next_run_delivers()
+    {
+        var push = new FakePush { Result = false };
+        var (userId, chatId) = await TelegramUserAsync(s => { s.MorningBriefEnabled = true; s.MorningBriefTime = LocalTime(Now); }, push: true);
+        factory.Telegram.Throw = new HttpRequestException("down");
+        try
+        {
+            await RunAsync(Now, push);
+        }
+        finally
+        {
+            factory.Telegram.Throw = null;
+        }
+
+        Assert.Empty(await InboxAsync(userId));
+        Assert.False(await DeliveredAsync(userId, $"brief:morning:{LocalDate(Now):yyyy-MM-dd}"));
+
+        push.Result = true;
+        await RunAsync(Now.AddMinutes(5), push);
+
+        Assert.Single(await InboxAsync(userId));
+        Assert.Single(Sent(chatId));
+        Assert.True(await DeliveredAsync(userId, $"brief:morning:{LocalDate(Now):yyyy-MM-dd}"));
+    }
+
+    [LocalDatabaseFact]
+    public async Task User_with_push_and_telegram_gets_one_delivery()
+    {
+        var push = new FakePush();
+        var (userId, chatId) = await TelegramUserAsync(s => { s.MorningBriefEnabled = true; s.MorningBriefTime = LocalTime(Now); }, push: true);
+
+        await RunAsync(Now, push);
+        await RunAsync(Now.AddMinutes(5), push);
+
+        Assert.Equal(1, push.Calls);
+        Assert.Single(Sent(chatId));
+        Assert.Equal(1, await DeliveryCountAsync(userId, "brief:"));
+    }
+
+    [LocalDatabaseFact]
+    public async Task Block_and_recurring_reminders_make_no_telegram_call()
+    {
+        var push = new FakePush();
+        var (userId, chatId) = await TelegramUserAsync(s => s.BlockRemindersEnabled = true, push: true);
+        var due = TimeZoneInfo.ConvertTime(Now.AddMinutes(10), Warsaw);
+        var templateId = Guid.NewGuid();
+        await factory.WithDbAsync(async db =>
+        {
+            db.CalendarBlocks.Add(new CalendarBlock
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                Title = "Blok testowy",
+                StartAt = Now.AddMinutes(10),
+                DurationMinutes = 30,
+                CreatedAt = Now,
+                UpdatedAt = Now
+            });
+            db.Tasks.Add(new TaskItem
+            {
+                Id = templateId,
+                UserId = userId,
+                Content = "Szablon",
+                CreatedAt = DateTimeOffset.UtcNow,
+                Recurrence = new TaskRecurrence
+                {
+                    IsEnabled = true,
+                    NotificationsEnabled = true,
+                    ReminderMinutesBefore = 10,
+                    StartDate = LocalDate(Now),
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    UpdatedAt = DateTimeOffset.UtcNow
+                }
+            });
+            await db.SaveChangesAsync();
+            db.Tasks.Add(new TaskItem
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                Content = "Cykliczne",
+                RecurringTaskId = templateId,
+                RecurrenceOccurrenceDate = DateOnly.FromDateTime(due.DateTime),
+                DueDate = DateOnly.FromDateTime(due.DateTime),
+                DueTime = TimeOnly.FromDateTime(due.DateTime),
+                CreatedAt = DateTimeOffset.UtcNow
+            });
+            await db.SaveChangesAsync();
+        });
+
+        await RunAsync(Now, push);
+
+        Assert.Equal(1, await DeliveryCountAsync(userId, "block:"));
+        Assert.Equal(1, await DeliveryCountAsync(userId, "recurrence:"));
+        Assert.Equal(2, push.Calls);
+        Assert.Empty(Sent(chatId));
+    }
+
+    private sealed class FakePush : IWebPushSender
+    {
+        public int Calls;
+        public bool Result { get; set; } = true;
+        public Exception? Throw { get; set; }
+
+        public Task<bool> SendAsync(Guid userId, object payload, CancellationToken ct)
+        {
+            Interlocked.Increment(ref Calls);
+            if (Throw is not null) throw Throw;
+            return Task.FromResult(Result);
+        }
+    }
+
+    private async Task RunAsync(DateTimeOffset now, FakePush push)
+    {
+        using var app = factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<IWebPushSender>();
+            services.AddSingleton<IWebPushSender>(push);
+        }));
+        using var scope = app.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<INotificationService>().ProcessDueNotificationsAsync(now);
+    }
+
+    private Task<int> DeliveryCountAsync(Guid userId, string keyPrefix) =>
+        factory.WithDbAsync(db => db.PushNotificationDeliveries.CountAsync(d => d.UserId == userId && d.DeliveryKey.StartsWith(keyPrefix)));
+
     private static TimeOnly LocalTime(DateTimeOffset utc)
     {
         var local = TimeZoneInfo.ConvertTime(utc, Warsaw);
@@ -115,7 +279,7 @@ public class TelegramBriefsJobTests(TelegramApiFactory factory) : IClassFixture<
         return await scope.ServiceProvider.GetRequiredService<INotificationService>().ProcessDueNotificationsAsync(now);
     }
 
-    private async Task<(Guid UserId, long ChatId)> TelegramUserAsync(Action<NotificationSettings> configure)
+    private async Task<(Guid UserId, long ChatId)> TelegramUserAsync(Action<NotificationSettings> configure, bool push = false)
     {
         var user = await factory.CreateUserAsync();
         var chatId = Interlocked.Increment(ref chatSeed);
@@ -133,6 +297,17 @@ public class TelegramBriefsJobTests(TelegramApiFactory factory) : IClassFixture<
         {
             db.NotificationSettings.Add(settings);
             db.TelegramConnections.Add(new TelegramConnection { UserId = user.Id, ChatId = chatId, ConnectedAt = DateTimeOffset.UtcNow });
+            if (push)
+                db.PushNotificationSubscriptions.Add(new PushNotificationSubscription
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = user.Id,
+                    Endpoint = $"https://fcm.googleapis.com/fcm/send/{Guid.NewGuid():N}",
+                    P256dh = "p",
+                    Auth = "a",
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    UpdatedAt = DateTimeOffset.UtcNow
+                });
             await db.SaveChangesAsync();
         });
         return (user.Id, chatId);

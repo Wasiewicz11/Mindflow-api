@@ -69,6 +69,46 @@ public class TelegramNotifierTests(TelegramApiFactory factory) : IClassFixture<T
         Assert.False(await notifier.SendNotificationAsync(user.Id, "Poranny brief", "x", "/", CancellationToken.None));
     }
 
+    [LocalDatabaseFact]
+    public async Task Skips_when_bot_is_not_configured()
+    {
+        using var plain = new MindflowApiFactory();
+        var user = await plain.CreateUserAsync();
+        await plain.WithDbAsync(async db =>
+        {
+            db.TelegramConnections.Add(new TelegramConnection { UserId = user.Id, ChatId = Interlocked.Increment(ref chatSeed), ConnectedAt = DateTimeOffset.UtcNow });
+            await db.SaveChangesAsync();
+        });
+
+        using var scope = plain.Services.CreateScope();
+        var notifier = scope.ServiceProvider.GetRequiredService<ITelegramNotifier>();
+
+        Assert.Null(await notifier.FindChatAsync(user.Id, CancellationToken.None));
+        Assert.False(await notifier.SendNotificationAsync(user.Id, "Poranny brief", "x", "/", CancellationToken.None));
+    }
+
+    [LocalDatabaseFact]
+    public async Task Times_out_and_stops_sending_in_the_same_scope()
+    {
+        var (userId, chatId) = await ConnectedAsync();
+        factory.Telegram.Hang = true;
+        try
+        {
+            using var scope = factory.Services.CreateScope();
+            var notifier = scope.ServiceProvider.GetRequiredService<ITelegramNotifier>();
+
+            Assert.False(await notifier.SendNotificationAsync(userId, "Poranny brief", "x", "/", CancellationToken.None));
+            factory.Telegram.Hang = false;
+            Assert.False(await notifier.SendNotificationAsync(userId, "Poranny brief", "x", "/", CancellationToken.None));
+        }
+        finally
+        {
+            factory.Telegram.Hang = false;
+        }
+
+        Assert.Empty(Sent(chatId));
+    }
+
     private static async Task<bool> SendAsync(WebApplicationFactory<Program> app, Guid userId, string title, string body, string path)
     {
         using var scope = app.Services.CreateScope();
