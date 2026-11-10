@@ -184,6 +184,16 @@ Telegram__WebhookSecret=LOSOWY_SEKRET
 - Lokalnie używaj OSOBNEGO bota z BotFathera: polling (`UsePolling`) wywołuje `deleteWebhook` i po cichu zepsułby produkcję na tym samym bocie; po wdrożeniu sprawdź webhook przez `getWebhookInfo`.
 - Token bota nie trafia do logow (logowanie HttpClient wylaczone dla tego klienta).
 
+### Dodawanie zadań z bota
+
+Wiadomość tekstowa (nie komenda) albo głosówka wysłana do bota z połączonego prywatnego czatu trafia do tego samego silnika co `POST /ai/dictation`: ta sama konfiguracja AI użytkownika (Ustawienia → AI) i ten sam dzienny limit dyktowania. Głosówka może mieć najwyżej 3 minuty i `Ai:Dictation:MaxAudioBytes` (domyślnie 8 MB). Bot pobiera ją przez `getFile` i `https://api.telegram.org/file/bot<token>/<path>`; ani token, ani ścieżka pliku nie trafiają do logów.
+
+Bot odpisuje listą rozpoznanych zadań (tytuł, termin, projekt, priorytet) z przyciskami `Dodaj wszystkie` i `Anuluj`. Lista czeka w tabeli `telegram_task_drafts` przez 24 godziny. „Dodaj wszystkie” tworzy zadania tak jak zwykłe dodawanie (aktywność, odświeżenie na żywo w aplikacji), a drugie kliknięcie niczego nie dubluje. Po kliknięciu bot zdejmuje przyciski. Wiadomość z niepołączonego czatu dostaje instrukcję połączenia.
+
+Szkic pamięta czat i `message_id` wiadomości źródłowej (unikalny indeks). Gdy Telegram ponowi webhook dla wiadomości, która ma już szkic, bot ją pomija i nie pyta AI drugi raz. Rozpoznanie AI dzieje się w trakcie żądania od Telegrama (do `Ai:Dictation:TimeoutSeconds`, domyślnie 60 s); ponowienie, które przyjdzie, zanim pierwszy szkic się zapisze, wywoła AI jeszcze raz, ale druga lista nie zostanie wysłana.
+
+Migracja `AddTelegramTaskDrafts` zastosowana jak pozostałe (punkt 1). Wdrożenie: VPS (`deploy/vps/deploy.sh ../mindflow-api-reminders`), migracje skryptem idempotentnym z backupem bazy.
+
 Jednorazowe ustawienie webhooka na produkcji:
 
 ```bash
