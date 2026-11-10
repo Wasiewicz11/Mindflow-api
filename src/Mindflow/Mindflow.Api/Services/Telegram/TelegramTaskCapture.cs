@@ -3,12 +3,15 @@ using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Mindflow.Api.Data;
 using Mindflow.Api.Exceptions;
 using Mindflow.Api.Models;
 using Mindflow.Api.Models.Dtos;
 using Mindflow.Api.Models.Enums;
+using Mindflow.Api.Services.Ai;
 using Mindflow.Api.Services.Ai.Dictation;
+using Mindflow.Api.Services.Ai.Providers;
 using Npgsql;
 
 namespace Mindflow.Api.Services.Telegram;
@@ -22,12 +25,18 @@ public class TelegramTaskCapture(
     MindflowDbContext db,
     TelegramApi api,
     IDictationService dictation,
+    IOptions<AiOptions> aiOptions,
     IHttpContextAccessor httpContextAccessor,
     ILogger<TelegramTaskCapture> logger) : ITelegramTaskCapture
 {
     public const string NoTasksText = "Nie znalazłem zadań w tej wiadomości.";
     public const string LimitText = "Wykorzystano dzienny limit AI. Spróbuj jutro.";
     public const string AiErrorText = "Nie udało się teraz rozpoznać zadań. Spróbuj za chwilę.";
+    public const string VoiceTooLongText = "Głosówka może mieć najwyżej 3 minuty.";
+    public const string DownloadFailedText = "Nie udało się pobrać głosówki. Spróbuj jeszcze raz.";
+
+    private const int MaxVoiceSeconds = 180;
+    private const string DefaultVoiceMime = "audio/ogg";
 
     private const int MaxListedTasks = 15;
     private const int MaxListedTitle = 80;
@@ -40,9 +49,33 @@ public class TelegramTaskCapture(
 
     public async Task HandleMessageAsync(Guid userId, TelegramMessage message, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(message.Text)) return;
+        if (message.Voice is null && string.IsNullOrWhiteSpace(message.Text)) return;
         if (await IsCapturedAsync(message, ct)) return;
-        await CaptureAsync(userId, message, new DictationInput(message.Text, null, null), ct);
+
+        var input = message.Voice is { } voice
+            ? await ReadVoiceAsync(message.Chat.Id, voice, ct)
+            : new DictationInput(message.Text, null, null);
+        if (input is not null) await CaptureAsync(userId, message, input, ct);
+    }
+
+    private async Task<DictationInput?> ReadVoiceAsync(long chatId, TelegramVoice voice, CancellationToken ct)
+    {
+        var maxBytes = aiOptions.Value.Dictation.MaxAudioBytes;
+        if (voice.Duration > MaxVoiceSeconds || voice.FileSize > maxBytes)
+        {
+            await api.SendMessageAsync(chatId, VoiceTooLongText, null, ct);
+            return null;
+        }
+
+        var file = await api.GetFileAsync(voice.FileId, ct);
+        var audio = file?.FilePath is { } path ? await api.DownloadFileAsync(path, maxBytes, ct) : null;
+        if (audio is not { Length: > 0 })
+        {
+            await api.SendMessageAsync(chatId, DownloadFailedText, null, ct);
+            return null;
+        }
+
+        return new DictationInput(null, audio, AudioFormats.Normalize(voice.MimeType) ?? DefaultVoiceMime);
     }
 
     private Task<bool> IsCapturedAsync(TelegramMessage message, CancellationToken ct) =>
