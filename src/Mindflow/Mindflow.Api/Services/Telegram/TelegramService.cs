@@ -131,6 +131,12 @@ public class TelegramService(
             return;
         }
 
+        if (callback.Data?.StartsWith("cap:", StringComparison.Ordinal) == true)
+        {
+            await capture.HandleCallbackAsync(row.UserId, callback, ct);
+            return;
+        }
+
         var response = TryParseAction(callback.Data, out var action, out var taskId)
             ? await reminderActions.ApplyAsync(row.UserId, taskId, action, ct)
             : null;

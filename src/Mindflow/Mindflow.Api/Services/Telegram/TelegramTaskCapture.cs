@@ -19,6 +19,7 @@ namespace Mindflow.Api.Services.Telegram;
 public interface ITelegramTaskCapture
 {
     Task HandleMessageAsync(Guid userId, TelegramMessage message, CancellationToken ct);
+    Task HandleCallbackAsync(Guid userId, TelegramCallbackQuery callback, CancellationToken ct);
 }
 
 public class TelegramTaskCapture(
@@ -26,6 +27,7 @@ public class TelegramTaskCapture(
     TelegramApi api,
     IDictationService dictation,
     IOptions<AiOptions> aiOptions,
+    ITaskService taskService,
     IHttpContextAccessor httpContextAccessor,
     ILogger<TelegramTaskCapture> logger) : ITelegramTaskCapture
 {
@@ -34,6 +36,10 @@ public class TelegramTaskCapture(
     public const string AiErrorText = "Nie udało się teraz rozpoznać zadań. Spróbuj za chwilę.";
     public const string VoiceTooLongText = "Głosówka może mieć najwyżej 3 minuty.";
     public const string DownloadFailedText = "Nie udało się pobrać głosówki. Spróbuj jeszcze raz.";
+    public const string CancelledText = "Anulowano";
+    public const string HandledDraftText = "Ta lista jest już obsłużona.";
+    public const string ExpiredDraftText = "Ta lista wygasła. Wyślij wiadomość jeszcze raz.";
+    public const string NothingAddedText = "Nie udało się dodać zadań.";
 
     private const int MaxVoiceSeconds = 180;
     private const string DefaultVoiceMime = "audio/ogg";
@@ -139,6 +145,81 @@ public class TelegramTaskCapture(
             new TelegramButton("Anuluj", CallbackData: $"cap:no:{draft.Id:N}")
         ]], ct);
     }
+
+    public async Task HandleCallbackAsync(Guid userId, TelegramCallbackQuery callback, CancellationToken ct)
+    {
+        var parts = callback.Data?.Split(':');
+        if (parts is not ["cap", var verb, var id] || verb is not ("add" or "no") || !Guid.TryParseExact(id, "N", out var draftId))
+        {
+            await api.AnswerCallbackQueryAsync(callback.Id, ExpiredDraftText, ct);
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var target = verb == "add" ? TelegramTaskDraftStatus.Added : TelegramTaskDraftStatus.Cancelled;
+        var claimed = await db.TelegramTaskDrafts
+            .Where(d => d.Id == draftId && d.UserId == userId && d.Status == TelegramTaskDraftStatus.Pending && d.ExpiresAt > now)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(d => d.Status, target), ct);
+        if (claimed == 0)
+        {
+            var handled = await db.TelegramTaskDrafts.AnyAsync(
+                d => d.Id == draftId && d.UserId == userId && d.Status != TelegramTaskDraftStatus.Pending, ct);
+            await api.AnswerCallbackQueryAsync(callback.Id, handled ? HandledDraftText : ExpiredDraftText, ct);
+            return;
+        }
+
+        var answer = verb == "add" ? AddedText(await AddTasksAsync(userId, draftId, ct)) : CancelledText;
+        await api.AnswerCallbackQueryAsync(callback.Id, answer, ct);
+        if (callback.Message is { } message)
+            await api.RemoveKeyboardAsync(message.Chat.Id, message.MessageId, ct);
+    }
+
+    public static string AddedText(int count) =>
+        count == 0 ? NothingAddedText : $"✅ Dodano {count} {TaskWord(count)}";
+
+    private static string TaskWord(int count) =>
+        count == 1 ? "zadanie"
+        : count % 10 is >= 2 and <= 4 && count % 100 is < 12 or > 14 ? "zadania"
+        : "zadań";
+
+    private async Task<int> AddTasksAsync(Guid userId, Guid draftId, CancellationToken ct)
+    {
+        var json = await db.TelegramTaskDrafts.AsNoTracking()
+            .Where(d => d.Id == draftId)
+            .Select(d => d.Tasks)
+            .SingleAsync(ct);
+        var tasks = JsonSerializer.Deserialize<List<DictatedTaskResponse>>(json, DraftJson) ?? [];
+
+        TelegramActor.ActAs(httpContextAccessor, userId);
+        var added = 0;
+        foreach (var task in tasks)
+        {
+            try
+            {
+                if (await taskService.CreateAsync(ToRequest(task)) is not null) added++;
+            }
+            catch (Exception ex) when (ex is ApiException or DbUpdateException)
+            {
+                logger.LogWarning("Telegram draft task was not created: {ExceptionType}", ex.GetType().Name);
+            }
+        }
+
+        return added;
+    }
+
+    private static CreateTaskRequest ToRequest(DictatedTaskResponse task) => new(
+        task.Title,
+        task.Description,
+        task.Priority,
+        null,
+        task.DueDate,
+        task.DueDate is null ? null : task.DueTime,
+        null,
+        task.ProjectId,
+        null,
+        task.Subtasks
+            .Select((content, index) => new TaskSubtaskRequest(null, content, false, null, null, false, null, null, index))
+            .ToList());
 
     public static string FormatDraft(IReadOnlyList<DictatedTaskResponse> tasks)
     {
