@@ -13,7 +13,8 @@ public class TelegramApiFactory : MindflowApiFactory
     {
         ["Telegram:BotToken"] = "123:abc",
         ["Telegram:BotUsername"] = "mindflow_test_bot",
-        ["Telegram:WebhookSecret"] = "hook-secret"
+        ["Telegram:WebhookSecret"] = "hook-secret",
+        ["Notifications:FrontendUrl"] = "https://app.test"
     };
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)

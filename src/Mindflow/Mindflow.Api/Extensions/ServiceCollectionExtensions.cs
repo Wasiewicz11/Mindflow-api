@@ -395,6 +395,7 @@ public static class ServiceCollectionExtensions
             c.Timeout = TimeSpan.FromSeconds(40);
         }).RemoveAllLoggers();
         services.AddScoped<ITelegramService, TelegramService>();
+        services.AddScoped<ITelegramNotifier, TelegramNotifier>();
         services.AddScoped<IReminderChannel, TelegramReminderChannel>();
         if (TelegramOptions.From(config)?.UsePolling == true)
             services.AddHostedService<TelegramPollingService>();
