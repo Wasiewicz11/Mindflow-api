@@ -160,6 +160,8 @@ Przypomnienia o zadaniach moga przychodzic takze od bota Telegrama z przyciskami
 - `✅ Zrobione` i `⏰ Odłóż 10 min`;
 - `Otwórz zadanie` — tylko gdy adres frontu jest na https.
 
+Briefy (poranny i popołudniowy) oraz podsumowanie dnia też przychodzą od bota: pogrubiony tytuł, treść i przycisk `Otwórz Mindflow` (tylko gdy adres frontu jest na https). Idą równolegle z Web Push. Wpis w centrum powiadomień i znacznik dostawy powstają, gdy dotarł choć jeden kanał, więc kolejny przebieg joba niczego nie dubluje. Job obejmuje też konta bez subskrypcji push, jeśli mają połączony Telegram. Przełącznik `telegramRemindersEnabled` wyłącza teraz wszystkie powiadomienia na Telegram (przypomnienia, briefy, podsumowanie); etykieta w UI zostaje. Przypomnienia o blokach i zadaniach cyklicznych dalej idą tylko przez Web Push.
+
 Konto łączysz w `Ustawienia -> Powiadomienia -> Telegram`: klikasz link `https://t.me/<bot>?start=<kod>`. Kod jest jednorazowy i ważny 15 minut. Rozłączasz tam albo komendą `/stop` w czacie z botem. Przełącznik `telegramRemindersEnabled` w `/notifications/settings` (domyślnie włączony) wyłącza wysyłkę bez rozłączania konta.
 
 Utworzenie bota:
