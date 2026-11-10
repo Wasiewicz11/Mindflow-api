@@ -398,6 +398,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITelegramTaskCapture, TelegramTaskCapture>();
         services.AddScoped<ITelegramService, TelegramService>();
         services.AddScoped<ITelegramNotifier, TelegramNotifier>();
+        services.AddScoped<ITelegramAiPlan, TelegramAiPlan>();
         services.AddScoped<IReminderChannel, TelegramReminderChannel>();
         if (TelegramOptions.From(config)?.UsePolling == true)
             services.AddHostedService<TelegramPollingService>();
