@@ -368,6 +368,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISuggestionActionExecutor, SuggestionActionExecutor>();
         services.AddScoped<IAiSuggestionOrchestrator, AiSuggestionOrchestrator>();
         services.AddScoped<ISuggestionService, SuggestionService>();
+        services.AddScoped<IDayPlanWriter, DayPlanWriter>();
 
         services.AddSingleton<IAiKeyProtector, AiKeyProtector>();
         services.AddScoped<IUserAiSettingsRepository, UserAiSettingsRepository>();
