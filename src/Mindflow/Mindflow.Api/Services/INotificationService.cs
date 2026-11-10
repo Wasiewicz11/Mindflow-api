@@ -21,4 +21,5 @@ public interface INotificationService
     Task<int> DeleteAllInboxItemsAsync(Guid userId, CancellationToken ct = default);
     Task<NotificationTestResponse> SendTestAsync(Guid userId, CancellationToken ct = default);
     Task<NotificationJobResponse> ProcessDueNotificationsAsync(CancellationToken ct = default);
+    Task<NotificationJobResponse> ProcessDueNotificationsAsync(DateTimeOffset now, CancellationToken ct = default);
 }
