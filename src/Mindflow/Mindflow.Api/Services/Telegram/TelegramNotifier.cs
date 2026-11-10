@@ -47,9 +47,9 @@ public class TelegramNotifier(
         timeout.CancelAfter(SendTimeout);
         try
         {
-            var sent = await api.SendMessageAsync(chatId, html, keyboard, timeout.Token);
-            if (!sent) telegramUnavailable = true;
-            return sent;
+            var status = await api.TrySendMessageAsync(chatId, html, keyboard, timeout.Token);
+            if (status == TelegramSendStatus.Unavailable) telegramUnavailable = true;
+            return status == TelegramSendStatus.Sent;
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {

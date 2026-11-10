@@ -22,7 +22,12 @@ public sealed class FakeTelegramHandler : HttpMessageHandler
         var body = request.Content is null ? new JsonObject() : JsonNode.Parse(await request.Content.ReadAsStringAsync(ct))!.AsObject();
         lock (Requests) Uris.Add(request.RequestUri!);
         lock (Requests) Requests.Add((method, body));
-        var result = method == "getUpdates" ? (UpdatesResults.TryDequeue(out var next) ? next : "[]") : "true";
+        var result = method switch
+        {
+            "getUpdates" => UpdatesResults.TryDequeue(out var next) ? next : "[]",
+            "sendMessage" => """{"message_id":1,"chat":{"id":1,"type":"private"}}""",
+            _ => "true"
+        };
         return new HttpResponseMessage(FailingMethods.Contains(method) ? HttpStatusCode.Unauthorized : Status) { Content = new StringContent($$"""{"ok":true,"result":{{result}}}""", Encoding.UTF8, "application/json") };
     }
 }
