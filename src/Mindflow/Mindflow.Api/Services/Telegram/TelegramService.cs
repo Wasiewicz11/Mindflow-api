@@ -19,7 +19,12 @@ public interface ITelegramService
     Task HandleUpdateAsync(TelegramUpdate update, CancellationToken ct);
 }
 
-public class TelegramService(MindflowDbContext db, TelegramApi api, IReminderActionService reminderActions, IConfiguration configuration) : ITelegramService
+public class TelegramService(
+    MindflowDbContext db,
+    TelegramApi api,
+    IReminderActionService reminderActions,
+    ITelegramTaskCapture capture,
+    IConfiguration configuration) : ITelegramService
 {
     private static readonly TimeSpan LinkCodeLifetime = TimeSpan.FromMinutes(15);
 
@@ -72,7 +77,15 @@ public class TelegramService(MindflowDbContext db, TelegramApi api, IReminderAct
         }
 
         var message = update.Message;
-        if (message?.Text is not { } text) return;
+        if (message is null) return;
+        var text = message.Text?.Trim() ?? "";
+        if (!text.StartsWith('/') && (text.Length > 0 || message.Voice is not null))
+        {
+            await HandleNoteAsync(message, ct);
+            return;
+        }
+
+        if (text.Length == 0) return;
 
         var chatId = message.Chat.Id;
         var parts = text.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -89,6 +102,21 @@ public class TelegramService(MindflowDbContext db, TelegramApi api, IReminderAct
         }
         else
             await api.SendMessageAsync(chatId, HelpText, null, ct);
+    }
+
+    private async Task HandleNoteAsync(TelegramMessage message, CancellationToken ct)
+    {
+        var userId = message.Chat.Type == PrivateChat
+            ? await db.TelegramConnections.AsNoTracking()
+                .Where(c => c.ChatId == message.Chat.Id)
+                .Select(c => (Guid?)c.UserId)
+                .FirstOrDefaultAsync(ct)
+            : null;
+
+        if (userId is null)
+            await api.SendMessageAsync(message.Chat.Id, HelpText, null, ct);
+        else
+            await capture.HandleMessageAsync(userId.Value, message, ct);
     }
 
     private async Task HandleCallbackAsync(TelegramCallbackQuery callback, CancellationToken ct)
