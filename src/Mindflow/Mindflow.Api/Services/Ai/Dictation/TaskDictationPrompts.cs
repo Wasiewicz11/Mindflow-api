@@ -14,6 +14,8 @@ public sealed class TaskDictationPrompts : IDictationPrompts
 
     public string AudioUserText => DictationPrompt.AudioUserText;
 
+    public string SchemaName => "dictated_tasks";
+
     public object GeminiSchema(DictationContext context) => DictationPrompt.GeminiSchema(context);
 
     public object OpenAiSchema(DictationContext context) => DictationPrompt.OpenAiSchema(context);

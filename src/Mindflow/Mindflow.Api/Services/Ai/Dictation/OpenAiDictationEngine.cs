@@ -33,7 +33,7 @@ public class OpenAiDictationEngine(OpenAiApi openAi, IOptions<AiOptions> options
         response_format = new
         {
             type = "json_schema",
-            json_schema = new { name = "dictated_tasks", strict = true, schema = prompts.OpenAiSchema(context) }
+            json_schema = new { name = prompts.SchemaName, strict = true, schema = prompts.OpenAiSchema(context) }
         }
     };
 }

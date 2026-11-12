@@ -128,7 +128,7 @@ public static class DictationResultParser
         return builder.ToString();
     }
 
-    private static string StripFences(string raw)
+    internal static string StripFences(string raw)
     {
         var text = raw.Trim();
         if (!text.StartsWith("```", StringComparison.Ordinal)) return text;

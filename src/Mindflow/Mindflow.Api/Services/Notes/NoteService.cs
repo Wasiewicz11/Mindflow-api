@@ -1,10 +1,13 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Mindflow.Api.Data;
 using Mindflow.Api.Exceptions;
 using Mindflow.Api.Hubs;
 using Mindflow.Api.Models;
 using Mindflow.Api.Models.Dtos;
 using Mindflow.Api.Models.Enums;
+using Mindflow.Api.Services.Ai;
+using Mindflow.Api.Services.Ai.Dictation;
 
 namespace Mindflow.Api.Services.Notes;
 
@@ -13,8 +16,14 @@ public class NoteService(
     ICurrentUserService currentUser,
     IAccessService access,
     ITasksNotifier notifier,
+    IAiCredentialResolver resolver,
+    IDictationQuota quota,
+    NoteDictationQueue queue,
+    IOptions<AiOptions> aiOptions,
     ILogger<NoteService> logger) : INoteService
 {
+    private readonly DictationOptions _dictation = aiOptions.Value.Dictation;
+
     public async Task<IReadOnlyList<NoteListItemResponse>> ListAsync(CancellationToken ct = default)
     {
         var userId = await currentUser.GetCurrentUserIdAsync();
@@ -130,6 +139,59 @@ public class NoteService(
             await db.SaveChangesAsync(ct);
             await NotifySafelyAsync(() => notifier.NoteUpdatedAsync(userId, note.Id));
         }
+        return NoteMapper.ToResponse(note);
+    }
+
+    public async Task<NoteResponse> DictateAsync(DictationInput input, CancellationToken ct = default)
+    {
+        var userId = await currentUser.GetCurrentUserIdAsync();
+        DictationInputRules.Validate(input, _dictation);
+        var credentials = (await resolver.ResolveAsync(userId, ct)).FirstOrDefault()
+            ?? throw new ServiceUnavailableException("AI nie jest skonfigurowane. Dodaj klucz w Ustawieniach → AI.");
+        var reservation = await quota.ReserveAsync(userId, credentials, ct);
+
+        var now = DateTimeOffset.UtcNow;
+        var note = new Note
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Title = "Nowa notatka",
+            Content = "",
+            Source = NoteSource.Dictation,
+            Status = NoteStatus.Processing,
+            ReviewedAt = null,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        db.Notes.Add(note);
+        db.NoteDictationJobs.Add(new NoteDictationJob
+        {
+            NoteId = note.Id,
+            UserId = userId,
+            Audio = input.IsAudio ? input.Audio : null,
+            AudioMimeType = input.IsAudio ? input.AudioMimeType : null,
+            Text = input.IsAudio ? null : input.Text!.Trim(),
+            Lite = reservation.Lite,
+            CreatedAt = now
+        });
+        await db.SaveChangesAsync(ct);
+        await NotifySafelyAsync(() => notifier.NoteCreatedAsync(userId, note.Id));
+        queue.Enqueue(note.Id);
+        return NoteMapper.ToResponse(note);
+    }
+
+    public async Task<NoteResponse> RetryAsync(Guid id, CancellationToken ct = default)
+    {
+        var userId = await currentUser.GetCurrentUserIdAsync();
+        var note = await FindOwnAsync(id, userId, ct);
+        var attempts = await db.NoteDictationJobs.Where(j => j.NoteId == id).Select(j => (int?)j.Attempts).FirstOrDefaultAsync(ct);
+        if (note.Status != NoteStatus.Failed || attempts is null or >= NoteDictationProcessor.MaxAttempts)
+            throw new BadRequestException("Tej notatki nie można już przetworzyć ponownie.");
+
+        note.Status = NoteStatus.Processing;
+        await db.SaveChangesAsync(ct);
+        await NotifySafelyAsync(() => notifier.NoteUpdatedAsync(userId, note.Id));
+        queue.Enqueue(note.Id);
         return NoteMapper.ToResponse(note);
     }
 
