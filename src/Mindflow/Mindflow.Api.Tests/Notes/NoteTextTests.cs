@@ -32,4 +32,23 @@ public class NoteTextTests
         Assert.Equal(20, NoteText.NormalizeTags(Enumerable.Range(1, 25).Select(i => $"t{i}")).Count);
         Assert.Empty(NoteText.NormalizeTags(null));
     }
+
+    [Fact]
+    public void Tag_cut_does_not_leave_a_lone_surrogate()
+    {
+        var tag = NoteText.NormalizeTags([new string('a', 39) + "😀"])[0];
+
+        Assert.False(char.IsHighSurrogate(tag[^1]));
+        Assert.True(tag.Length <= NoteText.MaxTagLength);
+    }
+
+    [Fact]
+    public void Preview_cut_does_not_leave_a_lone_surrogate()
+    {
+        var preview = NoteText.Preview(new string('a', 158) + "😀😀");
+
+        Assert.EndsWith("…", preview);
+        Assert.False(char.IsHighSurrogate(preview[^2]));
+        Assert.True(preview.Length <= NoteText.PreviewLength);
+    }
 }

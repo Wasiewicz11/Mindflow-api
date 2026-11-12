@@ -32,17 +32,27 @@ public static partial class NoteText
         }
 
         var text = Spaces().Replace(string.Join(' ', parts), " ").Trim();
-        return text.Length <= PreviewLength ? text : text[..(PreviewLength - 1)].TrimEnd() + "…";
+        if (text.Length <= PreviewLength) return text;
+        var cut = PreviewLength - 1;
+        if (char.IsHighSurrogate(text[cut - 1])) cut--;
+        return text[..cut].TrimEnd() + "…";
     }
 
     public static List<string> NormalizeTags(IEnumerable<string>? tags) =>
         (tags ?? [])
             .Select(t => (t ?? "").Trim().ToLowerInvariant())
             .Where(t => t.Length > 0)
-            .Select(t => t.Length > MaxTagLength ? t[..MaxTagLength] : t)
+            .Select(CutTag)
             .Distinct(StringComparer.Ordinal)
             .Take(MaxTags)
             .ToList();
+
+    private static string CutTag(string t)
+    {
+        if (t.Length <= MaxTagLength) return t;
+        var cut = char.IsHighSurrogate(t[MaxTagLength - 1]) ? MaxTagLength - 1 : MaxTagLength;
+        return t[..cut];
+    }
 
     [GeneratedRegex(@"^(-{3,}|\*{3,}|_{3,})$")]
     private static partial Regex HorizontalRule();
