@@ -41,6 +41,51 @@ public class TelegramApi(HttpClient http, IConfiguration configuration, ILogger<
     public async Task<bool> DeleteWebhookAsync(CancellationToken ct) =>
         (await CallAsync<bool>("deleteWebhook", new { }, ct)).Ok;
 
+    public async Task<TelegramFile?> GetFileAsync(string fileId, CancellationToken ct)
+    {
+        var response = await CallAsync<TelegramFile>("getFile", new { file_id = fileId }, ct);
+        return response.Ok ? response.Result : null;
+    }
+
+    public async Task<byte[]?> DownloadFileAsync(string filePath, long maxBytes, CancellationToken ct)
+    {
+        var options = TelegramOptions.From(configuration);
+        if (options is null) return null;
+
+        try
+        {
+            using var response = await http.GetAsync($"/file/bot{options.BotToken}/{filePath}", HttpCompletionOption.ResponseHeadersRead, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                logger.LogWarning("Telegram file download failed with status {Status}", (int)response.StatusCode);
+                return null;
+            }
+
+            if (response.Content.Headers.ContentLength > maxBytes) return null;
+
+            await using var stream = await response.Content.ReadAsStreamAsync(ct);
+            using var buffer = new MemoryStream();
+            var chunk = new byte[81920];
+            int read;
+            while ((read = await stream.ReadAsync(chunk, ct)) > 0)
+            {
+                if (buffer.Length + read > maxBytes) return null;
+                buffer.Write(chunk, 0, read);
+            }
+
+            return buffer.ToArray();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException || ex is OperationCanceledException && !ct.IsCancellationRequested)
+        {
+            logger.LogWarning("Telegram file download failed with {ExceptionType}", ex.GetType().Name);
+            return null;
+        }
+    }
+
+    public async Task<bool> RemoveKeyboardAsync(long chatId, long messageId, CancellationToken ct) =>
+        (await CallAsync<JsonElement>("editMessageReplyMarkup",
+            new { chat_id = chatId, message_id = messageId, reply_markup = new { inline_keyboard = Array.Empty<object>() } }, ct)).Ok;
+
     private async Task<(bool Ok, T? Result, bool ChatRejected)> CallAsync<T>(string method, object body, CancellationToken ct)
     {
         var options = TelegramOptions.From(configuration);

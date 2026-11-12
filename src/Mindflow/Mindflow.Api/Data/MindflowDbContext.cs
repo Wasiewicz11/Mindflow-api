@@ -25,6 +25,7 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
     public DbSet<NotificationInboxItem> NotificationInboxItems { get; set; }
     public DbSet<GoogleCalendarConnection> GoogleCalendarConnections { get; set; }
     public DbSet<TelegramConnection> TelegramConnections { get; set; }
+    public DbSet<TelegramTaskDraft> TelegramTaskDrafts { get; set; }
     public DbSet<IntegrationToken> IntegrationTokens { get; set; }
     public DbSet<IntegrationTokenPermission> IntegrationTokenPermissions { get; set; }
     public DbSet<IntegrationAuthorizationCode> IntegrationAuthorizationCodes { get; set; }
@@ -438,6 +439,19 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
                 .OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(c => c.ChatId).IsUnique().HasFilter("chat_id IS NOT NULL");
             entity.HasIndex(c => c.LinkCodeHash);
+        });
+
+        modelBuilder.Entity<TelegramTaskDraft>(entity =>
+        {
+            entity.ToTable("telegram_task_drafts");
+            entity.Property(d => d.Tasks).HasColumnType("jsonb");
+            entity.Property(d => d.Status).HasConversion<string>().HasMaxLength(16);
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(d => d.UserId);
+            entity.HasIndex(d => new { d.SourceChatId, d.SourceMessageId }).IsUnique();
         });
 
         modelBuilder.Entity<PomodoroSessionState>(entity =>

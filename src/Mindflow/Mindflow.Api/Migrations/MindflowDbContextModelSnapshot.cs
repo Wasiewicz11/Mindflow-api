@@ -1727,6 +1727,57 @@ namespace Mindflow.Api.Migrations
                     b.ToTable("telegram_connections", (string)null);
                 });
 
+            modelBuilder.Entity("Mindflow.Api.Models.TelegramTaskDraft", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<long>("SourceChatId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("source_chat_id");
+
+                    b.Property<long>("SourceMessageId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("source_message_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Tasks")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("tasks");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_telegram_task_drafts");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_telegram_task_drafts_user_id");
+
+                    b.HasIndex("SourceChatId", "SourceMessageId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_telegram_task_drafts_source_chat_id_source_message_id");
+
+                    b.ToTable("telegram_task_drafts", (string)null);
+                });
+
             modelBuilder.Entity("Mindflow.Api.Models.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2110,6 +2161,16 @@ namespace Mindflow.Api.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_telegram_connections_users_user_id");
+                });
+
+            modelBuilder.Entity("Mindflow.Api.Models.TelegramTaskDraft", b =>
+                {
+                    b.HasOne("Mindflow.Api.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_telegram_task_drafts_users_user_id");
                 });
 
             modelBuilder.Entity("Mindflow.Api.Models.UserAiSettings", b =>
