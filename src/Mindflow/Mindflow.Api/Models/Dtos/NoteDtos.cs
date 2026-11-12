@@ -14,7 +14,8 @@ public record NoteListItemResponse(
     bool IsNew,
     DateOnly? EventDate,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    int PendingSuggestions);
 
 public record NoteResponse(
     Guid Id,
@@ -29,7 +30,32 @@ public record NoteResponse(
     DateOnly? EventDate,
     string? Transcript,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    IReadOnlyList<NoteSuggestionResponse> Suggestions);
+
+public record NoteSuggestionResponse(
+    Guid Id,
+    string Title,
+    string? Description,
+    DateOnly? DueDate,
+    TimeOnly? DueTime,
+    TaskPriority Priority,
+    Guid? ProjectId,
+    string? ProjectName,
+    IReadOnlyList<string> Subtasks,
+    NoteSuggestionStatus Status,
+    Guid? TaskId);
+
+public record AcceptNoteSuggestionRequest(
+    [MaxLength(200)] string? Title = null,
+    [MaxLength(10000)] string? Description = null,
+    DateOnly? DueDate = null,
+    TimeOnly? DueTime = null,
+    TaskPriority? Priority = null,
+    Guid? ProjectId = null,
+    IReadOnlyList<string>? Subtasks = null,
+    bool ClearDueDate = false,
+    bool ClearProject = false);
 
 public record SaveNoteRequest(
     [MaxLength(200)] string? Title,

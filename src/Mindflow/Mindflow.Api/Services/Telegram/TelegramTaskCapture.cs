@@ -197,7 +197,7 @@ public class TelegramTaskCapture(
         {
             try
             {
-                if (await taskService.CreateAsync(ToRequest(task)) is not null) added++;
+                if (await taskService.CreateAsync(DictatedTaskRequests.ToCreateRequest(task)) is not null) added++;
             }
             catch (Exception ex) when (ex is ApiException or DbUpdateException)
             {
@@ -207,20 +207,6 @@ public class TelegramTaskCapture(
 
         return added;
     }
-
-    private static CreateTaskRequest ToRequest(DictatedTaskResponse task) => new(
-        task.Title,
-        task.Description,
-        task.Priority,
-        null,
-        task.DueDate,
-        task.DueDate is null ? null : task.DueTime,
-        null,
-        task.ProjectId,
-        null,
-        task.Subtasks
-            .Select((content, index) => new TaskSubtaskRequest(null, content, false, null, null, false, null, null, index))
-            .ToList());
 
     public static string FormatDraft(IReadOnlyList<DictatedTaskResponse> tasks, bool lite = false)
     {

@@ -198,6 +198,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IGoalDayService, GoalDayService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<INoteService, NoteService>();
+        services.AddScoped<NoteSuggestionReader>();
+        services.AddScoped<INoteSuggestionService, NoteSuggestionService>();
         services.AddScoped<IWebPushSender, WebPushSender>();
         services.AddSingleton<IReminderActionTokens, ReminderActionTokens>();
         services.AddScoped<IReminderChannel, InAppReminderChannel>();
