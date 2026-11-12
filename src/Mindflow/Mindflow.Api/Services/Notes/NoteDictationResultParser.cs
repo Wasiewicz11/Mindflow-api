@@ -75,6 +75,6 @@ public static partial class NoteDictationResultParser
     private static string? Clip(string? value, int max) =>
         value is null ? null : value.Length <= max ? value : value[..max];
 
-    [GeneratedRegex(@"</?[A-Za-z][A-Za-z0-9]*(\s[^>]*)?/?>")]
+    [GeneratedRegex(@"</?[A-Za-z][A-Za-z0-9-]*(?![A-Za-z0-9-]*:)(?:[\s/][^>]*)?>")]
     private static partial Regex Html();
 }

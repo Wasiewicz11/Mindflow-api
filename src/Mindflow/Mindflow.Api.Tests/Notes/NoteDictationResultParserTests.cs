@@ -33,6 +33,23 @@ public class NoteDictationResultParserTests
         Assert.Equal("koszt <1000 zł, zysk >500 <https://x.pl> tak", result!.Markdown);
     }
 
+    [Theory]
+    [InlineData("<script>alert(1)</script>x", "alert(1)x")]
+    [InlineData("<img src=x onerror=alert(1)>x", "x")]
+    [InlineData("<img/src=x/onerror=alert(1)>x", "x")]
+    [InlineData("<svg/onload=alert(1)>x", "x")]
+    [InlineData("<div>a</div>", "a")]
+    [InlineData("a<br/>b", "ab")]
+    [InlineData("<b>a</b>", "a")]
+    [InlineData("<https://x.pl>", "<https://x.pl>")]
+    [InlineData("koszt <1000 zł, zysk >500", "koszt <1000 zł, zysk >500")]
+    public void Html_tags_are_stripped_in_every_form(string markdown, string expected)
+    {
+        var json = JsonSerializer.Serialize(new { title = "T", tags = Array.Empty<string>(), markdown, tasks = Array.Empty<string>() });
+
+        Assert.Equal(expected, NoteDictationResultParser.Parse(json, Context, 30)!.Markdown);
+    }
+
     [Fact]
     public void Nul_characters_are_removed_from_every_text_field()
     {

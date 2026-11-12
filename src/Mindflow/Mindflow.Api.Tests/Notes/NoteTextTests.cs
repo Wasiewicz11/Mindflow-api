@@ -20,6 +20,12 @@ public class NoteTextTests
     }
 
     [Fact]
+    public void Preview_keeps_escaped_inline_markers()
+    {
+        Assert.Equal("a * b ` c", NoteText.Preview("a \\* b \\` c"));
+    }
+
+    [Fact]
     public void Preview_is_cut_to_the_limit_with_an_ellipsis()
     {
         var preview = NoteText.Preview(new string('a', 300));

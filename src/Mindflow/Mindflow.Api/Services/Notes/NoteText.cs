@@ -69,7 +69,7 @@ public static partial class NoteText
     [GeneratedRegex(@"\[([^\]]*)\]\([^)]*\)")]
     private static partial Regex Link();
 
-    [GeneratedRegex(@"\*\*|__|~~|[*`]")]
+    [GeneratedRegex(@"(?<!\\)(\*\*|__|~~|[*`])")]
     private static partial Regex Inline();
 
     [GeneratedRegex(@"\\([\\`*_\[\]~#>+\-.!|{}()])")]
