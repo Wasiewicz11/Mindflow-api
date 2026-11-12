@@ -177,7 +177,7 @@ public class NoteService(
             UserId = userId,
             Audio = input.IsAudio ? input.Audio : null,
             AudioMimeType = input.IsAudio ? input.AudioMimeType : null,
-            Text = input.IsAudio ? null : input.Text!.Trim(),
+            Text = input.IsAudio ? null : DictationInputRules.CleanText(input.Text),
             Lite = reservation.Lite,
             CreatedAt = now
         });

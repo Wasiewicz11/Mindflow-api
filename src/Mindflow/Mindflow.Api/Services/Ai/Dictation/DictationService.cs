@@ -50,7 +50,7 @@ public class DictationService(
         }
 
         var parsed = DictationResultParser.Parse(result.Json, context, _options.MaxTasks);
-        var transcript = input.IsAudio ? result.Transcript ?? parsed.Transcript : input.Text!.Trim();
+        var transcript = input.IsAudio ? result.Transcript ?? parsed.Transcript : DictationInputRules.CleanText(input.Text);
         logger.LogInformation("Dictation via {Provider}/{Model} ({Source}, lite: {Lite}) produced {Count} tasks.",
             credentials.Provider, result.Model, credentials.Source, reservation.Lite, parsed.Tasks.Count);
 

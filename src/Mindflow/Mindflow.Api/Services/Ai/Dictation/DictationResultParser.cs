@@ -73,7 +73,7 @@ public static class DictationResultParser
         {
             foreach (var sub in subs.EnumerateArray())
             {
-                var text = sub.ValueKind == JsonValueKind.String ? Clip(Capitalize(Collapse(sub.GetString())), MaxTitle) : null;
+                var text = sub.ValueKind == JsonValueKind.String ? Clip(Capitalize(Collapse(sub.GetString()?.Replace("\0", ""))), MaxTitle) : null;
                 if (text is not null && !subtasks.Contains(text, StringComparer.OrdinalIgnoreCase) && subtasks.Count < MaxSubtasks)
                     subtasks.Add(text);
             }
@@ -107,7 +107,7 @@ public static class DictationResultParser
     }
 
     private static string? String(JsonElement element, string name) =>
-        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString()?.Replace("\0", "") : null;
 
     private static string? Collapse(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).Trim(' ', '-', '•', '*');

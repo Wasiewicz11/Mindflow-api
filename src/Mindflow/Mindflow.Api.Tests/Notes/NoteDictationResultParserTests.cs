@@ -22,6 +22,31 @@ public class NoteDictationResultParserTests
         Assert.Null(result.EventDate);
     }
 
+    [Fact]
+    public void Tag_shaped_html_is_removed_but_comparisons_and_autolinks_survive()
+    {
+        var result = NoteDictationResultParser.Parse(
+            "{\"title\":\"T\",\"tags\":[],\"markdown\":\"koszt <1000 zł, zysk >500 <https://x.pl> <b>tak</b><br/>\",\"tasks\":[]}",
+            Context,
+            30);
+
+        Assert.Equal("koszt <1000 zł, zysk >500 <https://x.pl> tak", result!.Markdown);
+    }
+
+    [Fact]
+    public void Nul_characters_are_removed_from_every_text_field()
+    {
+        var result = NoteDictationResultParser.Parse(
+            "{\"transcript\":\"a\\u0000b\",\"title\":\"T\\u0000t\",\"tags\":[\"x\\u0000y\"],\"markdown\":\"m\\u0000d\",\"tasks\":[]}",
+            Context,
+            30);
+
+        Assert.Equal("Tt", result!.Title);
+        Assert.Equal(["xy"], result.Tags);
+        Assert.Equal("md", result.Markdown);
+        Assert.Equal("ab", result.Transcript);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("nie json")]
