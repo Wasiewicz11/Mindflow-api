@@ -36,6 +36,10 @@ public class TelegramBriefsJobTests(TelegramApiFactory factory) : IClassFixture<
         Assert.Equal($"https://app.test/?notification={item.Id:N}", (string)button["url"]!);
         Assert.True(await DeliveredAsync(userId, $"brief:morning:{LocalDate(Now):yyyy-MM-dd}"));
         Assert.True(result.BriefsSent >= 1);
+        var plan = (string)Assert.Single(DayPlans(chatId))["text"]!;
+        Assert.StartsWith("<b>🧠 Plan dnia · ", plan);
+        Assert.Contains("<b>🗓 Harmonogram</b>", plan);
+        Assert.Contains("Raport &lt;Q4&gt; &amp; podsumowanie", plan);
     }
 
     [LocalDatabaseFact]
@@ -48,6 +52,7 @@ public class TelegramBriefsJobTests(TelegramApiFactory factory) : IClassFixture<
 
         Assert.Single(await InboxAsync(userId));
         Assert.Single(Sent(chatId));
+        Assert.Single(DayPlans(chatId));
     }
 
     [LocalDatabaseFact]
@@ -326,7 +331,16 @@ public class TelegramBriefsJobTests(TelegramApiFactory factory) : IClassFixture<
     private Task<bool> DeliveredAsync(Guid userId, string key) =>
         factory.WithDbAsync(db => db.PushNotificationDeliveries.AnyAsync(d => d.UserId == userId && d.DeliveryKey == key));
 
-    private List<JsonObject> Sent(long chatId)
+    private List<JsonObject> Sent(long chatId) =>
+        AllSent(chatId).Where(m => !IsDayPlan(m)).ToList();
+
+    private List<JsonObject> DayPlans(long chatId) =>
+        AllSent(chatId).Where(IsDayPlan).ToList();
+
+    private static bool IsDayPlan(JsonObject message) =>
+        ((string?)message["text"])?.StartsWith("<b>🧠 Plan dnia", StringComparison.Ordinal) == true;
+
+    private List<JsonObject> AllSent(long chatId)
     {
         lock (factory.Telegram.Requests)
             return factory.Telegram.Requests

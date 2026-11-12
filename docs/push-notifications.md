@@ -194,6 +194,16 @@ Szkic pamięta czat i `message_id` wiadomości źródłowej (unikalny indeks). G
 
 Migracja `AddTelegramTaskDrafts` zastosowana jak pozostałe (punkt 1). Wdrożenie: VPS (`deploy/vps/deploy.sh ../mindflow-api-reminders`), migracje skryptem idempotentnym z backupem bazy.
 
+### Plan dnia od AI
+
+Zaraz po porannym briefie (ten sam przebieg joba `POST /internal/jobs/notifications`) bot wysyła szczegółowy plan dnia: podsumowanie dnia, harmonogram godzinowy (maks. 12 punktów), sekcje „Najważniejsze”, „Uwaga” (tylko gdy są ryzyka) i „Wskazówka” oraz przycisk `Otwórz Mindflow` (tylko https). Plan pisze `DayPlanWriter` (`Services/Ai`) z konfiguracją AI użytkownika (jego klucz albo klucze instancji w kolejności `Ai:ProviderOrder`). Do AI idzie ten sam zminimalizowany pakiet co przy sugestiach (tytuły i metadane zadań bez opisów i GUID-ów, numery `#ref`) plus dzisiejsze bloki z kalendarza, godziny terminów i `estimatedHours`; numery `#ref` w odpowiedzi serwer zamienia z powrotem na tytuły. Strefa czasowa: `User.TimeZone`, domyślnie `Europe/Warsaw`.
+
+Plan liczy się do dziennego limitu ręcznej analizy (`Ai:ManualAiDailyLimit`, z własnym kluczem `Ai:OwnKeyManualAiDailyLimit`). Gdy limit jest wykorzystany, AI zwróci błąd albo niepoprawny JSON, bot wysyła plan lokalny (bloki i zadania z godziną według czasu, potem zadania na dziś i zaległe według priorytetu w wolnych oknach) z nagłówkiem „🧠 Plan dnia” zamiast „🧠 Plan dnia od AI”, a w logu jest ostrzeżenie `Day plan for user … uses the local fallback.`. Plan wychodzi zawsze.
+
+Pod planem przychodzą maks. 3 sugestie z „Przeanalizuj dzień” (ścieżka crona, bez ręcznego limitu), każda osobną wiadomością z przyciskami `Przyjmij` i `Odrzuć`. Przyjęcie wykonuje akcje sugestii tak jak w aplikacji; po kliknięciu bot zdejmuje przyciski. Wysyłane są tylko sugestie od dostawcy AI; gdy AI nic nie zaproponuje albo zwróci błąd (zostają tylko lokalne `RuleBased`), wiadomości z sugestiami są pomijane, a w logu jest ostrzeżenie `AI plan for user … has no AI suggestions.`.
+
+Plan dostają tylko konta z połączonym Telegramem, włączonym porannym briefem i `telegramRemindersEnabled`. Wychodzi raz dziennie: klucz `telegram-ai-plan:<data>` w `push_notification_deliveries` jest zajmowany przed wywołaniem AI. Ta gałąź nie ma migracji.
+
 Jednorazowe ustawienie webhooka na produkcji:
 
 ```bash

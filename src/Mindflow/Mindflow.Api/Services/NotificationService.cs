@@ -17,6 +17,7 @@ public class NotificationService(
     IWebPushSender webPushSender,
     ITaskReminderService taskReminderService,
     ITelegramNotifier telegramNotifier,
+    ITelegramAiPlan telegramAiPlan,
     IConfiguration configuration,
     ILogger<NotificationService> logger) : INotificationService
 {
@@ -295,7 +296,10 @@ public class NotificationService(
             if (settings.MorningBriefEnabled && IsWithinScheduleWindow(localTime, settings.MorningBriefTime))
             {
                 if (await SendBriefOnceAsync(user.Id, localDate, "morning", "Poranny brief", ct))
+                {
                     briefsSent++;
+                    await telegramAiPlan.SendAsync(user.Id, localDate, ct);
+                }
             }
 
             if (settings.MiddayBriefEnabled && IsWithinScheduleWindow(localTime, settings.MiddayBriefTime))
