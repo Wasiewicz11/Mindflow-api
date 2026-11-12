@@ -69,6 +69,7 @@ public class NoteService(
     {
         var userId = await currentUser.GetCurrentUserIdAsync();
         var note = await FindOwnAsync(id, userId, ct);
+        if (note.Status == NoteStatus.Processing) throw new BadRequestException("Notatka jest jeszcze przetwarzana.");
         if (request.ProjectId != note.ProjectId) await EnsureProjectAsync(request.ProjectId, userId);
 
         note.Title = request.Title?.Trim() ?? "";

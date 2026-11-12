@@ -170,6 +170,83 @@ public class NoteDictationApiTests(AiApiFactory factory) : IClassFixture<AiApiFa
     }
 
     [LocalDatabaseFact]
+    public async Task Result_that_cannot_be_saved_fails_the_note_instead_of_leaving_it_processing()
+    {
+        var (client, _) = await CreateClientAsync();
+        factory.Ai.Respond((_, _) => Gemini(NoteJson(title: "Notatka", markdown: "Tre\u0000ść", tasks: "[]")));
+        var accepted = await ReadAsync<NoteResponse>(client.PostAsJsonAsync(Dictation, new DictationTextRequest("Notatka"), MindflowApiFactory.Json));
+
+        await ProcessAsync(accepted.Id);
+
+        var note = await client.GetFromJsonAsync<NoteResponse>($"/notes/{accepted.Id}", MindflowApiFactory.Json);
+        Assert.Equal(NoteStatus.Failed, note!.Status);
+        Assert.Equal(1, (await FindJobAsync(accepted.Id))!.Attempts);
+        Assert.Empty(await SuggestionsAsync(accepted.Id));
+        (await client.PostAsync($"/notes/{accepted.Id}/retry", null)).EnsureSuccessStatusCode();
+    }
+
+    [LocalDatabaseFact]
+    public async Task Suggestion_drops_a_project_deleted_while_the_note_was_processed()
+    {
+        var (client, userId) = await CreateClientAsync();
+        var project = await factory.CreateProjectAsync(userId, "Firma");
+        factory.Ai.Respond((_, _) =>
+        {
+            factory.WithDbAsync(db => db.Projects.Where(p => p.Id == project.Id).ExecuteDeleteAsync()).GetAwaiter().GetResult();
+            return Gemini(NoteJson(title: "Notatka", markdown: "Treść", tasks: """[{"title":"Wysłać ofertę","priority":"P2","project":"Firma","subtasks":[]}]"""));
+        });
+        var accepted = await ReadAsync<NoteResponse>(client.PostAsJsonAsync(Dictation, new DictationTextRequest("Notatka"), MindflowApiFactory.Json));
+
+        await ProcessAsync(accepted.Id);
+
+        var note = await client.GetFromJsonAsync<NoteResponse>($"/notes/{accepted.Id}", MindflowApiFactory.Json);
+        Assert.Equal(NoteStatus.Ready, note!.Status);
+        var suggestion = Assert.Single(await SuggestionsAsync(accepted.Id));
+        Assert.Null(suggestion.ProjectId);
+    }
+
+    [LocalDatabaseFact]
+    public async Task Third_failure_drops_the_recording_and_an_exhausted_job_is_not_sent_again()
+    {
+        var (client, _) = await CreateClientAsync();
+        factory.Ai.Respond((_, _) => FakeAiHandler.Json("{}", HttpStatusCode.InternalServerError));
+        var accepted = await ReadAsync<NoteResponse>(client.PostAsync(Dictation, Audio("audio/webm")));
+        for (var attempt = 1; attempt <= 3; attempt++)
+        {
+            Assert.NotNull((await FindJobAsync(accepted.Id))!.Audio);
+            if (attempt > 1) (await client.PostAsync($"/notes/{accepted.Id}/retry", null)).EnsureSuccessStatusCode();
+            await ProcessAsync(accepted.Id);
+        }
+
+        var job = await FindJobAsync(accepted.Id);
+        Assert.Equal(3, job!.Attempts);
+        Assert.Null(job.Audio);
+
+        await factory.WithDbAsync(db => db.Notes.Where(n => n.Id == accepted.Id)
+            .ExecuteUpdateAsync(n => n.SetProperty(x => x.Status, NoteStatus.Processing)));
+        var requests = factory.Ai.Requests.Count;
+        await ProcessAsync(accepted.Id);
+
+        var note = await client.GetFromJsonAsync<NoteResponse>($"/notes/{accepted.Id}", MindflowApiFactory.Json);
+        Assert.Equal(NoteStatus.Failed, note!.Status);
+        Assert.Equal(requests, factory.Ai.Requests.Count);
+        Assert.Equal(3, (await FindJobAsync(accepted.Id))!.Attempts);
+    }
+
+    [LocalDatabaseFact]
+    public async Task Note_cannot_be_edited_while_it_is_processed()
+    {
+        var (client, _) = await CreateClientAsync();
+        var accepted = await ReadAsync<NoteResponse>(client.PostAsJsonAsync(Dictation, new DictationTextRequest("Notatka"), MindflowApiFactory.Json));
+
+        var response = await client.PutAsJsonAsync($"/notes/{accepted.Id}", new SaveNoteRequest("Tytuł", "Treść", null, null), MindflowApiFactory.Json);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var error = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("Notatka jest jeszcze przetwarzana.", error.RootElement.GetProperty("error").GetString());
+    }
+
+    [LocalDatabaseFact]
     public async Task Retry_is_owner_only_and_deleting_the_note_removes_its_job_and_suggestions()
     {
         var (client, _) = await CreateClientAsync();
