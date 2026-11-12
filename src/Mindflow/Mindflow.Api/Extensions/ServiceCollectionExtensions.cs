@@ -23,6 +23,7 @@ using Mindflow.Api.Services.Ai.Dictation;
 using Mindflow.Api.Services.Ai.Providers;
 using Mindflow.Api.Services.GoogleCalendar;
 using Mindflow.Api.Services.Integrations;
+using Mindflow.Api.Services.Reminders;
 
 namespace Mindflow.Api.Extensions;
 
@@ -193,6 +194,13 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IBrainGraphService, BrainGraphService>();
         services.AddScoped<IGoalDayService, GoalDayService>();
         services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<IWebPushSender, WebPushSender>();
+        services.AddSingleton<IReminderActionTokens, ReminderActionTokens>();
+        services.AddScoped<IReminderChannel, InAppReminderChannel>();
+        services.AddScoped<IReminderChannel, PushReminderChannel>();
+        services.AddScoped<IReminderDispatcher, ReminderDispatcher>();
+        services.AddScoped<ITaskReminderService, TaskReminderService>();
+        services.AddScoped<IReminderActionService, ReminderActionService>();
         services.AddScoped<ITasksNotifier, TasksNotifier>();
         services.AddScoped<TokenService>();
         if (!string.Equals(Environment.GetEnvironmentVariable("EF_DESIGN_TIME"), "true", StringComparison.Ordinal))

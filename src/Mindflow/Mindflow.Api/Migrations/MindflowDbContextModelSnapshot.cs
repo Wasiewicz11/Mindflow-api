@@ -1379,6 +1379,18 @@ namespace Mindflow.Api.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("recurring_task_id");
 
+                    b.Property<bool>("ReminderDisabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("reminder_disabled");
+
+                    b.Property<int?>("ReminderMinutesBefore")
+                        .HasColumnType("integer")
+                        .HasColumnName("reminder_minutes_before");
+
+                    b.Property<DateTimeOffset?>("ReminderSnoozedUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reminder_snoozed_until");
+
                     b.Property<int>("Status")
                         .HasColumnType("integer")
                         .HasColumnName("status");

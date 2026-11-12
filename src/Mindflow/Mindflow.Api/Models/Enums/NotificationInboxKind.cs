@@ -4,5 +4,6 @@ public enum NotificationInboxKind
 {
     MorningBrief,
     MiddayBrief,
-    EveningSummary
+    EveningSummary,
+    TaskReminder
 }

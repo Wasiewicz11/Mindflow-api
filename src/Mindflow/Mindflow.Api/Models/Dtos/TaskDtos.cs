@@ -14,7 +14,9 @@ public record CreateTaskRequest(
     [Range(0.01, 1000)] decimal? EstimatedHours,
     Guid? ProjectId,
     IReadOnlyCollection<string>? Tags,
-    IReadOnlyCollection<TaskSubtaskRequest>? Subtasks);
+    IReadOnlyCollection<TaskSubtaskRequest>? Subtasks,
+    [Range(0, 10080)] int? ReminderMinutesBefore = null,
+    bool? ReminderDisabled = null);
 
 public record UpdateTaskRequest(
     [MaxLength(1000)] string? Content,
@@ -29,7 +31,10 @@ public record UpdateTaskRequest(
     bool ClearEstimatedHours,
     Guid? ProjectId,
     IReadOnlyCollection<string>? Tags,
-    bool? IsCompleted = null);
+    bool? IsCompleted = null,
+    [Range(0, 10080)] int? ReminderMinutesBefore = null,
+    bool ClearReminderMinutesBefore = false,
+    bool? ReminderDisabled = null);
 
 public record TaskExternalReference(string Source, string ExternalId, string? Url);
 
@@ -122,6 +127,8 @@ public record TaskListResponse(
     string? ExternalSource,
     string? ExternalId,
     string? ExternalUrl,
+    int? ReminderMinutesBefore,
+    bool ReminderDisabled,
     DateTimeOffset CreatedAt);
 
 public record TaskDetailResponse(
@@ -151,4 +158,6 @@ public record TaskDetailResponse(
     string? ExternalSource,
     string? ExternalId,
     string? ExternalUrl,
+    int? ReminderMinutesBefore,
+    bool ReminderDisabled,
     DateTimeOffset CreatedAt);

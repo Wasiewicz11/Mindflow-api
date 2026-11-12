@@ -3,6 +3,8 @@ using Mindflow.Api.Models.Dtos;
 
 namespace Mindflow.Api.Hubs;
 
+public record ReminderDuePayload(Guid NotificationId, Guid TaskId, string Title, string Body, DateTimeOffset DueAt, string ActionToken);
+
 public interface ITasksNotifier
 {
     Task TaskCreatedAsync(TaskItem task, Guid? spaceId);
@@ -12,4 +14,5 @@ public interface ITasksNotifier
     Task CalendarBlockCreatedAsync(CalendarBlockResponse block);
     Task CalendarBlockUpdatedAsync(CalendarBlockResponse block);
     Task CalendarBlockDeletedAsync(Guid blockId, Guid userId);
+    Task ReminderDueAsync(Guid userId, ReminderDuePayload payload);
 }
