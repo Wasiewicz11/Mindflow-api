@@ -49,4 +49,5 @@ public record DictationResponse(
     AiProvider Provider,
     string Model,
     string Source,
-    AiUsageResponse Usage);
+    AiUsageResponse Usage,
+    bool Lite = false);

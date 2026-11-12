@@ -40,6 +40,7 @@ public class TelegramTaskCapture(
     public const string HandledDraftText = "Ta lista jest już obsłużona.";
     public const string ExpiredDraftText = "Ta lista wygasła. Wyślij wiadomość jeszcze raz.";
     public const string NothingAddedText = "Nie udało się dodać zadań.";
+    public const string LiteText = "<i>⚡ Tryb Lite: dzienny limit lepszego modelu jest wykorzystany, więc rozpoznanie może być mniej dokładne.</i>";
 
     private const int MaxVoiceSeconds = 180;
     private const string DefaultVoiceMime = "audio/ogg";
@@ -139,7 +140,7 @@ public class TelegramTaskCapture(
             return;
         }
 
-        await api.SendMessageAsync(chatId, FormatDraft(result.Tasks),
+        await api.SendMessageAsync(chatId, FormatDraft(result.Tasks, result.Lite),
         [[
             new TelegramButton("Dodaj wszystkie", CallbackData: $"cap:add:{draft.Id:N}"),
             new TelegramButton("Anuluj", CallbackData: $"cap:no:{draft.Id:N}")
@@ -221,7 +222,7 @@ public class TelegramTaskCapture(
             .Select((content, index) => new TaskSubtaskRequest(null, content, false, null, null, false, null, null, index))
             .ToList());
 
-    public static string FormatDraft(IReadOnlyList<DictatedTaskResponse> tasks)
+    public static string FormatDraft(IReadOnlyList<DictatedTaskResponse> tasks, bool lite = false)
     {
         var lines = new List<string> { $"<b>📝 Rozpoznane zadania ({tasks.Count})</b>" };
         var number = 0;
@@ -233,6 +234,11 @@ public class TelegramTaskCapture(
 
         if (tasks.Count > MaxListedTasks)
             lines.Add($"… i jeszcze {tasks.Count - MaxListedTasks}");
+        if (lite)
+        {
+            lines.Add("");
+            lines.Add(LiteText);
+        }
         return string.Join('\n', lines);
     }
 

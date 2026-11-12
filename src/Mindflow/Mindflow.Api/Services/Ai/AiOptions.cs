@@ -25,6 +25,7 @@ public class DictationOptions
 {
     public int DailyLimit { get; set; } = 20;
     public int OwnKeyDailyLimit { get; set; } = 200;
+    public int LiteDailyLimit { get; set; } = 100;
     public int PermitsPerMinute { get; set; } = 6;
     public int MaxAudioBytes { get; set; } = 8 * 1024 * 1024;
     public int MaxTextLength { get; set; } = 5000;

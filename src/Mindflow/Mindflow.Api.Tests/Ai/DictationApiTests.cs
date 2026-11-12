@@ -70,15 +70,31 @@ public class DictationApiTests(AiApiFactory factory) : IClassFixture<AiApiFactor
     }
 
     [LocalDatabaseFact]
-    public async Task Daily_limit_on_the_server_key_stops_further_calls()
+    public async Task Daily_limit_switches_to_the_lite_model_and_then_stops_further_calls()
     {
         var (client, _) = await CreateClientAsync();
-        factory.Ai.Respond((_, _) => Gemini("""{"transcript":"","tasks":[]}"""));
+        var paths = new List<string>();
+        factory.Ai.Respond((request, _) =>
+        {
+            paths.Add(request.RequestUri!.AbsolutePath);
+            return Gemini("""{"transcript":"","tasks":[]}""");
+        });
 
-        for (var i = 0; i < 3; i++)
-            (await client.PostAsJsonAsync(Dictation, new DictationTextRequest("Kupić mleko"), MindflowApiFactory.Json)).EnsureSuccessStatusCode();
+        var results = new List<DictationResponse>();
+        for (var i = 0; i < 5; i++)
+        {
+            var response = await client.PostAsJsonAsync(Dictation, new DictationTextRequest("Kupić mleko"), MindflowApiFactory.Json);
+            response.EnsureSuccessStatusCode();
+            results.Add((await response.Content.ReadFromJsonAsync<DictationResponse>(MindflowApiFactory.Json))!);
+        }
         var blocked = await client.PostAsJsonAsync(Dictation, new DictationTextRequest("Kupić mleko"), MindflowApiFactory.Json);
 
+        Assert.All(results.Take(3), r => Assert.False(r.Lite));
+        Assert.All(results.Skip(3), r => Assert.True(r.Lite));
+        Assert.All(paths.Take(3), p => Assert.Contains("gemini-3.5-flash:", p));
+        Assert.All(paths.Skip(3), p => Assert.Contains("gemini-3.5-flash-lite:", p));
+        Assert.Equal("gemini-3.5-flash-lite", results[4].Model);
+        Assert.Equal(new AiUsageResponse(5, 3), results[4].Usage);
         Assert.Equal(HttpStatusCode.TooManyRequests, blocked.StatusCode);
         Assert.Contains("limit", await blocked.Content.ReadAsStringAsync());
     }

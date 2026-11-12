@@ -17,6 +17,7 @@ public class AiApiFactory : MindflowApiFactory
         ["Ai:Gemini:ApiKey"] = ServerGeminiKey,
         ["Ai:Gemini:Model"] = "gemini-3.5-flash",
         ["Ai:Dictation:DailyLimit"] = "3",
+        ["Ai:Dictation:LiteDailyLimit"] = "2",
         ["Ai:Dictation:PermitsPerMinute"] = "100"
     };
 
