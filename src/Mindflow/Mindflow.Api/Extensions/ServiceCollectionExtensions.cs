@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
+using Mindflow.Api.Services.Notes;
 using Microsoft.EntityFrameworkCore;
 using Mindflow.Api.Authentication;
 using Mindflow.Api.Data;
@@ -196,6 +197,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IBrainGraphService, BrainGraphService>();
         services.AddScoped<IGoalDayService, GoalDayService>();
         services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<INoteService, NoteService>();
         services.AddScoped<IWebPushSender, WebPushSender>();
         services.AddSingleton<IReminderActionTokens, ReminderActionTokens>();
         services.AddScoped<IReminderChannel, InAppReminderChannel>();

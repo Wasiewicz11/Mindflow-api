@@ -26,6 +26,7 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
     public DbSet<GoogleCalendarConnection> GoogleCalendarConnections { get; set; }
     public DbSet<TelegramConnection> TelegramConnections { get; set; }
     public DbSet<TelegramTaskDraft> TelegramTaskDrafts { get; set; }
+    public DbSet<Note> Notes { get; set; }
     public DbSet<IntegrationToken> IntegrationTokens { get; set; }
     public DbSet<IntegrationTokenPermission> IntegrationTokenPermissions { get; set; }
     public DbSet<IntegrationAuthorizationCode> IntegrationAuthorizationCodes { get; set; }
@@ -452,6 +453,30 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
                 .OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(d => d.UserId);
             entity.HasIndex(d => new { d.SourceChatId, d.SourceMessageId }).IsUnique();
+        });
+
+        modelBuilder.Entity<Note>(entity =>
+        {
+            entity.ToTable("notes");
+            entity.Property(n => n.Title).HasMaxLength(200);
+            entity.Property(n => n.ClientId).HasMaxLength(64);
+            entity.Property(n => n.Tags)
+                .HasColumnType("text[]")
+                .HasDefaultValueSql("'{}'::text[]");
+            entity.Property(n => n.Source).HasConversion<string>().HasMaxLength(16);
+            entity.Property(n => n.Status).HasConversion<string>().HasMaxLength(16);
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(n => n.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Project>()
+                .WithMany()
+                .HasForeignKey(n => n.ProjectId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(n => new { n.UserId, n.UpdatedAt });
+            entity.HasIndex(n => new { n.UserId, n.ClientId })
+                .IsUnique()
+                .HasFilter("client_id IS NOT NULL");
         });
 
         modelBuilder.Entity<PomodoroSessionState>(entity =>

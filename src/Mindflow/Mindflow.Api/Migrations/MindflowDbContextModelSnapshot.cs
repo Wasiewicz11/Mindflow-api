@@ -719,6 +719,93 @@ namespace Mindflow.Api.Migrations
                     b.ToTable("integration_token_permissions", (string)null);
                 });
 
+            modelBuilder.Entity("Mindflow.Api.Models.Note", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ClientId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("content");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateOnly?>("EventDate")
+                        .HasColumnType("date")
+                        .HasColumnName("event_date");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("source");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.PrimitiveCollection<List<string>>("Tags")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text[]")
+                        .HasColumnName("tags")
+                        .HasDefaultValueSql("'{}'::text[]");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.Property<string>("Transcript")
+                        .HasColumnType("text")
+                        .HasColumnName("transcript");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_notes");
+
+                    b.HasIndex("ProjectId")
+                        .HasDatabaseName("ix_notes_project_id");
+
+                    b.HasIndex("UserId", "ClientId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_notes_user_id_client_id")
+                        .HasFilter("client_id IS NOT NULL");
+
+                    b.HasIndex("UserId", "UpdatedAt")
+                        .HasDatabaseName("ix_notes_user_id_updated_at");
+
+                    b.ToTable("notes", (string)null);
+                });
+
             modelBuilder.Entity("Mindflow.Api.Models.NotificationInboxItem", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2015,6 +2102,22 @@ namespace Mindflow.Api.Migrations
                         .HasConstraintName("fk_integration_token_permissions_integration_tokens_integratio");
 
                     b.Navigation("IntegrationToken");
+                });
+
+            modelBuilder.Entity("Mindflow.Api.Models.Note", b =>
+                {
+                    b.HasOne("Mindflow.Api.Models.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_notes_projects_project_id");
+
+                    b.HasOne("Mindflow.Api.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_notes_users_user_id");
                 });
 
             modelBuilder.Entity("Mindflow.Api.Models.NotificationInboxItem", b =>

@@ -15,4 +15,7 @@ public interface ITasksNotifier
     Task CalendarBlockUpdatedAsync(CalendarBlockResponse block);
     Task CalendarBlockDeletedAsync(Guid blockId, Guid userId);
     Task ReminderDueAsync(Guid userId, ReminderDuePayload payload);
+    Task NoteCreatedAsync(Guid userId, Guid noteId);
+    Task NoteUpdatedAsync(Guid userId, Guid noteId);
+    Task NoteDeletedAsync(Guid userId, Guid noteId);
 }
