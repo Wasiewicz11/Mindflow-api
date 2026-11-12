@@ -25,6 +25,7 @@ using Mindflow.Api.Services.GoogleCalendar;
 using Mindflow.Api.Services.Integrations;
 using Mindflow.Api.Services.Email;
 using Mindflow.Api.Services.Reminders;
+using Mindflow.Api.Services.Telegram;
 
 namespace Mindflow.Api.Extensions;
 
@@ -382,6 +383,21 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAiSuggestionProvider, GeminiSuggestionProvider>();
         services.AddScoped<IAiSuggestionProvider, OpenAiSuggestionProvider>();
         services.AddScoped<IAiSuggestionProvider, RuleBasedSuggestionProvider>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddMindflowTelegram(this IServiceCollection services, IConfiguration config)
+    {
+        services.AddHttpClient<TelegramApi>(c =>
+        {
+            c.BaseAddress = new Uri("https://api.telegram.org/");
+            c.Timeout = TimeSpan.FromSeconds(40);
+        }).RemoveAllLoggers();
+        services.AddScoped<ITelegramService, TelegramService>();
+        services.AddScoped<IReminderChannel, TelegramReminderChannel>();
+        if (TelegramOptions.From(config)?.UsePolling == true)
+            services.AddHostedService<TelegramPollingService>();
 
         return services;
     }

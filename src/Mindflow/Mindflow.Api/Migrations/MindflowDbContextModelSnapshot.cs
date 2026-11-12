@@ -814,6 +814,10 @@ namespace Mindflow.Api.Migrations
                         .HasColumnType("time without time zone")
                         .HasColumnName("morning_brief_time");
 
+                    b.Property<bool>("TelegramRemindersEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("telegram_reminders_enabled");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
@@ -1681,6 +1685,48 @@ namespace Mindflow.Api.Migrations
                     b.ToTable("task_time_entries", (string)null);
                 });
 
+            modelBuilder.Entity("Mindflow.Api.Models.TelegramConnection", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<long?>("ChatId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("chat_id");
+
+                    b.Property<DateTimeOffset?>("ConnectedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("connected_at");
+
+                    b.Property<DateTimeOffset?>("LinkCodeExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("link_code_expires_at");
+
+                    b.Property<string>("LinkCodeHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("link_code_hash");
+
+                    b.Property<string>("Username")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("username");
+
+                    b.HasKey("UserId")
+                        .HasName("pk_telegram_connections");
+
+                    b.HasIndex("ChatId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_telegram_connections_chat_id")
+                        .HasFilter("chat_id IS NOT NULL");
+
+                    b.HasIndex("LinkCodeHash")
+                        .HasDatabaseName("ix_telegram_connections_link_code_hash");
+
+                    b.ToTable("telegram_connections", (string)null);
+                });
+
             modelBuilder.Entity("Mindflow.Api.Models.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2054,6 +2100,16 @@ namespace Mindflow.Api.Migrations
                         .HasForeignKey("TaskId")
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_task_time_entries_tasks_task_id");
+                });
+
+            modelBuilder.Entity("Mindflow.Api.Models.TelegramConnection", b =>
+                {
+                    b.HasOne("Mindflow.Api.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_telegram_connections_users_user_id");
                 });
 
             modelBuilder.Entity("Mindflow.Api.Models.UserAiSettings", b =>

@@ -55,6 +55,8 @@ public class NotificationService(
         settings.BlockReminderMinutes = request.BlockReminderMinutes;
         if (request.EmailRemindersEnabled.HasValue)
             settings.EmailRemindersEnabled = request.EmailRemindersEnabled.Value;
+        if (request.TelegramRemindersEnabled.HasValue)
+            settings.TelegramRemindersEnabled = request.TelegramRemindersEnabled.Value;
         settings.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
 
@@ -748,7 +750,8 @@ public class NotificationService(
         settings.BlockReminderMinutes,
         subscriptionCount,
         settings.EmailRemindersEnabled,
-        EmailOptions.IsConfigured(configuration));
+        EmailOptions.IsConfigured(configuration),
+        settings.TelegramRemindersEnabled);
 
     private static string BuildBriefBody(
         IReadOnlyCollection<TaskItem> todayTasks,
