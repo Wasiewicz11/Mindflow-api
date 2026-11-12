@@ -28,7 +28,7 @@ public class DictationEngineTests
         var handler = new FakeAiHandler();
         handler.Respond((_, _) => FakeAiHandler.Json(Answer));
 
-        var result = await CreateGemini(handler).RunAsync(Gemini, Audio, Context, CancellationToken.None);
+        var result = await CreateGemini(handler).RunAsync(Gemini, Audio, Context, TaskDictationPrompts.Instance, CancellationToken.None);
 
         var (request, body) = Assert.Single(handler.Requests);
         using var doc = JsonDocument.Parse(body);
@@ -54,7 +54,7 @@ public class DictationEngineTests
             ? FakeAiHandler.Json(Answer)
             : FakeAiHandler.Json("""{"error":{"message":"high demand"}}""", HttpStatusCode.ServiceUnavailable));
 
-        var result = await CreateGemini(handler).RunAsync(Gemini, Audio, Context, CancellationToken.None);
+        var result = await CreateGemini(handler).RunAsync(Gemini, Audio, Context, TaskDictationPrompts.Instance, CancellationToken.None);
 
         Assert.Equal(2, handler.Requests.Count);
         Assert.Equal("gemini-3.5-flash-lite", result.Model);
@@ -66,7 +66,7 @@ public class DictationEngineTests
         var handler = new FakeAiHandler();
         handler.Respond((_, _) => FakeAiHandler.Json("""{"error":{"message":"API key not valid"}}""", HttpStatusCode.BadRequest));
 
-        var error = await Assert.ThrowsAsync<AiProviderException>(() => CreateGemini(handler).RunAsync(Gemini, Audio, Context, CancellationToken.None));
+        var error = await Assert.ThrowsAsync<AiProviderException>(() => CreateGemini(handler).RunAsync(Gemini, Audio, Context, TaskDictationPrompts.Instance, CancellationToken.None));
 
         Assert.Single(handler.Requests);
         Assert.Equal(422, error.StatusCode);
@@ -81,7 +81,7 @@ public class DictationEngineTests
             : FakeAiHandler.Json("""{"choices":[{"message":{"content":"{\"transcript\":\"\",\"tasks\":[]}"}}]}"""));
         var engine = new OpenAiDictationEngine(new OpenAiApi(new HttpClient(handler)), Options.Create(new AiOptions()));
 
-        var result = await engine.RunAsync(new AiCredentials(AiProvider.OpenAi, "sk-test", "gpt-4o-mini", AiKeySource.User), Audio, Context, CancellationToken.None);
+        var result = await engine.RunAsync(new AiCredentials(AiProvider.OpenAi, "sk-test", "gpt-4o-mini", AiKeySource.User), Audio, Context, TaskDictationPrompts.Instance, CancellationToken.None);
 
         Assert.Equal(2, handler.Requests.Count);
         Assert.Equal("Jutro kupić mleko.", result.Transcript);

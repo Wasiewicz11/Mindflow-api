@@ -11,29 +11,29 @@ public class OpenAiDictationEngine(OpenAiApi openAi, IOptions<AiOptions> options
 
     public AiProvider Provider => AiProvider.OpenAi;
 
-    public async Task<DictationEngineResult> RunAsync(AiCredentials credentials, DictationInput input, DictationContext context, CancellationToken ct)
+    public async Task<DictationEngineResult> RunAsync(AiCredentials credentials, DictationInput input, DictationContext context, IDictationPrompts prompts, CancellationToken ct)
     {
         var transcript = input.IsAudio
             ? await openAi.TranscribeAsync(credentials.ApiKey, _options.OpenAiTranscriptionModel, input.Audio!, input.AudioMimeType!, ct)
             : null;
 
-        var json = await openAi.ChatAsync(credentials.ApiKey, credentials.Model, BuildRequest(credentials.Model, transcript ?? input.Text ?? "", context), ct);
+        var json = await openAi.ChatAsync(credentials.ApiKey, credentials.Model, BuildRequest(credentials.Model, transcript ?? input.Text ?? "", context, prompts), ct);
         return new DictationEngineResult(json, transcript, credentials.Model);
     }
 
-    public static object BuildRequest(string model, string text, DictationContext context) => new
+    public static object BuildRequest(string model, string text, DictationContext context, IDictationPrompts prompts) => new
     {
         model,
         temperature = 0.2,
         messages = new[]
         {
-            new { role = "system", content = DictationPrompt.SystemInstruction(context, audio: false) },
-            new { role = "user", content = DictationPrompt.UserText(text) }
+            new { role = "system", content = prompts.SystemInstruction(context, audio: false) },
+            new { role = "user", content = prompts.UserText(text) }
         },
         response_format = new
         {
             type = "json_schema",
-            json_schema = new { name = "dictated_tasks", strict = true, schema = DictationPrompt.OpenAiSchema(context) }
+            json_schema = new { name = "dictated_tasks", strict = true, schema = prompts.OpenAiSchema(context) }
         }
     };
 }

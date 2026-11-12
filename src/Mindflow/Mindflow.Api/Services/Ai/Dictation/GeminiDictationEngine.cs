@@ -12,51 +12,51 @@ public class GeminiDictationEngine(GeminiApi gemini, IOptions<AiOptions> options
 
     public AiProvider Provider => AiProvider.Gemini;
 
-    public async Task<DictationEngineResult> RunAsync(AiCredentials credentials, DictationInput input, DictationContext context, CancellationToken ct)
+    public async Task<DictationEngineResult> RunAsync(AiCredentials credentials, DictationInput input, DictationContext context, IDictationPrompts prompts, CancellationToken ct)
     {
         try
         {
-            return await CallAsync(credentials.ApiKey, credentials.Model, input, context, ct);
+            return await CallAsync(credentials.ApiKey, credentials.Model, input, context, prompts, ct);
         }
         catch (AiProviderException ex) when (ex.Retryable && CanFallBack(credentials.Model))
         {
             logger.LogWarning("Gemini model {Model} failed with {Status}; retrying on {Fallback}.", credentials.Model, ex.StatusCode, _options.GeminiFallbackModel);
-            return await CallAsync(credentials.ApiKey, _options.GeminiFallbackModel, input, context, ct);
+            return await CallAsync(credentials.ApiKey, _options.GeminiFallbackModel, input, context, prompts, ct);
         }
     }
 
-    public static object BuildRequest(string model, DictationInput input, DictationContext context)
+    public static object BuildRequest(string model, DictationInput input, DictationContext context, IDictationPrompts prompts)
     {
         var parts = new List<object>();
         if (input.IsAudio)
         {
             parts.Add(new { inline_data = new { mime_type = input.AudioMimeType, data = Convert.ToBase64String(input.Audio!) } });
-            parts.Add(new { text = DictationPrompt.AudioUserText });
+            parts.Add(new { text = prompts.AudioUserText });
         }
         else
         {
-            parts.Add(new { text = DictationPrompt.UserText(input.Text ?? "") });
+            parts.Add(new { text = prompts.UserText(input.Text ?? "") });
         }
 
         var generationConfig = new Dictionary<string, object>
         {
             ["responseMimeType"] = "application/json",
-            ["responseSchema"] = DictationPrompt.GeminiSchema(context),
+            ["responseSchema"] = prompts.GeminiSchema(context),
             ["temperature"] = 0.2
         };
         if (GeminiApi.ThinkingConfig(model) is { } thinking) generationConfig["thinkingConfig"] = thinking;
 
         return new
         {
-            system_instruction = new { parts = new[] { new { text = DictationPrompt.SystemInstruction(context, input.IsAudio) } } },
+            system_instruction = new { parts = new[] { new { text = prompts.SystemInstruction(context, input.IsAudio) } } },
             contents = new[] { new { role = "user", parts } },
             generationConfig
         };
     }
 
-    private async Task<DictationEngineResult> CallAsync(string apiKey, string model, DictationInput input, DictationContext context, CancellationToken ct)
+    private async Task<DictationEngineResult> CallAsync(string apiKey, string model, DictationInput input, DictationContext context, IDictationPrompts prompts, CancellationToken ct)
     {
-        var json = await gemini.GenerateAsync(apiKey, model, BuildRequest(model, input, context), ct);
+        var json = await gemini.GenerateAsync(apiKey, model, BuildRequest(model, input, context, prompts), ct);
         return new DictationEngineResult(json, null, model);
     }
 
