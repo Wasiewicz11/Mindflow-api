@@ -7,6 +7,7 @@ using Mindflow.Api.Models.Dtos;
 using Mindflow.Api.Models.Enums;
 using Mindflow.Api.Services.Email;
 using Mindflow.Api.Services.Reminders;
+using Mindflow.Api.Services.Telegram;
 using TaskStatus = Mindflow.Api.Models.Enums.TaskStatus;
 
 namespace Mindflow.Api.Services;
@@ -15,6 +16,7 @@ public class NotificationService(
     MindflowDbContext db,
     IWebPushSender webPushSender,
     ITaskReminderService taskReminderService,
+    ITelegramNotifier telegramNotifier,
     IConfiguration configuration,
     ILogger<NotificationService> logger) : INotificationService
 {
@@ -252,12 +254,23 @@ public class NotificationService(
         return new NotificationTestResponse(true);
     }
 
-    public async Task<NotificationJobResponse> ProcessDueNotificationsAsync(CancellationToken ct = default)
+    public Task<NotificationJobResponse> ProcessDueNotificationsAsync(CancellationToken ct = default) =>
+        ProcessDueNotificationsAsync(DateTimeOffset.UtcNow, ct);
+
+    public async Task<NotificationJobResponse> ProcessDueNotificationsAsync(DateTimeOffset now, CancellationToken ct = default)
     {
-        var now = DateTimeOffset.UtcNow;
+        var pushUserIds = (await db.PushNotificationSubscriptions
+            .AsNoTracking()
+            .Select(subscription => subscription.UserId)
+            .Distinct()
+            .ToListAsync(ct)).ToHashSet();
+        var telegramConfigured = TelegramOptions.From(configuration) is not null;
         var users = await db.Users
             .AsNoTracking()
-            .Where(user => db.PushNotificationSubscriptions.Any(subscription => subscription.UserId == user.Id))
+            .Where(user => pushUserIds.Contains(user.Id)
+                           || (telegramConfigured
+                               && db.TelegramConnections.Any(connection => connection.UserId == user.Id && connection.ChatId != null)
+                               && !db.NotificationSettings.Any(settings => settings.UserId == user.Id && !settings.TelegramRemindersEnabled)))
             .ToListAsync(ct);
         var userIds = users.Select(user => user.Id).ToArray();
         var settingsByUser = await db.NotificationSettings
@@ -297,15 +310,16 @@ public class NotificationService(
                     eveningSummariesSent++;
             }
 
-            taskRemindersSent += await SendDueRecurringTaskRemindersAsync(
-                user.Id,
-                now,
-                GetTimeZoneOrUtc(user.TimeZone),
-                ct);
+            if (pushUserIds.Contains(user.Id))
+                taskRemindersSent += await SendDueRecurringTaskRemindersAsync(
+                    user.Id,
+                    now,
+                    GetTimeZoneOrUtc(user.TimeZone),
+                    ct);
         }
 
         taskRemindersSent += await taskReminderService.SendDueAsync(now, ct);
-        var blockRemindersSent = await SendDueBlockRemindersAsync(now, userIds, settingsByUser, ct);
+        var blockRemindersSent = await SendDueBlockRemindersAsync(now, pushUserIds.ToArray(), settingsByUser, ct);
         return new NotificationJobResponse(briefsSent, blockRemindersSent, taskRemindersSent, eveningSummariesSent);
     }
 
@@ -356,6 +370,7 @@ public class NotificationService(
                     $"Za {exactMinutes} min: „{Truncate(task.Content, 120)}”",
                     deliveryKey,
                     null,
+                    false,
                     ct))
                 sent++;
         }
@@ -432,6 +447,7 @@ public class NotificationService(
                     $"Za {exactMinutes} min zaczyna się „{Truncate(title, 120)}”",
                     deliveryKey,
                     null,
+                    false,
                     ct))
                 sent++;
         }
@@ -459,6 +475,7 @@ public class NotificationService(
             body,
             $"mindflow:brief:{briefKind}",
             briefKind == "morning" ? NotificationInboxKind.MorningBrief : NotificationInboxKind.MiddayBrief,
+            true,
             ct);
     }
 
@@ -496,6 +513,7 @@ public class NotificationService(
             body,
             "mindflow:summary:evening",
             NotificationInboxKind.EveningSummary,
+            true,
             ct);
     }
 
@@ -530,6 +548,7 @@ public class NotificationService(
         string body,
         string tag,
         NotificationInboxKind? inboxKind,
+        bool viaTelegram,
         CancellationToken ct)
     {
         var alreadySent = await db.PushNotificationDeliveries
@@ -560,7 +579,17 @@ public class NotificationService(
         bool sent;
         try
         {
-            sent = await SendToUserAsync(userId, title, body, tag, targetUrl, ct);
+            var pushed = await TrySendAsync(
+                "push",
+                userId,
+                () => SendToUserAsync(userId, title, body, tag, targetUrl, ct),
+                ct);
+            var telegramSent = viaTelegram && await TrySendAsync(
+                "telegram",
+                userId,
+                () => telegramNotifier.SendNotificationAsync(userId, title, body, targetUrl, ct),
+                ct);
+            sent = pushed || telegramSent;
         }
         catch
         {
@@ -607,6 +636,19 @@ public class NotificationService(
                 await db.SaveChangesAsync(ct);
             }
 
+            return false;
+        }
+    }
+
+    private async Task<bool> TrySendAsync(string channel, Guid userId, Func<Task<bool>> send, CancellationToken ct)
+    {
+        try
+        {
+            return await send();
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            logger.LogWarning("Notification channel {Channel} failed for user {UserId}: {ExceptionType}", channel, userId, ex.GetType().Name);
             return false;
         }
     }
