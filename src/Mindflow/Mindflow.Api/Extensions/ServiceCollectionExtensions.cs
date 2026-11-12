@@ -23,6 +23,7 @@ using Mindflow.Api.Services.Ai.Dictation;
 using Mindflow.Api.Services.Ai.Providers;
 using Mindflow.Api.Services.GoogleCalendar;
 using Mindflow.Api.Services.Integrations;
+using Mindflow.Api.Services.Email;
 using Mindflow.Api.Services.Reminders;
 
 namespace Mindflow.Api.Extensions;
@@ -198,6 +199,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IReminderActionTokens, ReminderActionTokens>();
         services.AddScoped<IReminderChannel, InAppReminderChannel>();
         services.AddScoped<IReminderChannel, PushReminderChannel>();
+        services.AddScoped<IEmailSender, SmtpEmailSender>();
+        services.AddScoped<IReminderChannel, EmailReminderChannel>();
         services.AddScoped<IReminderDispatcher, ReminderDispatcher>();
         services.AddScoped<ITaskReminderService, TaskReminderService>();
         services.AddScoped<IReminderActionService, ReminderActionService>();

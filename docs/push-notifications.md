@@ -110,6 +110,49 @@ Notifications__FrontendUrl=https://twoj-front.vercel.app
 
 Migracja `AddTaskReminders` (punkt 1) dodaje 3 kolumny do tabeli zadań.
 
+## E-mail
+
+Przypomnienia o zadaniach ida takze mailem, gdy uzytkownik ma wlaczony przelacznik „E-mail” (`emailRemindersEnabled` w `/notifications/settings`, domyslnie wlaczony) i serwer ma skonfigurowany SMTP. Temat maila: `⏰ {zadanie} o {HH:mm}`. Mail zawiera przyciski:
+
+- `Zrobione` i `Odloz 10 min` — prowadza do strony frontu `/przypomnienie?t=…&a=…`, ktora wymaga potwierdzenia kliknieciem;
+- `Otworz zadanie`.
+
+Zmienne na Renderze, przy backendzie:
+
+```text
+Email__Smtp__Host=smtp.gmail.com
+Email__Smtp__Port=587
+Email__Smtp__User=twoj-email@gmail.com
+Email__Smtp__Password=HASLO_APLIKACJI
+Email__Smtp__From=Mindflow <powiadomienia@domena>
+Email__Smtp__UseSsl=true
+```
+
+- `Email__Smtp__Port` — domyslnie 587. Port 465 = SSL od razu, inne porty = STARTTLS (wtedy `UseSsl` pozostaje true).
+- Bez `Host` i `From` kanal e-mail jest wylaczony.
+- `Email__Smtp__From` musi byc adresem konta SMTP albo adresem z zweryfikowanej domeny nadawcy (SPF/DKIM); `UseSsl=false` jest tylko dla lokalnego Mailpit.
+- Wysylka ma limit 30 s, a blad poczty nie blokuje innych kanalow.
+- Przyklad Gmail: `smtp.gmail.com`, 587, haslo aplikacji (nie zwykle haslo konta).
+
+Migracja `AddEmailReminderSetting` zastosowana jak pozostale (punkt 1).
+
+Test lokalny z Mailpit:
+
+```bash
+docker run -d --name mindflow-mailpit -p 1025:1025 -p 8025:8025 axllent/mailpit
+```
+
+Backend uruchom z:
+
+```text
+Email__Smtp__Host=localhost
+Email__Smtp__Port=1025
+Email__Smtp__UseSsl=false
+Email__Smtp__From=Mindflow <noreply@mindflow.local>
+```
+
+Skrzynka testowa: http://localhost:8025.
+
 ## Reczne sprawdzenie joba
 
 Przed konfiguracja Cloudflare mozna wywolac job recznie:

@@ -12,7 +12,9 @@ public record NotificationSettingsResponse(
     string EveningSummaryTime,
     bool BlockRemindersEnabled,
     int BlockReminderMinutes,
-    int SubscriptionCount);
+    int SubscriptionCount,
+    bool EmailRemindersEnabled,
+    bool EmailConfigured);
 
 public record UpdateNotificationSettingsRequest(
     bool Enabled,
@@ -23,7 +25,8 @@ public record UpdateNotificationSettingsRequest(
     bool EveningSummaryEnabled,
     [Required, StringLength(5, MinimumLength = 5)] string EveningSummaryTime,
     bool BlockRemindersEnabled,
-    [Range(1, 60)] int BlockReminderMinutes);
+    [Range(1, 60)] int BlockReminderMinutes,
+    bool? EmailRemindersEnabled = null);
 
 public record PushNotificationSubscriptionRequest(
     [Required, StringLength(2048)] string Endpoint,

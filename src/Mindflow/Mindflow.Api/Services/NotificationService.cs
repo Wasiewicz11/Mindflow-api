@@ -5,6 +5,7 @@ using Mindflow.Api.Exceptions;
 using Mindflow.Api.Models;
 using Mindflow.Api.Models.Dtos;
 using Mindflow.Api.Models.Enums;
+using Mindflow.Api.Services.Email;
 using Mindflow.Api.Services.Reminders;
 using TaskStatus = Mindflow.Api.Models.Enums.TaskStatus;
 
@@ -14,6 +15,7 @@ public class NotificationService(
     MindflowDbContext db,
     IWebPushSender webPushSender,
     ITaskReminderService taskReminderService,
+    IConfiguration configuration,
     ILogger<NotificationService> logger) : INotificationService
 {
     private const int ScheduleGraceMinutes = 12;
@@ -51,6 +53,8 @@ public class NotificationService(
         settings.EveningSummaryTime = eveningTime;
         settings.BlockRemindersEnabled = request.BlockRemindersEnabled;
         settings.BlockReminderMinutes = request.BlockReminderMinutes;
+        if (request.EmailRemindersEnabled.HasValue)
+            settings.EmailRemindersEnabled = request.EmailRemindersEnabled.Value;
         settings.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
 
@@ -732,7 +736,7 @@ public class NotificationService(
         return new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(localDateTime, timeZone));
     }
 
-    private static NotificationSettingsResponse ToResponse(NotificationSettings settings, int subscriptionCount) => new(
+    private NotificationSettingsResponse ToResponse(NotificationSettings settings, int subscriptionCount) => new(
         settings.Enabled,
         settings.MorningBriefEnabled,
         settings.MorningBriefTime.ToString("HH:mm", CultureInfo.InvariantCulture),
@@ -742,7 +746,9 @@ public class NotificationService(
         settings.EveningSummaryTime.ToString("HH:mm", CultureInfo.InvariantCulture),
         settings.BlockRemindersEnabled,
         settings.BlockReminderMinutes,
-        subscriptionCount);
+        subscriptionCount,
+        settings.EmailRemindersEnabled,
+        EmailOptions.IsConfigured(configuration));
 
     private static string BuildBriefBody(
         IReadOnlyCollection<TaskItem> todayTasks,

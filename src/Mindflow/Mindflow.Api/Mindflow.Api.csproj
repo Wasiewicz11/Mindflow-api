@@ -10,6 +10,7 @@
         <PackageReference Include="AWSSDK.S3" Version="4.0.23.3" />
         <PackageReference Include="EntityFrameworkCore.NamingConventions" Version="8.0.0" />
         <PackageReference Include="Google.Apis.Calendar.v3" Version="1.74.0.4154" />
+        <PackageReference Include="MailKit" Version="4.18.2" />
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.6" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.6" />
         <!-- Pinned: the version pulled in transitively has a known high-severity advisory (NU1903). -->
