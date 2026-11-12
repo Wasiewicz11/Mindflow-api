@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using Mindflow.Api.Data;
 using Mindflow.Api.Exceptions;
 using Mindflow.Api.Models.Dtos;
+using Mindflow.Api.Models.Enums;
 using Mindflow.Api.Repositories;
 using Mindflow.Api.Services.Ai.Providers;
 
@@ -31,8 +32,13 @@ public class DictationService(
         var limit = credentials.Source == AiKeySource.User ? _options.OwnKeyDailyLimit : _options.DailyLimit;
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var used = await usageRepository.GetDictationCallsAsync(userId, today, ct);
-        if (used >= limit)
-            throw new TooManyRequestsException($"Wykorzystano dzienny limit dyktowania ({limit}). Spróbuj jutro albo dodaj własny klucz w Ustawieniach → AI.");
+        var lite = used >= limit;
+        if (lite)
+        {
+            if (!CanUseLite(credentials) || used >= limit + _options.LiteDailyLimit)
+                throw new TooManyRequestsException($"Wykorzystano dzienny limit dyktowania ({limit}). Spróbuj jutro albo dodaj własny klucz w Ustawieniach → AI.");
+            credentials = credentials with { Model = _options.GeminiFallbackModel };
+        }
         await usageRepository.IncrementDictationCallsAsync(userId, today, ct);
 
         var context = await BuildContextAsync(userId, ct);
@@ -59,8 +65,8 @@ public class DictationService(
 
         var parsed = DictationResultParser.Parse(result.Json, context, _options.MaxTasks);
         var transcript = input.IsAudio ? result.Transcript ?? parsed.Transcript : input.Text!.Trim();
-        logger.LogInformation("Dictation via {Provider}/{Model} ({Source}) produced {Count} tasks.",
-            credentials.Provider, result.Model, credentials.Source, parsed.Tasks.Count);
+        logger.LogInformation("Dictation via {Provider}/{Model} ({Source}, lite: {Lite}) produced {Count} tasks.",
+            credentials.Provider, result.Model, credentials.Source, lite, parsed.Tasks.Count);
 
         return new DictationResponse(
             transcript,
@@ -68,8 +74,14 @@ public class DictationService(
             credentials.Provider,
             result.Model,
             AiSettingsService.SourceName(credentials.Source),
-            new AiUsageResponse(used + 1, limit));
+            new AiUsageResponse(used + 1, limit),
+            lite);
     }
+
+    private bool CanUseLite(AiCredentials credentials) =>
+        credentials.Provider == AiProvider.Gemini
+        && _options.LiteDailyLimit > 0
+        && !string.IsNullOrWhiteSpace(_options.GeminiFallbackModel);
 
     private void Validate(DictationInput input)
     {

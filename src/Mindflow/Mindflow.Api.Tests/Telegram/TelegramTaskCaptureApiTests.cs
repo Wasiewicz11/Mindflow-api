@@ -55,16 +55,30 @@ public class TelegramTaskCaptureApiTests(TelegramAiApiFactory factory) : IClassF
     }
 
     [LocalDatabaseFact]
+    public async Task Draft_from_the_lite_model_warns_about_lower_precision()
+    {
+        var (_, chatId) = await ConnectedAsync();
+        factory.Ai.Respond((_, _) => Gemini("""{"transcript":"","tasks":[{"title":"Kupić mleko","priority":"P3","subtasks":[]}]}"""));
+
+        for (var i = 0; i < 4; i++)
+            await Webhook(Text(chatId, "Kupic mleko", messageId: 100 + i));
+
+        var messages = Sent(chatId).Select(m => (string)m["text"]!).ToList();
+        Assert.Single(messages, text => text.Contains("Tryb Lite"));
+        Assert.EndsWith(Mindflow.Api.Services.Telegram.TelegramTaskCapture.LiteText, messages.Last());
+    }
+
+    [LocalDatabaseFact]
     public async Task Daily_limit_is_reported_in_polish()
     {
         var (_, chatId) = await ConnectedAsync();
         factory.Ai.Respond((_, _) => Gemini("""{"transcript":"","tasks":[]}"""));
         var before = factory.Ai.Requests.Count;
 
-        for (var i = 0; i < 4; i++)
+        for (var i = 0; i < 6; i++)
             await Webhook(Text(chatId, "Kupic mleko"));
 
-        Assert.Equal(3, factory.Ai.Requests.Count - before);
+        Assert.Equal(5, factory.Ai.Requests.Count - before);
         Assert.Equal("Wykorzystano dzienny limit AI. Spróbuj jutro.", (string)Sent(chatId).Last()["text"]!);
     }
 
@@ -112,10 +126,10 @@ public class TelegramTaskCaptureApiTests(TelegramAiApiFactory factory) : IClassF
     private static HttpResponseMessage Gemini(string json) =>
         FakeAiHandler.Json(JsonSerializer.Serialize(new { candidates = new[] { new { content = new { parts = new[] { new { text = json } } } } } }));
 
-    private static object Text(long chatId, string text, string chatType = "private") => new
+    private static object Text(long chatId, string text, string chatType = "private", long messageId = 10) => new
     {
         update_id = 1,
-        message = new { message_id = 10, chat = new { id = chatId, type = chatType }, from = new { id = chatId, username = "filip" }, text }
+        message = new { message_id = messageId, chat = new { id = chatId, type = chatType }, from = new { id = chatId, username = "filip" }, text }
     };
 
     private async Task<(Guid UserId, long ChatId)> ConnectedAsync()
