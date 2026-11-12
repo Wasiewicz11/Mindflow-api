@@ -7,5 +7,5 @@ public record DictationEngineResult(string Json, string? Transcript, string Mode
 public interface IDictationEngine
 {
     AiProvider Provider { get; }
-    Task<DictationEngineResult> RunAsync(AiCredentials credentials, DictationInput input, DictationContext context, CancellationToken ct);
+    Task<DictationEngineResult> RunAsync(AiCredentials credentials, DictationInput input, DictationContext context, IDictationPrompts prompts, CancellationToken ct);
 }

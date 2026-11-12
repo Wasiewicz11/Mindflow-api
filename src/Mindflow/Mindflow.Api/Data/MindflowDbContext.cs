@@ -27,6 +27,8 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
     public DbSet<TelegramConnection> TelegramConnections { get; set; }
     public DbSet<TelegramTaskDraft> TelegramTaskDrafts { get; set; }
     public DbSet<Note> Notes { get; set; }
+    public DbSet<NoteDictationJob> NoteDictationJobs { get; set; }
+    public DbSet<NoteTaskSuggestion> NoteTaskSuggestions { get; set; }
     public DbSet<IntegrationToken> IntegrationTokens { get; set; }
     public DbSet<IntegrationTokenPermission> IntegrationTokenPermissions { get; set; }
     public DbSet<IntegrationAuthorizationCode> IntegrationAuthorizationCodes { get; set; }
@@ -477,6 +479,41 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
             entity.HasIndex(n => new { n.UserId, n.ClientId })
                 .IsUnique()
                 .HasFilter("client_id IS NOT NULL");
+        });
+
+        modelBuilder.Entity<NoteDictationJob>(entity =>
+        {
+            entity.ToTable("note_dictation_jobs");
+            entity.HasKey(j => j.NoteId);
+            entity.Property(j => j.Audio).HasColumnType("bytea");
+            entity.Property(j => j.AudioMimeType).HasMaxLength(64);
+            entity.HasOne<Note>()
+                .WithOne()
+                .HasForeignKey<NoteDictationJob>(j => j.NoteId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(j => j.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<NoteTaskSuggestion>(entity =>
+        {
+            entity.ToTable("note_task_suggestions");
+            entity.Property(s => s.Title).HasMaxLength(200);
+            entity.Property(s => s.DueTime).HasColumnType("time without time zone");
+            entity.Property(s => s.Priority).HasConversion<string>();
+            entity.Property(s => s.Subtasks).HasColumnType("jsonb");
+            entity.Property(s => s.Status).HasConversion<string>().HasMaxLength(16);
+            entity.HasOne<Note>()
+                .WithMany()
+                .HasForeignKey(s => s.NoteId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Project>()
+                .WithMany()
+                .HasForeignKey(s => s.ProjectId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(s => new { s.NoteId, s.Order });
         });
 
         modelBuilder.Entity<PomodoroSessionState>(entity =>

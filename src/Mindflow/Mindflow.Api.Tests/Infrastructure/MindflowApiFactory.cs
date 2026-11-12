@@ -42,7 +42,8 @@ public class MindflowApiFactory : WebApplicationFactory<Program>
         ["Integrations:Clients:rendmark:Name"] = "Rendmark",
         ["Integrations:Clients:rendmark:SecretHash"] = Sha256Hex(ClientSecret),
         ["Integrations:Clients:rendmark:RedirectUris:0"] = RedirectUri,
-        ["Integrations:Clients:rendmark:TokenLifetimeDays"] = "365"
+        ["Integrations:Clients:rendmark:TokenLifetimeDays"] = "365",
+        ["Notes:Dictation:WorkerEnabled"] = "false"
     };
 
     protected virtual int OAuthRateLimitPermitsPerMinute => 1000;

@@ -1,4 +1,5 @@
 using Mindflow.Api.Models.Dtos;
+using Mindflow.Api.Services.Ai.Dictation;
 
 namespace Mindflow.Api.Services.Notes;
 
@@ -11,4 +12,6 @@ public interface INoteService
     Task DeleteAsync(Guid id, CancellationToken ct = default);
     Task<ImportNotesResponse> ImportAsync(ImportNotesRequest request, CancellationToken ct = default);
     Task<NoteResponse> MarkReviewedAsync(Guid id, CancellationToken ct = default);
+    Task<NoteResponse> DictateAsync(DictationInput input, CancellationToken ct = default);
+    Task<NoteResponse> RetryAsync(Guid id, CancellationToken ct = default);
 }

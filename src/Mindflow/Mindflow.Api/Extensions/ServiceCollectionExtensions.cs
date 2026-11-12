@@ -379,7 +379,13 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAiSettingsService, AiSettingsService>();
         services.AddScoped<IDictationEngine, GeminiDictationEngine>();
         services.AddScoped<IDictationEngine, OpenAiDictationEngine>();
+        services.AddScoped<IDictationQuota, DictationQuota>();
+        services.AddScoped<IDictationContextBuilder, DictationContextBuilder>();
         services.AddScoped<IDictationService, DictationService>();
+        services.AddSingleton<NoteDictationQueue>();
+        services.AddScoped<NoteDictationProcessor>();
+        if (config.GetValue("Notes:Dictation:WorkerEnabled", true))
+            services.AddHostedService<NoteDictationWorker>();
         services.AddHttpClient<GeminiApi>(client => client.Timeout = TimeSpan.FromSeconds(120));
         services.AddHttpClient<OpenAiApi>(client => client.Timeout = TimeSpan.FromSeconds(120));
 

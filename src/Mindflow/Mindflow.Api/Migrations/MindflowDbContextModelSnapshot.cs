@@ -806,6 +806,123 @@ namespace Mindflow.Api.Migrations
                     b.ToTable("notes", (string)null);
                 });
 
+            modelBuilder.Entity("Mindflow.Api.Models.NoteDictationJob", b =>
+                {
+                    b.Property<Guid>("NoteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("note_id");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<byte[]>("Audio")
+                        .HasColumnType("bytea")
+                        .HasColumnName("audio");
+
+                    b.Property<string>("AudioMimeType")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("audio_mime_type");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("Lite")
+                        .HasColumnType("boolean")
+                        .HasColumnName("lite");
+
+                    b.Property<string>("Text")
+                        .HasColumnType("text")
+                        .HasColumnName("text");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("NoteId")
+                        .HasName("pk_note_dictation_jobs");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_note_dictation_jobs_user_id");
+
+                    b.ToTable("note_dictation_jobs", (string)null);
+                });
+
+            modelBuilder.Entity("Mindflow.Api.Models.NoteTaskSuggestion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<DateOnly?>("DueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("due_date");
+
+                    b.Property<TimeOnly?>("DueTime")
+                        .HasColumnType("time without time zone")
+                        .HasColumnName("due_time");
+
+                    b.Property<Guid>("NoteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("note_id");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("integer")
+                        .HasColumnName("order");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("priority");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.PrimitiveCollection<string>("Subtasks")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("subtasks");
+
+                    b.Property<Guid?>("TaskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("task_id");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.HasKey("Id")
+                        .HasName("pk_note_task_suggestions");
+
+                    b.HasIndex("ProjectId")
+                        .HasDatabaseName("ix_note_task_suggestions_project_id");
+
+                    b.HasIndex("NoteId", "Order")
+                        .HasDatabaseName("ix_note_task_suggestions_note_id_order");
+
+                    b.ToTable("note_task_suggestions", (string)null);
+                });
+
             modelBuilder.Entity("Mindflow.Api.Models.NotificationInboxItem", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2118,6 +2235,39 @@ namespace Mindflow.Api.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_notes_users_user_id");
+                });
+
+            modelBuilder.Entity("Mindflow.Api.Models.NoteDictationJob", b =>
+                {
+                    b.HasOne("Mindflow.Api.Models.Note", null)
+                        .WithOne()
+                        .HasForeignKey("Mindflow.Api.Models.NoteDictationJob", "NoteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_note_dictation_jobs_notes_note_id");
+
+                    b.HasOne("Mindflow.Api.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_note_dictation_jobs_users_user_id");
+                });
+
+            modelBuilder.Entity("Mindflow.Api.Models.NoteTaskSuggestion", b =>
+                {
+                    b.HasOne("Mindflow.Api.Models.Note", null)
+                        .WithMany()
+                        .HasForeignKey("NoteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_note_task_suggestions_notes_note_id");
+
+                    b.HasOne("Mindflow.Api.Models.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_note_task_suggestions_projects_project_id");
                 });
 
             modelBuilder.Entity("Mindflow.Api.Models.NotificationInboxItem", b =>

@@ -1,10 +1,6 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using Mindflow.Api.Data;
 using Mindflow.Api.Exceptions;
 using Mindflow.Api.Models.Dtos;
-using Mindflow.Api.Models.Enums;
-using Mindflow.Api.Repositories;
 using Mindflow.Api.Services.Ai.Providers;
 
 namespace Mindflow.Api.Services.Ai.Dictation;
@@ -12,9 +8,8 @@ namespace Mindflow.Api.Services.Ai.Dictation;
 public class DictationService(
     IAiCredentialResolver resolver,
     IEnumerable<IDictationEngine> engines,
-    IAiUsageRepository usageRepository,
-    IProjectRepository projectRepository,
-    MindflowDbContext db,
+    IDictationQuota quota,
+    IDictationContextBuilder contextBuilder,
     ICurrentUserService currentUser,
     IOptions<AiOptions> options,
     ILogger<DictationService> logger) : IDictationService
@@ -24,24 +19,15 @@ public class DictationService(
     public async Task<DictationResponse> ProcessAsync(DictationInput input, CancellationToken ct = default)
     {
         var userId = await currentUser.GetCurrentUserIdAsync();
-        Validate(input);
+        DictationInputRules.Validate(input, _options);
 
-        var credentials = (await resolver.ResolveAsync(userId, ct)).FirstOrDefault()
+        var resolved = (await resolver.ResolveAsync(userId, ct)).FirstOrDefault()
             ?? throw new ServiceUnavailableException("AI nie jest skonfigurowane. Dodaj klucz w Ustawieniach → AI.");
 
-        var limit = credentials.Source == AiKeySource.User ? _options.OwnKeyDailyLimit : _options.DailyLimit;
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var used = await usageRepository.GetDictationCallsAsync(userId, today, ct);
-        var lite = used >= limit;
-        if (lite)
-        {
-            if (!CanUseLite(credentials) || used >= limit + _options.LiteDailyLimit)
-                throw new TooManyRequestsException($"Wykorzystano dzienny limit dyktowania ({limit}). Spróbuj jutro albo dodaj własny klucz w Ustawieniach → AI.");
-            credentials = credentials with { Model = _options.GeminiFallbackModel };
-        }
-        await usageRepository.IncrementDictationCallsAsync(userId, today, ct);
+        var reservation = await quota.ReserveAsync(userId, resolved, ct);
+        var credentials = reservation.Credentials;
 
-        var context = await BuildContextAsync(userId, ct);
+        var context = await contextBuilder.BuildAsync(userId, ct);
         var engine = engines.FirstOrDefault(e => e.Provider == credentials.Provider)
             ?? throw new ServiceUnavailableException("Ten dostawca AI nie obsługuje dyktowania.");
 
@@ -51,7 +37,7 @@ public class DictationService(
         DictationEngineResult result;
         try
         {
-            result = await engine.RunAsync(credentials, input, context, timeout.Token);
+            result = await engine.RunAsync(credentials, input, context, TaskDictationPrompts.Instance, timeout.Token);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
@@ -66,7 +52,7 @@ public class DictationService(
         var parsed = DictationResultParser.Parse(result.Json, context, _options.MaxTasks);
         var transcript = input.IsAudio ? result.Transcript ?? parsed.Transcript : input.Text!.Trim();
         logger.LogInformation("Dictation via {Provider}/{Model} ({Source}, lite: {Lite}) produced {Count} tasks.",
-            credentials.Provider, result.Model, credentials.Source, lite, parsed.Tasks.Count);
+            credentials.Provider, result.Model, credentials.Source, reservation.Lite, parsed.Tasks.Count);
 
         return new DictationResponse(
             transcript,
@@ -74,47 +60,7 @@ public class DictationService(
             credentials.Provider,
             result.Model,
             AiSettingsService.SourceName(credentials.Source),
-            new AiUsageResponse(used + 1, limit),
-            lite);
+            reservation.Usage,
+            reservation.Lite);
     }
-
-    private bool CanUseLite(AiCredentials credentials) =>
-        credentials.Provider == AiProvider.Gemini
-        && _options.LiteDailyLimit > 0
-        && !string.IsNullOrWhiteSpace(_options.GeminiFallbackModel);
-
-    private void Validate(DictationInput input)
-    {
-        if (input.IsAudio)
-        {
-            if (input.Audio!.Length > _options.MaxAudioBytes)
-                throw new AiProviderException("Nagranie jest za długie.", StatusCodes.Status413PayloadTooLarge);
-            if (input.AudioMimeType is null)
-                throw new AiProviderException("Nieobsługiwany format nagrania.", StatusCodes.Status415UnsupportedMediaType);
-            return;
-        }
-
-        var text = input.Text?.Trim();
-        if (string.IsNullOrEmpty(text))
-            throw new BadRequestException("Nagraj albo wpisz notatkę.");
-        if (text.Length > _options.MaxTextLength)
-            throw new BadRequestException($"Notatka może mieć najwyżej {_options.MaxTextLength} znaków.");
-    }
-
-    private async Task<DictationContext> BuildContextAsync(Guid userId, CancellationToken ct)
-    {
-        var timeZoneId = await db.Users.Where(u => u.Id == userId).Select(u => u.TimeZone).FirstOrDefaultAsync(ct);
-        var zone = ResolveZone(timeZoneId);
-        var local = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, zone);
-        var projects = await projectRepository.GetAccessibleForUserAsync(userId, ct);
-
-        return new DictationContext(
-            DateOnly.FromDateTime(local.DateTime),
-            TimeOnly.FromDateTime(local.DateTime),
-            zone.Id,
-            projects.Select(p => new DictationProject(p.Id, p.Name)).ToList());
-    }
-
-    private static TimeZoneInfo ResolveZone(string? id) =>
-        !string.IsNullOrWhiteSpace(id) && TimeZoneInfo.TryFindSystemTimeZoneById(id.Trim(), out var zone) ? zone : TimeZoneInfo.Utc;
 }

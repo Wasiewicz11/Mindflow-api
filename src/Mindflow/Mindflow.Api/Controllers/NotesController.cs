@@ -1,6 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Mindflow.Api.Models.Dtos;
+using Mindflow.Api.Services.Ai;
+using Mindflow.Api.Services.Ai.Dictation;
+using Mindflow.Api.Services.Ai.Providers;
 using Mindflow.Api.Services.Notes;
 
 namespace Mindflow.Api.Controllers;
@@ -10,6 +14,8 @@ namespace Mindflow.Api.Controllers;
 [Authorize]
 public class NotesController(INoteService notes) : ControllerBase
 {
+    private const long MaxAudioUploadBytes = 9 * 1024 * 1024;
+
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<NoteListItemResponse>>> List(CancellationToken ct) =>
         Ok(await notes.ListAsync(ct));
@@ -40,4 +46,32 @@ public class NotesController(INoteService notes) : ControllerBase
     [HttpPost("{id:guid}/review")]
     public async Task<ActionResult<NoteResponse>> Review(Guid id, CancellationToken ct) =>
         Ok(await notes.MarkReviewedAsync(id, ct));
+
+    [HttpPost("dictation")]
+    [Consumes("application/json")]
+    [EnableRateLimiting(AiRateLimits.Policy)]
+    public async Task<ActionResult<NoteResponse>> DictateText([FromBody] DictationTextRequest request, CancellationToken ct) =>
+        Accepted(await notes.DictateAsync(new DictationInput(request.Text, null, null), ct));
+
+    [HttpPost("dictation")]
+    [Consumes("multipart/form-data")]
+    [EnableRateLimiting(AiRateLimits.Policy)]
+    [RequestSizeLimit(MaxAudioUploadBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = MaxAudioUploadBytes)]
+    public async Task<ActionResult<NoteResponse>> DictateAudio(IFormFile audio, CancellationToken ct)
+    {
+        if (audio.Length == 0)
+            return BadRequest(new { error = "Nagranie jest puste." });
+
+        await using var stream = audio.OpenReadStream();
+        using var buffer = new MemoryStream((int)audio.Length);
+        await stream.CopyToAsync(buffer, ct);
+
+        var input = new DictationInput(null, buffer.ToArray(), AudioFormats.Normalize(audio.ContentType));
+        return Accepted(await notes.DictateAsync(input, ct));
+    }
+
+    [HttpPost("{id:guid}/retry")]
+    public async Task<ActionResult<NoteResponse>> Retry(Guid id, CancellationToken ct) =>
+        Ok(await notes.RetryAsync(id, ct));
 }
