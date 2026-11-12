@@ -62,12 +62,12 @@ public static partial class NoteDictationResultParser
         if (!root.TryGetProperty("tags", out var tags) || tags.ValueKind != JsonValueKind.Array) return [];
         var values = tags.EnumerateArray()
             .Where(t => t.ValueKind == JsonValueKind.String)
-            .Select(t => t.GetString()!.Trim().TrimStart('#'));
+            .Select(t => t.GetString()!.Replace("\0", "").Trim().TrimStart('#'));
         return NoteText.NormalizeTags(values).Take(MaxTags).ToList();
     }
 
     private static string? String(JsonElement element, string name) =>
-        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString()?.Replace("\0", "") : null;
 
     private static string? Collapse(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
@@ -75,6 +75,6 @@ public static partial class NoteDictationResultParser
     private static string? Clip(string? value, int max) =>
         value is null ? null : value.Length <= max ? value : value[..max];
 
-    [GeneratedRegex("<[^>]+>")]
+    [GeneratedRegex(@"</?[A-Za-z][A-Za-z0-9-]*(?![A-Za-z0-9-]*:)(?:[\s/][^>]*)?>")]
     private static partial Regex Html();
 }

@@ -2,7 +2,10 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Mindflow.Api.Models;
@@ -140,6 +143,7 @@ public class NoteDictationApiTests(AiApiFactory factory) : IClassFixture<AiApiFa
 
         var failed = await client.GetFromJsonAsync<NoteResponse>($"/notes/{accepted.Id}", MindflowApiFactory.Json);
         Assert.Equal(NoteStatus.Failed, failed!.Status);
+        Assert.Equal("Notatka", failed.Transcript);
         Assert.Equal(1, (await FindJobAsync(accepted.Id))!.Attempts);
 
         var retried = await ReadAsync<NoteResponse>(client.PostAsync($"/notes/{accepted.Id}/retry", null));
@@ -172,17 +176,39 @@ public class NoteDictationApiTests(AiApiFactory factory) : IClassFixture<AiApiFa
     [LocalDatabaseFact]
     public async Task Result_that_cannot_be_saved_fails_the_note_instead_of_leaving_it_processing()
     {
-        var (client, _) = await CreateClientAsync();
-        factory.Ai.Respond((_, _) => Gemini(NoteJson(title: "Notatka", markdown: "Tre\u0000ść", tasks: "[]")));
+        await using var failing = new FailingSaveApiFactory();
+        var user = await failing.CreateUserAsync();
+        var client = failing.CreateUserClient(user.Id);
+        failing.Ai.Respond((_, _) => Gemini(NoteJson(title: "Notatka", markdown: "Treść", tasks: """[{"title":"Zadanie","subtasks":[]}]""")));
         var accepted = await ReadAsync<NoteResponse>(client.PostAsJsonAsync(Dictation, new DictationTextRequest("Notatka"), MindflowApiFactory.Json));
 
-        await ProcessAsync(accepted.Id);
+        using (var scope = failing.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<NoteDictationProcessor>().ProcessAsync(accepted.Id, CancellationToken.None);
 
         var note = await client.GetFromJsonAsync<NoteResponse>($"/notes/{accepted.Id}", MindflowApiFactory.Json);
         Assert.Equal(NoteStatus.Failed, note!.Status);
-        Assert.Equal(1, (await FindJobAsync(accepted.Id))!.Attempts);
-        Assert.Empty(await SuggestionsAsync(accepted.Id));
+        Assert.Equal(1, await failing.WithDbAsync(db => db.NoteDictationJobs.Where(j => j.NoteId == accepted.Id).Select(j => j.Attempts).SingleAsync()));
+        Assert.Equal(0, await failing.WithDbAsync(db => db.NoteTaskSuggestions.CountAsync(s => s.NoteId == accepted.Id)));
         (await client.PostAsync($"/notes/{accepted.Id}/retry", null)).EnsureSuccessStatusCode();
+    }
+
+    [LocalDatabaseFact]
+    public async Task Nul_characters_are_removed_from_typed_text_and_model_output()
+    {
+        var (client, _) = await CreateClientAsync();
+        factory.Ai.Respond((_, _) => Gemini(NoteJson(title: "Not\u0000atka", markdown: "Tre\u0000ść", tasks: """[{"title":"Za\u0000danie","subtasks":["Pod\u0000zadanie"]}]""")));
+        var accepted = await ReadAsync<NoteResponse>(client.PostAsJsonAsync(Dictation, new DictationTextRequest("Not\u0000atka"), MindflowApiFactory.Json));
+
+        Assert.Equal("Notatka", (await FindJobAsync(accepted.Id))!.Text);
+        await ProcessAsync(accepted.Id);
+
+        var note = await client.GetFromJsonAsync<NoteResponse>($"/notes/{accepted.Id}", MindflowApiFactory.Json);
+        Assert.Equal(NoteStatus.Ready, note!.Status);
+        Assert.Equal("Notatka", note.Title);
+        Assert.Equal("Treść", note.Content);
+        var suggestion = Assert.Single(await SuggestionsAsync(accepted.Id));
+        Assert.Equal("Zadanie", suggestion.Title);
+        Assert.Equal(["Podzadanie"], suggestion.Subtasks);
     }
 
     [LocalDatabaseFact]
@@ -244,6 +270,19 @@ public class NoteDictationApiTests(AiApiFactory factory) : IClassFixture<AiApiFa
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         using var error = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.Equal("Notatka jest jeszcze przetwarzana.", error.RootElement.GetProperty("error").GetString());
+    }
+
+    [LocalDatabaseFact]
+    public async Task Marking_a_processing_note_as_reviewed_changes_nothing()
+    {
+        var (client, _) = await CreateClientAsync();
+        var accepted = await ReadAsync<NoteResponse>(client.PostAsJsonAsync(Dictation, new DictationTextRequest("Notatka"), MindflowApiFactory.Json));
+
+        var response = await ReadAsync<NoteResponse>(client.PostAsync($"/notes/{accepted.Id}/review", null));
+
+        Assert.Equal(NoteStatus.Processing, response.Status);
+        Assert.True(response.IsNew);
+        Assert.Null(await factory.WithDbAsync(db => Task.FromResult(db.Notes.Single(n => n.Id == accepted.Id).ReviewedAt)));
     }
 
     [LocalDatabaseFact]
@@ -321,6 +360,31 @@ public class NoteDictationApiTests(AiApiFactory factory) : IClassFixture<AiApiFa
 
         Assert.Equal(NoteStatus.Ready, status);
         Assert.Null(await FindJobAsync(noteId));
+    }
+
+    private sealed class FailingSaveApiFactory : AiApiFactory
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            builder.ConfigureTestServices(services =>
+            {
+                var interceptor = new ThrowOnSuggestionsInterceptor();
+                services.ConfigureDbContext<Mindflow.Api.Data.MindflowDbContext>(options => options.AddInterceptors(interceptor));
+            });
+        }
+    }
+
+    private sealed class ThrowOnSuggestionsInterceptor : SaveChangesInterceptor
+    {
+        private int _thrown;
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            var completing = eventData.Context!.ChangeTracker.Entries<NoteTaskSuggestion>().Any(e => e.State == EntityState.Added);
+            if (completing && Interlocked.Exchange(ref _thrown, 1) == 0) throw new DbUpdateException("Simulated save failure.");
+            return base.SavingChangesAsync(eventData, result, cancellationToken);
+        }
     }
 
     private sealed class WorkerApiFactory : AiApiFactory

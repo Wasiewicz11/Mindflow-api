@@ -109,6 +109,7 @@ public class NoteDictationProcessor(
     private async Task FailAsync(Note note, NoteDictationJob job, CancellationToken ct)
     {
         note.Status = NoteStatus.Failed;
+        if (job.Text is not null) note.Transcript ??= job.Text;
         note.UpdatedAt = DateTimeOffset.UtcNow;
         if (job.Attempts >= MaxAttempts) job.Audio = null;
         await db.SaveChangesAsync(ct);
@@ -134,7 +135,7 @@ public class NoteDictationProcessor(
             ?? throw AiProviderErrors.EmptyResponse();
         logger.LogInformation("Dictated note {NoteId} via {Provider}/{Model} (lite: {Lite}) produced {Count} suggestions.",
             job.NoteId, credentials.Provider, output.Model, job.Lite, result.Tasks.Count);
-        return (result, input.IsAudio ? output.Transcript ?? result.Transcript : job.Text);
+        return (result, input.IsAudio ? output.Transcript?.Replace("\0", "") ?? result.Transcript : job.Text);
     }
 
     private async Task NotifySafelyAsync(Note note)

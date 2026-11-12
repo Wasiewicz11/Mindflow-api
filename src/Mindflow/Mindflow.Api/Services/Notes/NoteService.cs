@@ -19,6 +19,7 @@ public class NoteService(
     IAiCredentialResolver resolver,
     IDictationQuota quota,
     NoteDictationQueue queue,
+    NoteSuggestionReader suggestionReader,
     IOptions<AiOptions> aiOptions,
     ILogger<NoteService> logger) : INoteService
 {
@@ -31,13 +32,18 @@ public class NoteService(
             .Where(n => n.UserId == userId)
             .OrderByDescending(n => n.UpdatedAt)
             .ToListAsync(ct);
-        return notes.Select(NoteMapper.ToListItem).ToList();
+        var pending = await db.NoteTaskSuggestions.AsNoTracking()
+            .Where(s => s.Status == NoteSuggestionStatus.Pending && db.Notes.Any(n => n.Id == s.NoteId && n.UserId == userId))
+            .GroupBy(s => s.NoteId)
+            .Select(g => new { NoteId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(g => g.NoteId, g => g.Count, ct);
+        return notes.Select(n => NoteMapper.ToListItem(n, pending.GetValueOrDefault(n.Id))).ToList();
     }
 
     public async Task<NoteResponse> GetAsync(Guid id, CancellationToken ct = default)
     {
         var userId = await currentUser.GetCurrentUserIdAsync();
-        return NoteMapper.ToResponse(await FindOwnAsync(id, userId, ct));
+        return await ToResponseAsync(await FindOwnAsync(id, userId, ct), ct);
     }
 
     public async Task<NoteResponse> CreateAsync(SaveNoteRequest request, CancellationToken ct = default)
@@ -62,7 +68,7 @@ public class NoteService(
         db.Notes.Add(note);
         await db.SaveChangesAsync(ct);
         await NotifySafelyAsync(() => notifier.NoteCreatedAsync(userId, note.Id));
-        return NoteMapper.ToResponse(note);
+        return await ToResponseAsync(note, ct);
     }
 
     public async Task<NoteResponse> UpdateAsync(Guid id, SaveNoteRequest request, CancellationToken ct = default)
@@ -79,7 +85,7 @@ public class NoteService(
         note.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
         await NotifySafelyAsync(() => notifier.NoteUpdatedAsync(userId, note.Id));
-        return NoteMapper.ToResponse(note);
+        return await ToResponseAsync(note, ct);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
@@ -134,13 +140,13 @@ public class NoteService(
     {
         var userId = await currentUser.GetCurrentUserIdAsync();
         var note = await FindOwnAsync(id, userId, ct);
-        if (note.ReviewedAt is null)
+        if (note.ReviewedAt is null && note.Status != NoteStatus.Processing)
         {
             note.ReviewedAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(ct);
             await NotifySafelyAsync(() => notifier.NoteUpdatedAsync(userId, note.Id));
         }
-        return NoteMapper.ToResponse(note);
+        return await ToResponseAsync(note, ct);
     }
 
     public async Task<NoteResponse> DictateAsync(DictationInput input, CancellationToken ct = default)
@@ -171,14 +177,14 @@ public class NoteService(
             UserId = userId,
             Audio = input.IsAudio ? input.Audio : null,
             AudioMimeType = input.IsAudio ? input.AudioMimeType : null,
-            Text = input.IsAudio ? null : input.Text!.Trim(),
+            Text = input.IsAudio ? null : DictationInputRules.CleanText(input.Text),
             Lite = reservation.Lite,
             CreatedAt = now
         });
         await db.SaveChangesAsync(ct);
         await NotifySafelyAsync(() => notifier.NoteCreatedAsync(userId, note.Id));
         queue.Enqueue(note.Id);
-        return NoteMapper.ToResponse(note);
+        return await ToResponseAsync(note, ct);
     }
 
     public async Task<NoteResponse> RetryAsync(Guid id, CancellationToken ct = default)
@@ -193,8 +199,11 @@ public class NoteService(
         await db.SaveChangesAsync(ct);
         await NotifySafelyAsync(() => notifier.NoteUpdatedAsync(userId, note.Id));
         queue.Enqueue(note.Id);
-        return NoteMapper.ToResponse(note);
+        return await ToResponseAsync(note, ct);
     }
+
+    private async Task<NoteResponse> ToResponseAsync(Note note, CancellationToken ct) =>
+        NoteMapper.ToResponse(note, await suggestionReader.ReadAsync(note.UserId, note.Id, ct));
 
     private async Task<Note> FindOwnAsync(Guid id, Guid userId, CancellationToken ct) =>
         await db.Notes.FirstOrDefaultAsync(n => n.Id == id && n.UserId == userId, ct)

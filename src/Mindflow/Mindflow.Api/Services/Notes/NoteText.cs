@@ -27,7 +27,7 @@ public static partial class NoteText
 
             line = BlockPrefix().Replace(line, "");
             line = Link().Replace(line, "$1");
-            line = Inline().Replace(line, "").Trim();
+            line = Unescape(Inline().Replace(line, "")).Trim();
             if (line.Length > 0) parts.Add(line);
         }
 
@@ -36,6 +36,12 @@ public static partial class NoteText
         var cut = PreviewLength - 1;
         if (char.IsHighSurrogate(text[cut - 1])) cut--;
         return text[..cut].TrimEnd() + "…";
+    }
+
+    private static string Unescape(string line)
+    {
+        line = Escaped().Replace(line, "$1");
+        return line.Replace("&lt;", "<").Replace("&gt;", ">").Replace("&quot;", "\"").Replace("&#39;", "'").Replace("&nbsp;", " ").Replace("&amp;", "&");
     }
 
     public static List<string> NormalizeTags(IEnumerable<string>? tags) =>
@@ -63,8 +69,11 @@ public static partial class NoteText
     [GeneratedRegex(@"\[([^\]]*)\]\([^)]*\)")]
     private static partial Regex Link();
 
-    [GeneratedRegex(@"\*\*|__|~~|[*`]")]
+    [GeneratedRegex(@"(?<!\\)(\*\*|__|~~|[*`])")]
     private static partial Regex Inline();
+
+    [GeneratedRegex(@"\\([\\`*_\[\]~#>+\-.!|{}()])")]
+    private static partial Regex Escaped();
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex Spaces();

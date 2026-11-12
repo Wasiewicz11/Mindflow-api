@@ -13,6 +13,19 @@ public class NoteTextTests
     }
 
     [Fact]
+    public void Preview_unescapes_editor_markdown_and_html_entities()
+    {
+        Assert.Equal("Tom & Jerry <3 a_b [c] \"x\" 'y' z", NoteText.Preview("Tom &amp; Jerry &lt;3 a\\_b \\[c\\] &quot;x&quot; &#39;y&#39;&nbsp;z"));
+        Assert.Equal("&lt;", NoteText.Preview("&amp;lt;"));
+    }
+
+    [Fact]
+    public void Preview_keeps_escaped_inline_markers()
+    {
+        Assert.Equal("a * b ` c", NoteText.Preview("a \\* b \\` c"));
+    }
+
+    [Fact]
     public void Preview_is_cut_to_the_limit_with_an_ellipsis()
     {
         var preview = NoteText.Preview(new string('a', 300));

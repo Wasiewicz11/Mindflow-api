@@ -4,6 +4,8 @@ namespace Mindflow.Api.Services.Ai.Dictation;
 
 public static class DictationInputRules
 {
+    public static string CleanText(string? text) => (text ?? "").Replace("\0", "").Trim();
+
     public static void Validate(DictationInput input, DictationOptions options)
     {
         if (input.IsAudio)
@@ -15,7 +17,7 @@ public static class DictationInputRules
             return;
         }
 
-        var text = input.Text?.Trim();
+        var text = CleanText(input.Text);
         if (string.IsNullOrEmpty(text))
             throw new BadRequestException("Nagraj albo wpisz notatkę.");
         if (text.Length > options.MaxTextLength)
