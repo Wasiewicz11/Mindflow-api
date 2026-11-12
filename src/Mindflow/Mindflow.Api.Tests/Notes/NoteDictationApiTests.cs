@@ -248,6 +248,19 @@ public class NoteDictationApiTests(AiApiFactory factory) : IClassFixture<AiApiFa
     }
 
     [LocalDatabaseFact]
+    public async Task Marking_a_processing_note_as_reviewed_changes_nothing()
+    {
+        var (client, _) = await CreateClientAsync();
+        var accepted = await ReadAsync<NoteResponse>(client.PostAsJsonAsync(Dictation, new DictationTextRequest("Notatka"), MindflowApiFactory.Json));
+
+        var response = await ReadAsync<NoteResponse>(client.PostAsync($"/notes/{accepted.Id}/review", null));
+
+        Assert.Equal(NoteStatus.Processing, response.Status);
+        Assert.True(response.IsNew);
+        Assert.Null(await factory.WithDbAsync(db => Task.FromResult(db.Notes.Single(n => n.Id == accepted.Id).ReviewedAt)));
+    }
+
+    [LocalDatabaseFact]
     public async Task Retry_is_owner_only_and_deleting_the_note_removes_its_job_and_suggestions()
     {
         var (client, _) = await CreateClientAsync();

@@ -18,6 +18,10 @@ public class NoteSuggestionService(
     NoteSuggestionReader reader,
     ILogger<NoteSuggestionService> logger) : INoteSuggestionService
 {
+    private const int MaxTitle = 200;
+    private const int MaxDescription = 10000;
+    private const int MaxSubtasks = 20;
+    private const int MaxSubtaskLength = 1000;
     private const string HandledMessage = "Ta sugestia jest już obsłużona.";
 
     public async Task<NoteSuggestionResponse> AcceptAsync(Guid noteId, Guid suggestionId, AcceptNoteSuggestionRequest? request, CancellationToken ct = default)
@@ -33,7 +37,7 @@ public class NoteSuggestionService(
         await MoveAsync(noteId, suggestionId, NoteSuggestionStatus.Pending, NoteSuggestionStatus.Rejected, "Można odrzucić tylko oczekującą sugestię.", ct);
 
     public async Task<NoteSuggestionResponse> RestoreAsync(Guid noteId, Guid suggestionId, CancellationToken ct = default) =>
-        await MoveAsync(noteId, suggestionId, NoteSuggestionStatus.Rejected, NoteSuggestionStatus.Pending, "Można przywrócić tylko odrzuconą sugestię.", ct);
+        await MoveAsync(noteId, suggestionId, NoteSuggestionStatus.Rejected, NoteSuggestionStatus.Pending, "Można przywrócić tylko odrzuconą sugestię.", ct, restoreUnfinished: true);
 
     public async Task<NoteResponse> AcceptAllAsync(Guid noteId, CancellationToken ct = default)
     {
@@ -89,12 +93,17 @@ public class NoteSuggestionService(
         }
     }
 
-    private async Task<NoteSuggestionResponse> MoveAsync(Guid noteId, Guid suggestionId, NoteSuggestionStatus from, NoteSuggestionStatus to, string error, CancellationToken ct)
+    private async Task<NoteSuggestionResponse> MoveAsync(Guid noteId, Guid suggestionId, NoteSuggestionStatus from, NoteSuggestionStatus to, string error, CancellationToken ct, bool restoreUnfinished = false)
     {
         var userId = await currentUser.GetCurrentUserIdAsync();
         await EnsureNoteAsync(noteId, userId, ct);
         await FindAsync(noteId, suggestionId, ct);
-        if (await SetStatusAsync(suggestionId, from, to, ct) == 0) throw new BadRequestException(error);
+        var moved = await SetStatusAsync(suggestionId, from, to, ct);
+        if (moved == 0 && restoreUnfinished)
+            moved = await db.NoteTaskSuggestions
+                .Where(s => s.Id == suggestionId && s.Status == NoteSuggestionStatus.Accepted && s.TaskId == null)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(s => s.Status, to), ct);
+        if (moved == 0) throw new BadRequestException(error);
 
         db.ChangeTracker.Clear();
         await NotifySafelyAsync(userId, noteId);
@@ -104,6 +113,7 @@ public class NoteSuggestionService(
     private static void Apply(NoteTaskSuggestion suggestion, AcceptNoteSuggestionRequest? request)
     {
         if (request is null) return;
+        Validate(request);
         if (!string.IsNullOrWhiteSpace(request.Title)) suggestion.Title = request.Title.Trim();
         if (request.Description is not null) suggestion.Description = request.Description;
         if (request.Priority is { } priority) suggestion.Priority = priority;
@@ -120,8 +130,19 @@ public class NoteSuggestionService(
             if (request.DueTime is { } time) suggestion.DueTime = time;
         }
 
+        if (suggestion.DueDate is null) suggestion.DueTime = null;
+
         if (request.ClearProject) suggestion.ProjectId = null;
         else if (request.ProjectId is { } projectId) suggestion.ProjectId = projectId;
+    }
+
+    private static void Validate(AcceptNoteSuggestionRequest request)
+    {
+        if (request.Title is { Length: > MaxTitle }) throw new BadRequestException("Za długi tytuł.");
+        if (request.Description is { Length: > MaxDescription }) throw new BadRequestException("Za długi opis.");
+        if (request.Subtasks is null) return;
+        if (request.Subtasks.Count > MaxSubtasks) throw new BadRequestException("Za dużo podzadań.");
+        if (request.Subtasks.Any(s => s is { Length: > MaxSubtaskLength })) throw new BadRequestException("Za długie podzadanie.");
     }
 
     private static DictatedTaskResponse ToDictated(NoteTaskSuggestion s) =>

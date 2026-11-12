@@ -140,7 +140,7 @@ public class NoteService(
     {
         var userId = await currentUser.GetCurrentUserIdAsync();
         var note = await FindOwnAsync(id, userId, ct);
-        if (note.ReviewedAt is null)
+        if (note.ReviewedAt is null && note.Status != NoteStatus.Processing)
         {
             note.ReviewedAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(ct);

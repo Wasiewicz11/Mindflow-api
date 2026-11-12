@@ -123,6 +123,52 @@ public class NoteSuggestionsApiTests(MindflowApiFactory factory) : IClassFixture
     }
 
     [LocalDatabaseFact]
+    public async Task Accepted_suggestion_without_a_task_can_be_restored()
+    {
+        var (client, userId) = await CreateClientAsync();
+        var note = await CreateNoteAsync(userId, Suggestion("A"));
+        var id = note.Suggestions[0];
+        await factory.WithDbAsync(db => db.NoteTaskSuggestions.Where(s => s.Id == id)
+            .ExecuteUpdateAsync(u => u.SetProperty(s => s.Status, NoteSuggestionStatus.Accepted)));
+
+        var restored = await ReadAsync<NoteSuggestionResponse>(client.PostAsync($"/notes/{note.Id}/suggestions/{id}/restore", null));
+
+        Assert.Equal(NoteSuggestionStatus.Pending, restored.Status);
+    }
+
+    [LocalDatabaseFact]
+    public async Task Accepting_rejects_oversized_overrides_and_keeps_the_suggestion_pending()
+    {
+        var (client, userId) = await CreateClientAsync();
+        var note = await CreateNoteAsync(userId, Suggestion("A"));
+        var url = $"/notes/{note.Id}/suggestions/{note.Suggestions[0]}/accept";
+
+        var tooMany = await client.PostAsJsonAsync(url, new AcceptNoteSuggestionRequest(Subtasks: Enumerable.Range(0, 21).Select(i => $"p{i}").ToList()), MindflowApiFactory.Json);
+        var tooLong = await client.PostAsJsonAsync(url, new AcceptNoteSuggestionRequest(Subtasks: [new string('x', 1001)]), MindflowApiFactory.Json);
+
+        Assert.Equal(HttpStatusCode.BadRequest, tooMany.StatusCode);
+        Assert.Equal("Za dużo podzadań.", await ErrorAsync(tooMany));
+        Assert.Equal(HttpStatusCode.BadRequest, tooLong.StatusCode);
+        Assert.Equal("Za długie podzadanie.", await ErrorAsync(tooLong));
+        var stored = await factory.WithDbAsync(db => db.NoteTaskSuggestions.AsNoTracking().SingleAsync(s => s.Id == note.Suggestions[0]));
+        Assert.Equal(NoteSuggestionStatus.Pending, stored.Status);
+        Assert.Equal(0, await factory.WithDbAsync(db => db.Tasks.CountAsync(t => t.UserId == userId)));
+    }
+
+    [LocalDatabaseFact]
+    public async Task Accepting_with_no_due_date_left_drops_the_time()
+    {
+        var (client, userId) = await CreateClientAsync();
+        var note = await CreateNoteAsync(userId, Suggestion("A", time: new TimeOnly(9, 0)));
+
+        var accepted = await ReadAsync<NoteSuggestionResponse>(client.PostAsJsonAsync(
+            $"/notes/{note.Id}/suggestions/{note.Suggestions[0]}/accept", new AcceptNoteSuggestionRequest(Title: "B"), MindflowApiFactory.Json));
+
+        Assert.Null(accepted.DueDate);
+        Assert.Null(accepted.DueTime);
+    }
+
+    [LocalDatabaseFact]
     public async Task Accept_all_skips_rejected_suggestions()
     {
         var (client, userId) = await CreateClientAsync();
@@ -178,6 +224,12 @@ public class NoteSuggestionsApiTests(MindflowApiFactory factory) : IClassFixture
     }
 
     private sealed record SeededNote(Guid Id, List<Guid> Suggestions);
+
+    private static async Task<string?> ErrorAsync(HttpResponseMessage response)
+    {
+        using var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return doc.RootElement.GetProperty("error").GetString();
+    }
 
     private static NoteTaskSuggestion Suggestion(string title, DateOnly? due = null, TimeOnly? time = null, TaskPriority priority = TaskPriority.P3, Guid? projectId = null, string[]? subtasks = null) =>
         new()
