@@ -140,6 +140,7 @@ public class NoteDictationApiTests(AiApiFactory factory) : IClassFixture<AiApiFa
 
         var failed = await client.GetFromJsonAsync<NoteResponse>($"/notes/{accepted.Id}", MindflowApiFactory.Json);
         Assert.Equal(NoteStatus.Failed, failed!.Status);
+        Assert.Equal("Notatka", failed.Transcript);
         Assert.Equal(1, (await FindJobAsync(accepted.Id))!.Attempts);
 
         var retried = await ReadAsync<NoteResponse>(client.PostAsync($"/notes/{accepted.Id}/retry", null));

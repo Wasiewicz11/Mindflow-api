@@ -109,6 +109,7 @@ public class NoteDictationProcessor(
     private async Task FailAsync(Note note, NoteDictationJob job, CancellationToken ct)
     {
         note.Status = NoteStatus.Failed;
+        if (job.Text is not null) note.Transcript ??= job.Text;
         note.UpdatedAt = DateTimeOffset.UtcNow;
         if (job.Attempts >= MaxAttempts) job.Audio = null;
         await db.SaveChangesAsync(ct);
