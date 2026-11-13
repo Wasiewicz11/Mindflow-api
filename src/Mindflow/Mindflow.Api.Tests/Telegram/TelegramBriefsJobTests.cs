@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.TestHost;
@@ -28,9 +29,12 @@ public class TelegramBriefsJobTests(TelegramApiFactory factory) : IClassFixture<
 
         var item = Assert.Single(await InboxAsync(userId));
         Assert.Equal(NotificationInboxKind.MorningBrief, item.Kind);
-        Assert.Equal("Dziś bez zadań z terminem. Zaległe (1): Raport <Q4> & podsumowanie.", item.Body);
+        var summary = item.Body.Split('\n')[0];
+        Assert.StartsWith("Na dziś: 0 zadań, zaległe: 1.", summary);
+        Assert.Contains($"\nNa dziś: brak zadań z terminem.\nZaległe (1):\n• Raport <Q4> & podsumowanie · termin {LocalDate(Now).AddDays(-1):dd.MM}\nZalecenia:\n", item.Body);
+        Assert.Contains("\nProponowany plan:\n• ", item.Body);
         var message = Assert.Single(Sent(chatId));
-        Assert.Equal("<b>Poranny brief</b>\nDziś bez zadań z terminem. Zaległe (1): Raport &lt;Q4&gt; &amp; podsumowanie.", (string)message["text"]!);
+        Assert.Equal($"<b>Poranny brief</b>\n{WebUtility.HtmlEncode(summary)}", (string)message["text"]!);
         var button = message["reply_markup"]!["inline_keyboard"]![0]![0]!;
         Assert.Equal("Otwórz Mindflow", (string)button["text"]!);
         Assert.Equal($"https://app.test/?notification={item.Id:N}", (string)button["url"]!);

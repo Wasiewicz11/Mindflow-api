@@ -11,7 +11,7 @@ namespace Mindflow.Api.Services.Telegram;
 
 public interface ITelegramAiPlan
 {
-    Task<bool> SendAsync(Guid userId, DateOnly localDate, CancellationToken ct);
+    Task<bool> SendAsync(Guid userId, DateOnly localDate, DayPlan? plan, CancellationToken ct);
     Task HandleCallbackAsync(Guid userId, TelegramCallbackQuery callback, CancellationToken ct);
 }
 
@@ -38,12 +38,12 @@ public class TelegramAiPlan(
     private static readonly string[] MonthNames =
         ["stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca", "lipca", "sierpnia", "września", "października", "listopada", "grudnia"];
 
-    public async Task<bool> SendAsync(Guid userId, DateOnly localDate, CancellationToken ct)
+    public async Task<bool> SendAsync(Guid userId, DateOnly localDate, DayPlan? plan, CancellationToken ct)
     {
         if (await notifier.FindChatAsync(userId, ct) is not { } chatId) return false;
         if (!await ClaimAsync(userId, $"telegram-ai-plan:{localDate:yyyy-MM-dd}", ct)) return false;
 
-        var plan = await dayPlanWriter.WriteAsync(userId, localDate, ct);
+        plan ??= await dayPlanWriter.WriteAsync(userId, localDate, ct);
         if (!await notifier.SendAsync(chatId, FormatPlan(plan, localDate), OpenButton(), ct)) return false;
 
         var startedAt = DateTimeOffset.UtcNow;
