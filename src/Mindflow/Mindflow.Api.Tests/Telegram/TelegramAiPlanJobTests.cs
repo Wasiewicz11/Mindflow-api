@@ -31,7 +31,14 @@ public class TelegramAiPlanJobTests(TelegramAiApiFactory factory) : IClassFixtur
 
         var sent = Sent(chatId);
         Assert.Equal(3, sent.Count);
-        Assert.StartsWith("<b>Poranny brief</b>", (string)sent[0]["text"]!);
+        Assert.Equal("<b>Poranny brief</b>\nDzien na domkniecie raportu.\nNa dziś: 0, zaległe: 1.", (string)sent[0]["text"]!);
+        var brief = await factory.WithDbAsync(db => db.NotificationInboxItems.AsNoTracking()
+            .SingleAsync(i => i.UserId == userId && i.Kind == NotificationInboxKind.MorningBrief));
+        Assert.Equal(
+            $"Dzien na domkniecie raportu.\nNa dziś: brak zadań z terminem.\nZaległe (1):\n• Raport kwartalny · termin {LocalDate(Now).AddDays(-3):dd.MM}\n" +
+            "Zalecenia AI:\n• Domknac Raport kwartalny\nProponowany plan:\n• 08:00–09:30 Raport kwartalny (Najpierw zalegle <pilne>.)\n• 09:30–09:45 Przerwa\n" +
+            "Wskazówka: Wylacz powiadomienia.",
+            brief.Body);
         var day = (string)sent[1]["text"]!;
         Assert.StartsWith("<b>🧠 Plan dnia od AI · ", day);
         Assert.Contains("Dzien na domkniecie raportu.", day);

@@ -5,6 +5,7 @@ using Mindflow.Api.Exceptions;
 using Mindflow.Api.Models;
 using Mindflow.Api.Models.Dtos;
 using Mindflow.Api.Models.Enums;
+using Mindflow.Api.Services.Ai;
 using Mindflow.Api.Services.Email;
 using Mindflow.Api.Services.Reminders;
 using Mindflow.Api.Services.Telegram;
@@ -18,6 +19,7 @@ public class NotificationService(
     ITaskReminderService taskReminderService,
     ITelegramNotifier telegramNotifier,
     ITelegramAiPlan telegramAiPlan,
+    IDayPlanWriter dayPlanWriter,
     IConfiguration configuration,
     ILogger<NotificationService> logger) : INotificationService
 {
@@ -295,16 +297,13 @@ public class NotificationService(
 
             if (settings.MorningBriefEnabled && IsWithinScheduleWindow(localTime, settings.MorningBriefTime))
             {
-                if (await SendBriefOnceAsync(user.Id, localDate, "morning", "Poranny brief", ct))
-                {
+                if (await SendMorningBriefOnceAsync(user.Id, localDate, ct))
                     briefsSent++;
-                    await telegramAiPlan.SendAsync(user.Id, localDate, ct);
-                }
             }
 
             if (settings.MiddayBriefEnabled && IsWithinScheduleWindow(localTime, settings.MiddayBriefTime))
             {
-                if (await SendBriefOnceAsync(user.Id, localDate, "midday", "Brief na popołudnie", ct))
+                if (await SendMiddayBriefOnceAsync(user.Id, localDate, ct))
                     briefsSent++;
             }
 
@@ -459,12 +458,76 @@ public class NotificationService(
         return sent;
     }
 
-    private async Task<bool> SendBriefOnceAsync(
-        Guid userId,
-        DateOnly localDate,
-        string briefKind,
-        string title,
-        CancellationToken ct)
+    private async Task<bool> SendMorningBriefOnceAsync(Guid userId, DateOnly localDate, CancellationToken ct)
+    {
+        var deliveryKey = $"brief:morning:{localDate:yyyy-MM-dd}";
+        if (await IsDeliveredAsync(userId, deliveryKey, ct)) return false;
+
+        var tasks = await GetOpenTasksAsync(userId, ct);
+        var todayTasks = tasks.Where(task => task.DueDate == localDate)
+            .OrderBy(task => task.DueTime ?? TimeOnly.MaxValue)
+            .ThenBy(task => task.Priority)
+            .ThenBy(task => task.CreatedAt)
+            .ToArray();
+        var overdueTasks = tasks.Where(task => task.DueDate.HasValue && task.DueDate.Value < localDate)
+            .OrderBy(task => task.DueDate)
+            .ThenBy(task => task.Priority)
+            .ToArray();
+        var projectNames = await GetProjectNamesAsync(todayTasks.Concat(overdueTasks), ct);
+
+        var plan = await TryWriteDayPlanAsync(userId, localDate, ct);
+        string body;
+        string channelBody;
+        if (plan is null)
+        {
+            body = channelBody = BuildBriefBody(todayTasks, overdueTasks, projectNames);
+        }
+        else
+        {
+            body = MorningBrief.Body(plan, ToBriefTasks(todayTasks, projectNames), ToBriefTasks(overdueTasks, projectNames));
+            channelBody = MorningBrief.Short(plan, todayTasks.Length, overdueTasks.Length);
+        }
+
+        if (!await SendOnceAsync(
+                userId,
+                deliveryKey,
+                "Poranny brief",
+                body,
+                "mindflow:brief:morning",
+                NotificationInboxKind.MorningBrief,
+                true,
+                ct,
+                channelBody))
+            return false;
+
+        await telegramAiPlan.SendAsync(userId, localDate, plan, ct);
+        return true;
+    }
+
+    private async Task<DayPlan?> TryWriteDayPlanAsync(Guid userId, DateOnly localDate, CancellationToken ct)
+    {
+        try
+        {
+            return await dayPlanWriter.WriteAsync(userId, localDate, ct);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            logger.LogWarning(ex, "Day plan for the morning brief failed for user {UserId}.", userId);
+            return null;
+        }
+    }
+
+    private static List<MorningBriefTask> ToBriefTasks(
+        IEnumerable<TaskItem> tasks,
+        IReadOnlyDictionary<Guid, string> projectNames) =>
+        tasks.Select(task => new MorningBriefTask(
+                task.Content,
+                task.DueDate,
+                task.DueTime,
+                task.ProjectId is { } projectId && projectNames.TryGetValue(projectId, out var name) ? name : null))
+            .ToList();
+
+    private async Task<bool> SendMiddayBriefOnceAsync(Guid userId, DateOnly localDate, CancellationToken ct)
     {
         var tasks = await GetOpenTasksAsync(userId, ct);
         var todayTasks = tasks.Where(task => task.DueDate == localDate).ToArray();
@@ -474,14 +537,19 @@ public class NotificationService(
 
         return await SendOnceAsync(
             userId,
-            $"brief:{briefKind}:{localDate:yyyy-MM-dd}",
-            title,
+            $"brief:midday:{localDate:yyyy-MM-dd}",
+            "Brief na popołudnie",
             body,
-            $"mindflow:brief:{briefKind}",
-            briefKind == "morning" ? NotificationInboxKind.MorningBrief : NotificationInboxKind.MiddayBrief,
+            "mindflow:brief:midday",
+            NotificationInboxKind.MiddayBrief,
             true,
             ct);
     }
+
+    private Task<bool> IsDeliveredAsync(Guid userId, string deliveryKey, CancellationToken ct) =>
+        db.PushNotificationDeliveries
+            .AsNoTracking()
+            .AnyAsync(delivery => delivery.UserId == userId && delivery.DeliveryKey == deliveryKey, ct);
 
     private async Task<bool> SendEveningSummaryOnceAsync(
         Guid userId,
@@ -553,12 +621,11 @@ public class NotificationService(
         string tag,
         NotificationInboxKind? inboxKind,
         bool viaTelegram,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? channelBody = null)
     {
-        var alreadySent = await db.PushNotificationDeliveries
-            .AsNoTracking()
-            .AnyAsync(delivery => delivery.UserId == userId && delivery.DeliveryKey == deliveryKey, ct);
-        if (alreadySent) return false;
+        if (await IsDeliveredAsync(userId, deliveryKey, ct)) return false;
+        channelBody ??= body;
 
         var now = DateTimeOffset.UtcNow;
         var inboxItem = inboxKind is NotificationInboxKind kind
@@ -586,12 +653,12 @@ public class NotificationService(
             var pushed = await TrySendAsync(
                 "push",
                 userId,
-                () => SendToUserAsync(userId, title, body, tag, targetUrl, ct),
+                () => SendToUserAsync(userId, title, channelBody, tag, targetUrl, ct),
                 ct);
             var telegramSent = viaTelegram && await TrySendAsync(
                 "telegram",
                 userId,
-                () => telegramNotifier.SendNotificationAsync(userId, title, body, targetUrl, ct),
+                () => telegramNotifier.SendNotificationAsync(userId, title, channelBody, targetUrl, ct),
                 ct);
             sent = pushed || telegramSent;
         }
