@@ -30,7 +30,15 @@ public record UpdateTaskTimeEntryRequest(
     DateTimeOffset? EndAt,
     [Range(0.01, 1000)] decimal? EstimatedHours,
     bool ClearEstimatedHours,
-    [MaxLength(2000)] string? Notes);
+    [MaxLength(2000)] string? Notes,
+    Guid? TaskId = null,
+    bool DetachTask = false,
+    [MaxLength(1000)] string? Content = null,
+    Guid? ProjectId = null,
+    bool ClearProject = false)
+{
+    public bool ChangesAssignment => TaskId.HasValue || DetachTask || Content is not null || ProjectId.HasValue || ClearProject;
+}
 
 public record CompleteTaskRequest(
     [Range(0.01, 1000)] decimal? EstimatedHours,

@@ -112,6 +112,11 @@ public class TaskTimeEntryService(
         if (entry is null || entry.UserId != userId)
             return null;
 
+        var previousTaskId = entry.TaskId;
+        var previousProjectId = entry.ProjectId;
+        if (!await ApplyAssignmentAsync(entry, request, userId))
+            return null;
+
         TaskItem? task = null;
         Guid? spaceId = null;
         if (entry.TaskId is Guid taskId)
@@ -170,6 +175,9 @@ public class TaskTimeEntryService(
 
         var updated = await timeEntryRepository.UpdateAsync(entry);
 
+        if (previousTaskId is Guid movedFromTaskId && movedFromTaskId != entry.TaskId)
+            await RecordTimeRemovedActivityAsync(userId, movedFromTaskId, previousProjectId, entry.Id, previousWorkDate, previousStartAt, previousEndAt, previousDurationMinutes);
+
         if (entry.TaskId is Guid eventTaskId)
         {
             await taskActivityService.RecordUserTaskEventAsync(
@@ -219,26 +227,85 @@ public class TaskTimeEntryService(
         if (!deleted) return false;
 
         if (entry.TaskId is Guid taskId)
+            await RecordTimeRemovedActivityAsync(userId, taskId, entry.ProjectId, entry.Id, entry.WorkDate, entry.StartAt, entry.EndAt, entry.DurationMinutes);
+
+        return true;
+    }
+
+    /// <summary>Moves the entry to another task, detaches it, or renames and re-projects a standalone entry. False when the target is not reachable.</summary>
+    private async Task<bool> ApplyAssignmentAsync(TaskTimeEntry entry, UpdateTaskTimeEntryRequest request, Guid userId)
+    {
+        if (request.TaskId.HasValue && request.DetachTask)
+            throw new BadRequestException("Pass either a task or detachTask, not both.");
+        if (request.ProjectId.HasValue && request.ClearProject)
+            throw new BadRequestException("Pass either a project or clearProject, not both.");
+
+        if (request.TaskId is Guid targetId && targetId != entry.TaskId)
         {
-            var task = await taskRepository.GetByIdAsync(taskId);
-            var spaceId = task is null ? null : await taskRepository.GetSpaceIdForTaskAsync(task);
-            await taskActivityService.RecordUserTaskEventAsync(
-                TaskActivityEventType.TaskTimeRemoved,
-                userId,
-                taskId,
-                spaceId,
-                entry.ProjectId,
-                new
-                {
-                    time_entry_id = entry.Id,
-                    work_date = entry.WorkDate,
-                    previous_start_at = entry.StartAt,
-                    previous_end_at = entry.EndAt,
-                    previous_duration_minutes = entry.DurationMinutes
-                });
+            if (!await accessService.CanAccessTaskAsync(targetId, userId))
+                return false;
+            var target = await taskRepository.GetByIdAsync(targetId);
+            if (target is null)
+                return false;
+
+            entry.TaskId = target.Id;
+            entry.SubtaskId = null;
+            entry.ProjectId = target.ProjectId;
+            entry.TaskContent = target.Content;
+            entry.TaskPriority = target.Priority;
+            entry.TaskStatus = target.Status;
+            entry.Tags = target.Tags.ToList();
+        }
+        else if (request.DetachTask && entry.TaskId is not null)
+        {
+            entry.TaskId = null;
+            entry.SubtaskId = null;
+        }
+
+        var changesStandalone = request.Content is not null || request.ProjectId.HasValue || request.ClearProject;
+        if (!changesStandalone)
+            return true;
+        if (entry.TaskId is not null)
+            throw new BadRequestException("Content and project follow the task for entries logged against a task.");
+
+        if (request.Content is not null)
+        {
+            var content = request.Content.Trim();
+            if (string.IsNullOrWhiteSpace(content))
+                throw new BadRequestException("Time entry content is required.");
+            entry.TaskContent = content;
+        }
+
+        if (request.ClearProject)
+            entry.ProjectId = null;
+        else if (request.ProjectId is Guid projectId)
+        {
+            if (!await accessService.CanAccessProjectAsync(projectId, userId))
+                return false;
+            entry.ProjectId = projectId;
         }
 
         return true;
+    }
+
+    private async Task RecordTimeRemovedActivityAsync(Guid userId, Guid taskId, Guid? projectId, Guid entryId, DateOnly workDate, DateTimeOffset? startAt, DateTimeOffset? endAt, int durationMinutes)
+    {
+        var task = await taskRepository.GetByIdAsync(taskId);
+        var spaceId = task is null ? null : await taskRepository.GetSpaceIdForTaskAsync(task);
+        await taskActivityService.RecordUserTaskEventAsync(
+            TaskActivityEventType.TaskTimeRemoved,
+            userId,
+            taskId,
+            spaceId,
+            projectId,
+            new
+            {
+                time_entry_id = entryId,
+                work_date = workDate,
+                previous_start_at = startAt,
+                previous_end_at = endAt,
+                previous_duration_minutes = durationMinutes
+            });
     }
 
     public TaskTimeEntry BuildEntry(Guid userId, TaskItem task, CreateTaskTimeEntryRequest request, DateTimeOffset now, bool requireTime)
