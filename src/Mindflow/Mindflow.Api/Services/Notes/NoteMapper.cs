@@ -15,6 +15,7 @@ public static class NoteMapper
         note.Status,
         note.ReviewedAt is null,
         note.EventDate,
+        note.JournalDate,
         note.CreatedAt,
         note.UpdatedAt,
         pendingSuggestions);
@@ -30,6 +31,7 @@ public static class NoteMapper
         note.Status,
         note.ReviewedAt is null,
         note.EventDate,
+        note.JournalDate,
         note.Transcript,
         note.CreatedAt,
         note.UpdatedAt,

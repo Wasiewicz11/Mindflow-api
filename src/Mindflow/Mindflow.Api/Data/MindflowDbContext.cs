@@ -479,6 +479,9 @@ public class MindflowDbContext(DbContextOptions<MindflowDbContext> options) : Db
             entity.HasIndex(n => new { n.UserId, n.ClientId })
                 .IsUnique()
                 .HasFilter("client_id IS NOT NULL");
+            entity.HasIndex(n => new { n.UserId, n.JournalDate })
+                .IsUnique()
+                .HasFilter("journal_date IS NOT NULL");
         });
 
         modelBuilder.Entity<NoteDictationJob>(entity =>

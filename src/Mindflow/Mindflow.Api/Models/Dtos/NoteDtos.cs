@@ -13,6 +13,7 @@ public record NoteListItemResponse(
     NoteStatus Status,
     bool IsNew,
     DateOnly? EventDate,
+    DateOnly? JournalDate,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     int PendingSuggestions);
@@ -28,10 +29,13 @@ public record NoteResponse(
     NoteStatus Status,
     bool IsNew,
     DateOnly? EventDate,
+    DateOnly? JournalDate,
     string? Transcript,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     IReadOnlyList<NoteSuggestionResponse> Suggestions);
+
+public record JournalDayResponse(DateOnly Date, Guid NoteId, string Preview, DateTimeOffset UpdatedAt);
 
 public record NoteSuggestionResponse(
     Guid Id,

@@ -198,6 +198,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IGoalDayService, GoalDayService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<INoteService, NoteService>();
+        services.AddScoped<IJournalService, JournalService>();
         services.AddScoped<NoteSuggestionReader>();
         services.AddScoped<INoteSuggestionService, NoteSuggestionService>();
         services.AddScoped<IWebPushSender, WebPushSender>();

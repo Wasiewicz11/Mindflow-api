@@ -744,6 +744,10 @@ namespace Mindflow.Api.Migrations
                         .HasColumnType("date")
                         .HasColumnName("event_date");
 
+                    b.Property<DateOnly?>("JournalDate")
+                        .HasColumnType("date")
+                        .HasColumnName("journal_date");
+
                     b.Property<Guid?>("ProjectId")
                         .HasColumnType("uuid")
                         .HasColumnName("project_id");
@@ -799,6 +803,11 @@ namespace Mindflow.Api.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_notes_user_id_client_id")
                         .HasFilter("client_id IS NOT NULL");
+
+                    b.HasIndex("UserId", "JournalDate")
+                        .IsUnique()
+                        .HasDatabaseName("ix_notes_user_id_journal_date")
+                        .HasFilter("journal_date IS NOT NULL");
 
                     b.HasIndex("UserId", "UpdatedAt")
                         .HasDatabaseName("ix_notes_user_id_updated_at");
