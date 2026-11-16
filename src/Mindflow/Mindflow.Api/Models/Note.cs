@@ -2,7 +2,7 @@ using Mindflow.Api.Models.Enums;
 
 namespace Mindflow.Api.Models;
 
-/// <summary>A private markdown note; dictated notes stay "new" until the owner opens them.</summary>
+/// <summary>A private markdown note; dictated notes stay "new" until the owner opens them, journal notes belong to one day.</summary>
 public class Note
 {
     public Guid Id { get; set; }
@@ -16,6 +16,7 @@ public class Note
     public NoteStatus Status { get; set; }
     public string? Transcript { get; set; }
     public DateOnly? EventDate { get; set; }
+    public DateOnly? JournalDate { get; set; }
     public DateTimeOffset? ReviewedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }

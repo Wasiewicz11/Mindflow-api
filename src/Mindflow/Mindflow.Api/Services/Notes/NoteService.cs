@@ -29,11 +29,11 @@ public class NoteService(
     {
         var userId = await currentUser.GetCurrentUserIdAsync();
         var notes = await db.Notes.AsNoTracking()
-            .Where(n => n.UserId == userId)
+            .Where(n => n.UserId == userId && n.JournalDate == null)
             .OrderByDescending(n => n.UpdatedAt)
             .ToListAsync(ct);
         var pending = await db.NoteTaskSuggestions.AsNoTracking()
-            .Where(s => s.Status == NoteSuggestionStatus.Pending && db.Notes.Any(n => n.Id == s.NoteId && n.UserId == userId))
+            .Where(s => s.Status == NoteSuggestionStatus.Pending && db.Notes.Any(n => n.Id == s.NoteId && n.UserId == userId && n.JournalDate == null))
             .GroupBy(s => s.NoteId)
             .Select(g => new { NoteId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(g => g.NoteId, g => g.Count, ct);
