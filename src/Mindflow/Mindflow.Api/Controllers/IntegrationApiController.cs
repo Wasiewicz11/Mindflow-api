@@ -357,6 +357,9 @@ public class IntegrationApiController(
         CancellationToken ct)
     {
         if (!await integrationTaskQueryService.CanReachTimeEntryAsync(entryId, ct)) return NotFound();
+        if (request.ChangesAssignment)
+            return ValidationProblem(new ValidationProblemDetails(
+                new Dictionary<string, string[]> { ["taskId"] = ["Moving a time entry to another task or project is not available here."] }));
 
         var updated = await timeEntryService.UpdateAsync(entryId, request);
         if (updated is null) return NotFound();
